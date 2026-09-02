@@ -18,7 +18,7 @@ import {
   getStoredReports,
   subscribeToReportsUpdate,
 } from '@/data/reportStorage';
-import { WorkReport } from '@/data/reportData';
+
 import { 
   LogOut, 
   Settings,
@@ -55,9 +55,9 @@ export default function ProfilePage() {
     };
   }, []);
 
-  const completedCount = reports.filter(r => r.status === '확인완료').length;
-  const pendingCount = reports.filter(r => r.status === '검토대기').length;
-  const reviseCount = reports.filter(r => r.status === '수정필요').length;
+  const completedCount = reports.filter(r => r.status === 'COMPLETED').length;
+  const pendingCount = reports.filter(r => r.status === 'PENDING').length;
+  const reviseCount = reports.filter(r => r.status === 'REJECTED').length;
 
   const displayName = user?.userName || '사용자';
 
@@ -132,7 +132,7 @@ export default function ProfilePage() {
             </span>
             <span className="sub-sep">•</span>
             <span className="sub-item">
-              수정요청 <strong>{reviseCount}</strong>건
+              반려됨 <strong>{reviseCount}</strong>건
             </span>
             <span className="sub-sep">•</span>
             <span className="sub-item">

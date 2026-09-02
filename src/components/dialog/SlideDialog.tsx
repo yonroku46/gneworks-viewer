@@ -16,18 +16,25 @@ interface SlideDialogProps {
   disableBackdropClick?: boolean;
 }
 
-// 전역 다이얼로그 열림 스택 카운터 (모달 중첩 시에도 스크롤 락 유지 보장)
+// 전역 다이얼로그 열림 스택 카운터 (모달 중첩 시에도 스크롤 락 유지 및 위치 보존)
 let openDialogCount = 0;
-let originalBodyOverflow = '';
-let originalHtmlOverflow = '';
+let savedScrollY = 0;
 
 const lockBodyScroll = () => {
   if (typeof document === 'undefined') return;
   if (openDialogCount === 0) {
-    originalBodyOverflow = document.body.style.overflow;
-    originalHtmlOverflow = document.documentElement.style.overflow;
+    savedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${savedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
     document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
   }
   openDialogCount++;
 };
@@ -36,8 +43,14 @@ const unlockBodyScroll = () => {
   if (typeof document === 'undefined') return;
   openDialogCount = Math.max(0, openDialogCount - 1);
   if (openDialogCount === 0) {
-    document.body.style.overflow = originalBodyOverflow;
-    document.documentElement.style.overflow = originalHtmlOverflow;
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    window.scrollTo(0, savedScrollY);
   }
 };
 

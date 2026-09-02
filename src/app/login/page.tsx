@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import Image from 'next/image';
+import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useSnackbar } from 'notistack';
 import './Login.scss';
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [stayLoggedIn, setStayLoggedIn] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,16 +74,30 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="input-group">
+          <div className="input-group password-group">
             <label htmlFor="password">비밀번호</label>
-            <input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
+            <div className="password-wrapper">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 표시"}
+              >
+                {showPassword ? (
+                  <Eye size={20} />
+                ) : (
+                  <EyeOff size={20} />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="login-options">

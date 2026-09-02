@@ -7,8 +7,8 @@ import ImageCropDialog from './ImageCropDialog';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
 import { upsertReport } from '@/data/reportStorage';
-import { WorkReport, ReportPhoto } from '@/data/reportData';
-import { Plus, X, CheckCircle2 } from 'lucide-react';
+
+import { Plus, X, Check, AlertCircle } from 'lucide-react';
 import './WorkReportDialog.scss';
 
 export interface TargetHousehold {
@@ -33,11 +33,11 @@ interface WorkReportDialogProps {
 
 // ── 사진 5종 슬롯 규격 ──
 const REPORT_PHOTO_SLOTS: { type: ReportPhoto['type']; title: string; defaultUrl?: string }[] = [
-  { type: 'door', title: '신주소 보이는 대문 등' },
-  { type: 'before1', title: '단독경보형감지기 보급 전 ①' },
-  { type: 'after1', title: '단독경보형감지기 보급 후 ①' },
-  { type: 'before2', title: '단독경보형감지기 보급 전 ②' },
-  { type: 'after2', title: '단독경보형감지기 보급 후 ②' },
+  { type: 'DOOR', title: '신주소 보이는 대문 등' },
+  { type: 'BEFORE1', title: '단독경보형감지기 보급 전 ①' },
+  { type: 'AFTER1', title: '단독경보형감지기 보급 후 ①' },
+  { type: 'BEFORE2', title: '단독경보형감지기 보급 전 ②' },
+  { type: 'AFTER2', title: '단독경보형감지기 보급 후 ②' },
 ];
 
 export default function WorkReportDialog({
@@ -50,7 +50,7 @@ export default function WorkReportDialog({
   const { enqueueSnackbar } = useSnackbar();
 
   // 확인 완료 상태인 경우 수정 불가 (읽기 전용)
-  const isReadOnly = target?.existingReport?.status === '확인완료';
+  const isReadOnly = target?.existingReport?.status === 'COMPLETED';
 
   const [installDate, setInstallDate] = useState('');
   const [reporterName, setReporterName] = useState('');
@@ -137,7 +137,7 @@ export default function WorkReportDialog({
   const handleGoToStep3 = () => {
     const photoCount = Object.keys(photos).length;
     if (photoCount === 0) {
-      enqueueSnackbar('최소 1장 이상의 현장 시공 사진을 등록해 주세요.', { variant: 'warning' });
+      enqueueSnackbar('최소 1장 이상의 현장 사진을 등록해 주세요.', { variant: 'warning' });
       return;
     }
     setStep(3);
@@ -233,7 +233,7 @@ export default function WorkReportDialog({
     }));
 
     if (photoList.length === 0) {
-      enqueueSnackbar('최소 1장 이상의 현장 시공 사진을 등록해 주세요.', { variant: 'warning' });
+      enqueueSnackbar('최소 1장 이상의 현장 사진을 등록해 주세요.', { variant: 'warning' });
       return;
     }
 
@@ -283,7 +283,7 @@ export default function WorkReportDialog({
         isOpen={isOpen}
         onClose={handleSafeClose}
         disableBackdropClick={true}
-        title={isReadOnly ? "작업 보고서 (확인 완료)" : "작업 보고서 작성"}
+        title={isReadOnly ? "작업 보고서" : "작업 보고서 작성"}
         className="work-report-slide-dialog"
         subHeader={
           isReadOnly ? (
@@ -294,10 +294,6 @@ export default function WorkReportDialog({
                   {target.dong}동 {target.ho}호
                 </span>
                 <span className="head-badge">{target.headName} 세대</span>
-              </div>
-              <div className="readonly-notice-banner">
-                <CheckCircle2 size={13} />
-                <span>관리자 확인이 완료되어 수정이 불가합니다.</span>
               </div>
             </div>
           ) : (
@@ -329,7 +325,7 @@ export default function WorkReportDialog({
                   }}
                   role="button"
                   tabIndex={0}
-                  title="2단계: 현장 시공 사진"
+                  title="2단계: 현장 사진"
                 />
                 <div
                   className={`segment-bar ${step >= 3 ? 'active' : ''}`}
@@ -345,17 +341,32 @@ export default function WorkReportDialog({
           )
         }
         footer={
-          <div className="work-report-dialog-footer">
-            {isReadOnly ? (
-              <button
-                type="button"
-                className="btn-cancel btn-close-only"
-                onClick={handleSafeClose}
-              >
-                닫기
-              </button>
-            ) : (
-              <div className="wizard-footer-actions">
+          isReadOnly ? (
+            <>
+              <div className="readonly-notice-banner footer-banner">
+                <Check size={13} />
+                <span>관리자 확인이 완료되어 수정이 불가합니다.</span>
+              </div>
+              <div className="work-report-dialog-footer">
+                <button
+                  type="button"
+                  className="btn-cancel btn-close-only"
+                  onClick={handleSafeClose}
+                >
+                  닫기
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {target?.existingReport?.status === 'REJECTED' && (
+                <div className="readonly-notice-banner footer-banner revise">
+                  <AlertCircle size={13} />
+                  <span>반려 사유: {target.existingReport.fixReason || '기재된 사유가 없습니다.'}</span>
+                </div>
+              )}
+              <div className="work-report-dialog-footer">
+                <div className="wizard-footer-actions">
                 {step === 1 && (
                   <>
                     <button
@@ -413,8 +424,9 @@ export default function WorkReportDialog({
                   </>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+            </>
+          )
         }
       >
         <form className="work-report-form" onSubmit={handleSubmit}>
@@ -453,11 +465,11 @@ export default function WorkReportDialog({
                 </div>
               </div>
 
-              {/* 2. 현장 시공 사진 (5종) */}
+              {/* 2. 현장 사진 (5종) */}
               <div className="form-group">
                 <div className="photos-header-row">
                   <label className="form-label">
-                    <span>현장 시공 사진 (총 5개)</span>
+                    <span>현장 사진 (총 5개)</span>
                   </label>
                   <span className="photos-count-badge">
                     {Object.keys(photos).length} / 5개 등록
@@ -575,20 +587,10 @@ export default function WorkReportDialog({
               {/* ── STEP 1: 세대 및 설치 일자 확인 ── */}
               {step === 1 && (
                 <div className="wizard-step-panel step-1-panel">
-                  {/* 대상 세대 상세 카드 */}
-                  <div className="target-overview-card">
-                    <div className="card-site-row">
-                      <span className="site-pill">{target.siteName}</span>
-                    </div>
-                    <div className="card-unit-row">
-                      <span className="unit-main">{target.dong}동 {target.ho}호</span>
-                      <span className="head-sub">확인자: <strong>{target.headName}</strong></span>
-                    </div>
-                    <div className="card-address-row">
-                      <span className="address-text">{target.address || `${target.sido} ${target.sigungu} ${target.eupmyeondong}`}</span>
-                    </div>
+                  <div className="step-notice-alert">
+                    <AlertCircle size={16} className="notice-icon" />
+                    <span>상단에 표시된 <strong>작업 장소(동·호수)</strong>와 <strong>세대주</strong> 정보가 일치하는지 반드시 확인해 주세요.</span>
                   </div>
-
                   {/* 설치 일자 & 작업자 본인 확인 */}
                   <div className="step-fields-card">
                     <div className="form-group">
@@ -622,11 +624,11 @@ export default function WorkReportDialog({
                 </div>
               )}
 
-              {/* ── STEP 2: 현장 시공 사진 등록 ── */}
+              {/* ── STEP 2: 현장 사진 등록 ── */}
               {step === 2 && (
                 <div className="wizard-step-panel step-2-panel">
                   <div className="step-section-header">
-                    <h4 className="section-title">현장 시공 사진 (총 5개)</h4>
+                    <h4 className="section-title">현장 사진 (총 5개)</h4>
                     <span className={`photos-count-pill ${Object.keys(photos).length === 5 ? 'completed' : 'pending'}`}>
                       {Object.keys(photos).length === 5 ? '✓ 5개 완료' : `${Object.keys(photos).length} / 5개 등록`}
                     </span>
@@ -637,7 +639,7 @@ export default function WorkReportDialog({
                     {/* 1. 신주소 대문 */}
                     <div className="door-single-section">
                       <div className="photo-upload-box">
-                        <span className="photo-label">1. 신주소 대문 (필수)</span>
+                        <span className="photo-label">1. 신주소 대문</span>
                         {photos['door'] ? (
                           <div
                             className="photo-preview-wrapper"

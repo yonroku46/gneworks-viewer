@@ -14,25 +14,17 @@ import {
   getStoredReports,
   subscribeToReportsUpdate,
 } from '@/data/reportStorage';
-import { WorkReport } from '@/data/reportData';
+
 import WorkReportDialog, { TargetHousehold } from '@/components/dialog/WorkReportDialog';
-import StatusBadge from '@/components/common/StatusBadge';
 import {
   MapPin,
   Building2,
   Search,
-  CheckCircle2,
-  Clock,
   AlertCircle,
-  FileEdit,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  Plus,
-  Home,
-  User,
-  Sparkles,
   Circle,
   Hourglass,
   SlidersHorizontal,
@@ -48,11 +40,31 @@ export type WorkStatusFilter =
   | 'revise'
   | 'completed';
 
-const STATUS_KEY_MAP: Record<'미제출' | '검토대기' | '확인완료' | '수정필요', string> = {
-  '미제출': 'unsubmitted',
-  '검토대기': 'pending',
-  '확인완료': 'completed',
-  '수정필요': 'revise',
+export const normalizeReportStatus = (status?: string): ReportStatus => {
+  if (!status) return 'UNSUBMITTED';
+  const s = String(status).toUpperCase();
+  if (s === 'COMPLETED' || s === '확인완료' || s === '설치완료' || s === '완료') return 'COMPLETED';
+  if (s === 'PENDING' || s === '검토대기' || s === '대기' || s === '처리중') return 'PENDING';
+  if (s === 'REJECTED' || s === '수정필요' || s === '반려') return 'REJECTED';
+  return 'UNSUBMITTED';
+};
+
+const STATUS_KEY_MAP: Record<string, string> = {
+  COMPLETED: 'completed',
+  PENDING: 'pending',
+  REJECTED: 'revise',
+  UNSUBMITTED: 'unsubmitted',
+  확인완료: 'completed',
+  검토대기: 'pending',
+  수정필요: 'revise',
+  미제출: 'unsubmitted',
+  설치완료: 'completed',
+};
+
+const getStatusKey = (status?: string): string => {
+  if (!status) return 'unsubmitted';
+  const normalized = normalizeReportStatus(status);
+  return STATUS_KEY_MAP[normalized] || 'unsubmitted';
 };
 
 const FILTER_OPTIONS: { value: WorkStatusFilter; label: string; shortLabel: string; dotClass?: string }[] = [
@@ -207,7 +219,7 @@ export default function PortalWorkPage() {
           if (statusFilter !== 'all') {
             const reportKey = `${site.name}_${h.dong}_${h.ho}`;
             const report = reportMap.get(reportKey);
-            const statusKey = report ? STATUS_KEY_MAP[report.status] : 'unsubmitted';
+            const statusKey = report ? getStatusKey(report.status) : 'unsubmitted';
 
             if (statusFilter === 'uncompleted') {
               if (statusKey === 'completed') return false; // 확인 완료된 것은 제외!
@@ -411,12 +423,12 @@ export default function PortalWorkPage() {
             // 현장 내 세대들의 보고서 통계
             const submittedCount = households.filter(h => {
               const r = reportMap.get(`${site.name}_${h.dong}_${h.ho}`);
-              return r && r.status === '확인완료';
+              return r && r.status === 'COMPLETED';
             }).length;
 
             const pendingCount = households.filter(h => {
               const r = reportMap.get(`${site.name}_${h.dong}_${h.ho}`);
-              return r && r.status === '검토대기';
+              return r && r.status === 'PENDING';
             }).length;
 
             const total = households.length;
@@ -468,20 +480,16 @@ export default function PortalWorkPage() {
                       const reportKey = `${site.name}_${household.dong}_${household.ho}`;
                       const report = reportMap.get(reportKey);
 
-                      let statusType: '미제출' | '검토대기' | '확인완료' | '수정필요' = '미제출';
-                      if (report) {
-                        statusType = report.status;
-                      }
-
-                      const statusKey = STATUS_KEY_MAP[statusType];
+                      const statusType: ReportStatus = report ? normalizeReportStatus(report.status) : 'UNSUBMITTED';
+                      const statusKey = getStatusKey(statusType);
 
                       return (
                         <div key={household.id} className={`household-row status-${statusKey}`}>
                           <div className={`status-strip ${statusKey}`} title={`상태: ${statusType}`}>
-                            {statusType === '확인완료' && <Check size={14} strokeWidth={3} />}
-                            {statusType === '검토대기' && <Hourglass size={13} strokeWidth={2.5} />}
-                            {statusType === '수정필요' && <AlertCircle size={14} strokeWidth={2.5} />}
-                            {statusType === '미제출' && <Circle size={12} strokeWidth={2.5} />}
+                            {statusType === 'COMPLETED' && <Check size={14} strokeWidth={3} />}
+                            {statusType === 'PENDING' && <Hourglass size={13} strokeWidth={2.5} />}
+                            {statusType === 'REJECTED' && <AlertCircle size={14} strokeWidth={2.5} />}
+                            {statusType === 'UNSUBMITTED' && <Circle size={12} strokeWidth={2.5} />}
                           </div>
 
                           <div className="household-body">
@@ -495,13 +503,13 @@ export default function PortalWorkPage() {
                             <div className="household-actions">
                               <button
                                 type="button"
-                                className={`btn-report-action ${statusType === '미제출' ? 'primary' : 'secondary'}`}
+                                className={`btn-report-action ${statusType === 'UNSUBMITTED' ? 'primary' : 'secondary'}`}
                                 onClick={() => handleOpenReport(site, household)}
                               >
                                 <span>
-                                  {statusType === '확인완료'
+                                  {statusType === 'COMPLETED'
                                     ? '보고서 조회'
-                                    : statusType === '미제출'
+                                    : statusType === 'UNSUBMITTED'
                                       ? '보고서 작성'
                                       : '보고서 수정'}
                                 </span>

@@ -5,7 +5,6 @@ import {
   FileText, 
   Calendar, 
   CheckCircle2, 
-  Clock, 
   Printer, 
   Image as ImageIcon,
   ClipboardCheck,
@@ -24,7 +23,7 @@ import RegionSelector, { RegionValue } from '@/components/common/RegionSelector'
 import { useManageRegion } from '@/providers/ManageRegionProvider';
 import SearchInput from '@/components/common/SearchInput';
 import StatusBadge from '@/components/common/StatusBadge';
-import { INITIAL_REPORTS_DATA, WorkReport } from '@/data/reportData';
+import { INITIAL_REPORTS_DATA } from '@/data/reportData';
 import '../ManageLayout.scss';
 
 dayjs.locale('ko');
@@ -39,7 +38,7 @@ export default function ManageWorkPage() {
   const { region, setRegion } = useManageRegion();
 
   // Applied Filter States (실제 목록에 적용되는 상태)
-  const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | '검토대기' | '수정필요' | '확인완료'>('ALL');
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | 'PENDING' | 'REJECTED' | 'COMPLETED'>('ALL');
   const [appliedInstallStartDate, setAppliedInstallStartDate] = useState('');
   const [appliedInstallEndDate, setAppliedInstallEndDate] = useState('');
   const [appliedReportStartDate, setAppliedReportStartDate] = useState('');
@@ -47,7 +46,7 @@ export default function ManageWorkPage() {
 
   // Dialog Draft Filter States (다이얼로그 내부 임시 상태)
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
-  const [draftStatusFilter, setDraftStatusFilter] = useState<'ALL' | '검토대기' | '수정필요' | '확인완료'>('ALL');
+  const [draftStatusFilter, setDraftStatusFilter] = useState<'ALL' | 'PENDING' | 'REJECTED' | 'COMPLETED'>('ALL');
   const [draftInstallStartDate, setDraftInstallStartDate] = useState('');
   const [draftInstallEndDate, setDraftInstallEndDate] = useState('');
   const [draftReportStartDate, setDraftReportStartDate] = useState('');
@@ -167,7 +166,7 @@ export default function ManageWorkPage() {
     status: WorkReport['status'];
     fixReason: string;
   }>({
-    status: '검토대기',
+    status: 'PENDING',
     fixReason: '',
   });
 
@@ -210,8 +209,8 @@ export default function ManageWorkPage() {
   // Metrics
   const metrics = useMemo(() => {
     const total = reports.length;
-    const pending = reports.filter(r => r.status === '검토대기').length;
-    const needsFix = reports.filter(r => r.status === '수정필요').length;
+    const pending = reports.filter(r => r.status === 'PENDING').length;
+    const needsFix = reports.filter(r => r.status === 'REJECTED').length;
     return { total, pending, needsFix };
   }, [reports]);
 
@@ -231,15 +230,15 @@ export default function ManageWorkPage() {
     e.preventDefault();
     if (!targetReport) return;
 
-    if (statusFormData.status === '수정필요' && !statusFormData.fixReason.trim()) {
-      enqueueSnackbar('작업자가 확인할 수 있도록 수정 요청 사유를 작성해 주세요.', { variant: 'warning' });
+    if (statusFormData.status === 'REJECTED' && !statusFormData.fixReason.trim()) {
+      enqueueSnackbar('작업자가 확인할 수 있도록 반려 사유를 작성해 주세요.', { variant: 'warning' });
       return;
     }
 
     const updatedReport: WorkReport = {
       ...targetReport,
       status: statusFormData.status,
-      fixReason: statusFormData.status === '수정필요' ? statusFormData.fixReason.trim() : '',
+      fixReason: statusFormData.status === 'REJECTED' ? statusFormData.fixReason.trim() : '',
     };
 
     setReports(prev => prev.map(r => (r.id === updatedReport.id ? updatedReport : r)));
@@ -472,7 +471,7 @@ export default function ManageWorkPage() {
             </div>
 
             {/* 수정 필요 안내 박스 (작업자 및 관리자 확인용) */}
-            {selectedReport.status === '수정필요' && (
+            {selectedReport.status === 'REJECTED' && (
               <div className="sheet-fix-alert-box">
                 <AlertTriangle size={20} className="fix-icon" />
                 <div className="fix-content">
@@ -635,16 +634,16 @@ export default function ManageWorkPage() {
                   status: e.target.value as WorkReport['status'] 
                 }))}
               >
-                <option value="검토대기">검토대기 (관리자 확인 대기)</option>
-                <option value="수정필요">수정필요 (사진 이상/재촬영 등 보완 요청)</option>
-                <option value="확인완료">확인완료 (정상 제출 승인 완료)</option>
+                <option value="PENDING">검토대기 (관리자 확인 대기)</option>
+                <option value="REJECTED">수정필요 (사진 이상/재촬영 등 보완 요청)</option>
+                <option value="COMPLETED">확인완료 (정상 제출 승인 완료)</option>
               </CustomSelect>
             </div>
 
-            {statusFormData.status === '수정필요' && (
+            {statusFormData.status === 'REJECTED' && (
               <div className="form-field">
                 <label>
-                  수정 요청 사유 <span className="req">*</span>
+                  반려 사유 <span className="req">*</span>
                   <span className="field-tip">(작업자에게 표시될 안내 메시지)</span>
                 </label>
                 <textarea
@@ -858,22 +857,22 @@ export default function ManageWorkPage() {
               </button>
               <button
                 type="button"
-                className={`filter-choice-btn ${draftStatusFilter === '검토대기' ? 'active' : ''}`}
-                onClick={() => setDraftStatusFilter('검토대기')}
+                className={`filter-choice-btn ${draftStatusFilter === 'PENDING' ? 'active' : ''}`}
+                onClick={() => setDraftStatusFilter('PENDING')}
               >
                 검토대기
               </button>
               <button
                 type="button"
-                className={`filter-choice-btn ${draftStatusFilter === '수정필요' ? 'active' : ''}`}
-                onClick={() => setDraftStatusFilter('수정필요')}
+                className={`filter-choice-btn ${draftStatusFilter === 'REJECTED' ? 'active' : ''}`}
+                onClick={() => setDraftStatusFilter('REJECTED')}
               >
                 수정필요
               </button>
               <button
                 type="button"
-                className={`filter-choice-btn ${draftStatusFilter === '확인완료' ? 'active' : ''}`}
-                onClick={() => setDraftStatusFilter('확인완료')}
+                className={`filter-choice-btn ${draftStatusFilter === 'COMPLETED' ? 'active' : ''}`}
+                onClick={() => setDraftStatusFilter('COMPLETED')}
               >
                 확인완료
               </button>

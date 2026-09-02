@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import SlideDialog from './SlideDialog';
 import { KOREA_ADMIN_REGIONS } from '@/data/koreaRegions';
 import { getStoredSites } from '@/data/siteStorage';
@@ -26,7 +26,14 @@ export default function RegionAssignDialog({
 }: RegionAssignDialogProps) {
   const [selectedSido, setSelectedSido] = useState('경기도');
   const [selectedSigungu, setSelectedSigungu] = useState('안산시');
-  const [isCurrentAssignedOpen, setIsCurrentAssignedOpen] = useState(true);
+  const [isCurrentAssignedOpen, setIsCurrentAssignedOpen] = useState(false);
+
+  // 다이얼로그 닫힐 때 현재 담당 지역도 닫기
+  useEffect(() => {
+    if(!isOpen) {
+      setIsCurrentAssignedOpen(false);
+    }
+  }, [isOpen]);
 
   // 시/도 옵션 목록
   const sidoOptions = useMemo(() => {

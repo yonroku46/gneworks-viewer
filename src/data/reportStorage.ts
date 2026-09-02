@@ -1,7 +1,21 @@
-import { INITIAL_REPORTS_DATA, WorkReport } from './reportData';
+import { INITIAL_REPORTS_DATA } from './reportData';
 
 const REPORTS_STORAGE_KEY = 'gneworks_reports_data_v1';
 const REPORTS_UPDATE_EVENT = 'gneworks_reports_updated';
+
+const normalizeReportItem = (r: any): WorkReport => {
+  let status: ReportStatus = r.status;
+  if (status === '확인완료' as any || status === '완료' as any || status === '설치완료' as any || status === 'COMPLETED') {
+    status = 'COMPLETED';
+  } else if (status === '검토대기' as any || status === '대기' as any || status === '처리중' as any || status === 'PENDING') {
+    status = 'PENDING';
+  } else if (status === '수정필요' as any || status === '반려' as any || status === 'REJECTED') {
+    status = 'REJECTED';
+  } else {
+    status = (status as ReportStatus) || 'UNSUBMITTED';
+  }
+  return { ...r, status };
+};
 
 export const getStoredReports = (): WorkReport[] => {
   if (typeof window === 'undefined') {
@@ -13,7 +27,8 @@ export const getStoredReports = (): WorkReport[] => {
       localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(INITIAL_REPORTS_DATA));
       return INITIAL_REPORTS_DATA;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(normalizeReportItem) : INITIAL_REPORTS_DATA;
   } catch (error) {
     console.error('Failed to load reports from storage:', error);
     return INITIAL_REPORTS_DATA;
@@ -51,7 +66,7 @@ export const upsertReport = (report: Partial<WorkReport> & { siteName: string; d
       installDateFormatted: report.installDateFormatted || current[existingIdx].installDateFormatted || formattedDate,
       reportTime: timeStr,
       submittedAt: timeStr,
-      status: '검토대기',
+      status: 'PENDING',
     };
     current[existingIdx] = updatedReport;
   } else {
@@ -59,6 +74,7 @@ export const upsertReport = (report: Partial<WorkReport> & { siteName: string; d
       id: `rep_${Date.now()}`,
       siteId: report.siteId || 'site_custom',
       siteName: report.siteName,
+      status: report.status || 'PENDING',
       sido: report.sido || '경기도',
       sigungu: report.sigungu || '',
       eupmyeondong: report.eupmyeondong || '',
@@ -74,11 +90,11 @@ export const upsertReport = (report: Partial<WorkReport> & { siteName: string; d
       visitorName: report.visitorName || report.reporterName || '작업자',
       confirmerName: report.confirmerName || report.headName || '세대주',
       photos: report.photos || [
-        { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'door' },
-        { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'before1' },
-        { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'after1' },
+        { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
+        { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
+        { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
       ],
-      status: '검토대기',
+
       submittedAt: timeStr,
       remarks: report.remarks || '현장 작업 완료 및 확인서 작성 완료',
     };

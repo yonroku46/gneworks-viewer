@@ -100,13 +100,18 @@ export function generatePageMetadata(type: MetadataType, name?: string, descript
   function createMetadata(pageTitle: string, pageDescription: string): Metadata {
     const formattedTitle = pageTitle === APP_NAME ? APP_NAME : pageTitle;
 
-    return {
-      ...baseMetadata,
-      title: formattedTitle,
-      description: pageDescription,
+  const isHome = formattedTitle === APP_NAME;
+  const ogTitle = isHome ? APP_NAME : `${formattedTitle} | ${APP_NAME}`;
+  const twitterTitle = isHome ? APP_NAME : `${formattedTitle} | ${APP_NAME}`;
+
+  return {
+    ...baseMetadata,
+    title: formattedTitle,
+    description: pageDescription,
+
       openGraph: {
         ...baseMetadata.openGraph,
-        title: `${formattedTitle} | ${APP_NAME}`,
+        title: ogTitle,
         description: pageDescription,
         images: [
           {
@@ -119,7 +124,7 @@ export function generatePageMetadata(type: MetadataType, name?: string, descript
       },
       twitter: {
         ...baseMetadata.twitter,
-        title: `${formattedTitle} | ${APP_NAME}`,
+        title: twitterTitle,
         description: pageDescription,
         images: [TWITTER_IMAGE_URL],
       },

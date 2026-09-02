@@ -25,6 +25,41 @@ declare global {
     sigungus: SigunguData[];
   }
   type NotificationIconType = 'LOGO' | 'AVATAR';
+  type ReportStatus = 'COMPLETED' | 'PENDING' | 'REJECTED' | 'UNSUBMITTED';
+  type InstallStatus = 'INSTALLED' | 'SCHEDULED' | 'HOLD' | 'UNINSTALLED';
+  type InquiryStatus = 'RESOLVED' | 'WAITING';
+  type ReportPhotoType = 'DOOR' | 'BEFORE1' | 'AFTER1' | 'BEFORE2' | 'AFTER2';
+  interface ReportPhoto {
+    title: string;
+    url: string;
+    type: ReportPhotoType;
+  }
+  interface WorkReport {
+    id: string;
+    siteId: string;
+    siteName: string;
+    sido: string;
+    sigungu: string;
+    eupmyeondong: string;
+    address: string;
+    dong: string;
+    ho: string;
+    headName: string;
+    installDate: string;          // YYYY-MM-DD
+    installDateFormatted: string; // YYYY년 M월 D일
+    reportTime: string;           // YYYY-MM-DD HH:mm
+    reporterName: string;
+    installerName?: string;
+    installerId: string;
+    visitorName: string;
+    confirmerName: string;
+    confirmerSignature?: string;
+    photos: ReportPhoto[];
+    status: ReportStatus;
+    fixReason?: string;
+    submittedAt?: string;
+    remarks?: string;
+  }
   // API
   interface ApiResponse {
     resultCode: number;

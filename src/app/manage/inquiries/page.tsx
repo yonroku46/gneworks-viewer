@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   MessageSquare, 
   Search, 
@@ -18,7 +18,8 @@ import SlideDialog from '@/components/dialog/SlideDialog';
 import CustomSelect from '@/components/common/CustomSelect';
 import StatusBadge from '@/components/common/StatusBadge';
 import { useAuth } from '@/providers/AuthProvider';
-import { INITIAL_INQUIRIES, INQUIRY_TYPE_MAP } from '@/data/inquiryData';
+import { INQUIRY_TYPE_MAP } from '@/data/inquiryData';
+import { getStoredInquiries, saveStoredInquiries, subscribeToInquiriesUpdate } from '@/data/inquiryStorage';
 import '../ManageLayout.scss';
 
 dayjs.locale('ko');
@@ -51,7 +52,13 @@ export default function ManageInquiriesPage() {
   const { enqueueSnackbar } = useSnackbar();
 
   // Inquiry List State
-  const [inquiries, setInquiries] = useState<Inquiry[]>(INITIAL_INQUIRIES);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+
+  useEffect(() => {
+    setInquiries(getStoredInquiries());
+    const unsub = subscribeToInquiriesUpdate(items => setInquiries(items));
+    return () => unsub();
+  }, []);
 
   // Search Query
   const [searchQuery, setSearchQuery] = useState('');
@@ -216,7 +223,9 @@ export default function ManageInquiriesPage() {
       answerUserName: answerForm.answerText.trim() ? responder : undefined,
     };
 
-    setInquiries(prev => prev.map(item => (item.inquiryId === updated.inquiryId ? updated : item)));
+    const nextInquiries = inquiries.map(item => (item.inquiryId === updated.inquiryId ? updated : item));
+    setInquiries(nextInquiries);
+    saveStoredInquiries(nextInquiries);
     setSelectedInquiry(null);
     enqueueSnackbar(`[${updated.userName || '비회원'}] 님의 문의 처리가 저장되었습니다. (답변자: ${responder})`, { variant: 'success' });
   };
@@ -343,7 +352,7 @@ export default function ManageInquiriesPage() {
                     </td>
                     <td className="col-status">
                       <StatusBadge
-                        status={item.processedFlg ? '답변완료' : '답변대기'}
+                        status={item.processedFlg ? 'RESOLVED' : 'WAITING'}
                       />
                     </td>
                     <td className="col-action">
@@ -613,7 +622,7 @@ export default function ManageInquiriesPage() {
                     type="text"
                     readOnly
                     className="answer-author-input readonly"
-                    value={user?.userName || '최고관리자'}
+                    value={user?.userName}
                     title="현재 로그인된 관리자 계정으로 자동 지정됩니다."
                   />
                 </div>

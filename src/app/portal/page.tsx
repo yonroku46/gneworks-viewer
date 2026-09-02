@@ -16,6 +16,7 @@ import {
   Building2,
   Search,
   Check,
+  MessageSquareText,
 } from 'lucide-react';
 import { SiteInfo } from '@/data/siteData';
 import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
@@ -28,11 +29,11 @@ import {
   getStoredReports,
   subscribeToReportsUpdate,
 } from '@/data/reportStorage';
-import { WorkReport } from '@/data/reportData';
+
 import WorkReportDialog, { TargetHousehold } from '@/components/dialog/WorkReportDialog';
 import WorkHistoryDialog from '@/components/dialog/WorkHistoryDialog';
+import InquiryHistoryDialog from '@/components/dialog/InquiryHistoryDialog';
 import WorkHistoryCard from '@/components/common/WorkHistoryCard';
-import StatusBadge from '@/components/common/StatusBadge';
 import './Portal.scss';
 
 export default function PortalPage() {
@@ -48,6 +49,7 @@ export default function PortalPage() {
   const [reportTarget, setReportTarget] = useState<TargetHousehold | null>(null);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+  const [isInquiryHistoryOpen, setIsInquiryHistoryOpen] = useState(false);
 
   useEffect(() => {
     setAllSites(getStoredSites());
@@ -88,9 +90,9 @@ export default function PortalPage() {
     const todayStr = new Date().toISOString().split('T')[0];
 
     reports.forEach(r => {
-      if (r.status === '확인완료') completed += 1;
-      else if (r.status === '검토대기') pending += 1;
-      else if (r.status === '수정필요') revise += 1;
+      if (r.status === 'COMPLETED') completed += 1;
+      else if (r.status === 'PENDING') pending += 1;
+      else if (r.status === 'REJECTED') revise += 1;
 
       if (r.installDate === todayStr || (r.reportTime && r.reportTime.startsWith(todayStr))) {
         todayCount += 1;
@@ -142,12 +144,12 @@ export default function PortalPage() {
 
   return (
     <div className="portal-page">
-      {/* ── HERO BANNER ── */}
-      <section className="portal-hero-banner">
-        <div className="hero-text">
-          <h1 className="hero-greeting">반갑습니다, {displayName}님!</h1>
-          <p className="hero-sub">
-            배정된 현장의 작업 현황과 최근 제출 이력을 한눈에 확인하세요.
+      {/* ── HEADER SUMMARY ── */}
+      <section className="portal-header-section">
+        <div className="portal-title-group">
+          <h1 className="portal-page-title">반갑습니다, {displayName}님!</h1>
+          <p className="portal-page-sub">
+            현장의 작업 현황과 최근 제출 이력을 한눈에 확인하세요.
           </p>
         </div>
       </section>
@@ -156,7 +158,7 @@ export default function PortalPage() {
       <section className="portal-stats-grid">
         <div className="stat-card">
           <div className="stat-icon-wrapper green">
-            <CheckCircle2 size={22} />
+            <Check size={22} strokeWidth={3} />
           </div>
           <div className="stat-info">
             <span className="stat-label">확인완료</span>
@@ -179,7 +181,7 @@ export default function PortalPage() {
             <AlertCircle size={22} />
           </div>
           <div className="stat-info">
-            <span className="stat-label">수정요청</span>
+            <span className="stat-label">반려됨</span>
             <span className="stat-value">{stats.revise}건</span>
           </div>
         </div>
@@ -251,16 +253,20 @@ export default function PortalPage() {
             <p className="action-desc">작업 중 발생한 특이사항이나 지원 요청을 접수합니다.</p>
           </Link>
 
-          <Link href="/portal/work" className="action-card">
+          <button
+            type="button"
+            className="action-card"
+            onClick={() => setIsInquiryHistoryOpen(true)}
+          >
             <div className="action-header">
               <div className="action-icon-box">
-                <Building2 size={20} />
+                <MessageSquareText size={20} />
               </div>
               <ArrowRight size={18} className="action-arrow" />
             </div>
-            <h3 className="action-title">담당 현장 세대 관리</h3>
-            <p className="action-desc">배정된 지역 아파트 세대 목록과 작업 상태를 조회합니다.</p>
-          </Link>
+            <h3 className="action-title">문의 및 답변 내역</h3>
+            <p className="action-desc">접수한 업무 문의의 처리 상태와 관리자 답변을 확인합니다.</p>
+          </button>
         </div>
       </section>
 
@@ -292,6 +298,12 @@ export default function PortalPage() {
         onSelectReport={report => {
           handleOpenReportFromHistory(report);
         }}
+      />
+
+      {/* ── INQUIRY & ANSWER HISTORY DIALOG ── */}
+      <InquiryHistoryDialog
+        isOpen={isInquiryHistoryOpen}
+        onClose={() => setIsInquiryHistoryOpen(false)}
       />
     </div>
   );

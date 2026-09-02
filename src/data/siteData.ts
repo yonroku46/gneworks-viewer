@@ -7,7 +7,7 @@ export interface Household {
   ho: string;
   headName: string;
   targetType: '노인(65세 이상)' | '아동(13세 미만)' | '장애인' | '일반';
-  installStatus: '설치완료' | '방문예정' | '부재/보류' | '미설치';
+  installStatus: InstallStatus | '설치완료' | '방문예정' | '부재/보류' | '미설치';
   remarks?: string;
 }
 

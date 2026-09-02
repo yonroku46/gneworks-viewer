@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { WorkReport } from '@/data/reportData';
+
 import { Calendar, ChevronRight } from 'lucide-react';
 import './WorkHistoryCard.scss';
 
@@ -17,9 +17,9 @@ export default function WorkHistoryCard({
   showSiteName = false,
 }: WorkHistoryCardProps) {
   const statusKey =
-    report.status === '확인완료'
+    report.status === 'COMPLETED'
       ? 'completed'
-      : report.status === '검토대기'
+      : report.status === 'PENDING'
       ? 'pending'
       : 'revise';
 

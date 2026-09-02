@@ -8,6 +8,7 @@ import { Clock, CheckCircle, Loader2, ShieldCheck } from 'lucide-react';
 import LandingNav from '@/components/layout/LandingNav';
 import LandingFooter from '@/components/layout/LandingFooter';
 import ContactService from '@/api/service/ContactService';
+import { addStoredInquiry } from '@/data/inquiryStorage';
 import './Contact.scss';
 
 const INQUIRY_TYPES = [
@@ -65,19 +66,27 @@ function ContactFormContent() {
     setSending(true);
 
     try {
-      const typeLabel = INQUIRY_TYPES.find(t => t.value === form.inquiryType)?.label || '문의';
-      const res = await ContactService.submitInquiry({
+      try {
+        await ContactService.submitInquiry({
+          userName: form.userName,
+          userId: form.userId.trim() || undefined,
+          phoneNum: form.phoneNum,
+          inquiryType: form.inquiryType,
+          inquiryContents: form.inquiryContents,
+        });
+      } catch (err) {
+        // Mock fallback allowed
+      }
+
+      addStoredInquiry({
         userName: form.userName,
         userId: form.userId.trim() || undefined,
         phoneNum: form.phoneNum,
         inquiryType: form.inquiryType,
         inquiryContents: form.inquiryContents,
       });
-      if (res && res.success) {
-        setSent(true);
-      } else {
-        alert('문의 접수에 실패했습니다. 다시 시도해 주세요.');
-      }
+
+      setSent(true);
     } catch (error) {
       console.error('[ContactPage] submit error', error);
       alert('문의 접수 중 오류가 발생했습니다. 다시 시도해 주세요.');

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import SlideDialog from './SlideDialog';
-import { WorkReport } from '@/data/reportData';
+
 import { getStoredReports, subscribeToReportsUpdate } from '@/data/reportStorage';
 import {
   AssignedRegion,
@@ -18,7 +18,7 @@ import WorkHistoryCard from '@/components/common/WorkHistoryCard';
 import './WorkHistoryDialog.scss';
 
 export type DatePreset = 'all' | 'today' | 'week' | 'month' | 'custom';
-export type StatusFilterType = 'all' | '확인완료' | '검토대기' | '수정필요';
+export type StatusFilterType = 'all' | 'COMPLETED' | 'PENDING' | 'REJECTED';
 
 interface WorkHistoryDialogProps {
   isOpen: boolean;
@@ -41,6 +41,7 @@ export default function WorkHistoryDialog({
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>('all');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
     setReports(getStoredReports());
@@ -134,9 +135,9 @@ export default function WorkHistoryDialog({
       .sort((a, b) => {
         const timeA = a.reportTime || a.installDate || '';
         const timeB = b.reportTime || b.installDate || '';
-        return timeB.localeCompare(timeA);
+        return sortOrder === 'desc' ? timeB.localeCompare(timeA) : timeA.localeCompare(timeB);
       });
-  }, [reports, selectedRegionKey, statusFilter, datePreset, customStartDate, customEndDate, searchQuery]);
+  }, [reports, selectedRegionKey, statusFilter, datePreset, customStartDate, customEndDate, searchQuery, sortOrder]);
 
   // Group filtered reports by Site Name
   const groupedBySite = useMemo(() => {
@@ -325,24 +326,24 @@ export default function WorkHistoryDialog({
               </button>
               <button
                 type="button"
-                className={`pill-btn status-completed ${statusFilter === '확인완료' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('확인완료')}
+                className={`pill-btn status-completed ${statusFilter === 'COMPLETED' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('COMPLETED')}
               >
                 <span className="status-dot green" />
                 <span>확인완료</span>
               </button>
               <button
                 type="button"
-                className={`pill-btn status-pending ${statusFilter === '검토대기' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('검토대기')}
+                className={`pill-btn status-pending ${statusFilter === 'PENDING' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('PENDING')}
               >
                 <span className="status-dot amber" />
                 <span>검토대기</span>
               </button>
               <button
                 type="button"
-                className={`pill-btn status-revise ${statusFilter === '수정필요' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('수정필요')}
+                className={`pill-btn status-revise ${statusFilter === 'REJECTED' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('REJECTED')}
               >
                 <span className="status-dot red" />
                 <span>수정필요</span>
@@ -356,7 +357,14 @@ export default function WorkHistoryDialog({
           <span className="summary-count">
             조회 결과 <strong>{filteredReports.length}</strong>건
           </span>
-          <span className="summary-tip">항목을 누르면 상세 보고서가 열립니다</span>
+          <select 
+            className="history-sort-select"
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
+          >
+            <option value="desc">최신순</option>
+            <option value="asc">과거순</option>
+          </select>
         </div>
 
         {/* ── 5. SITES & HOUSEHOLDS LIST (모던 카드 그리드) ── */}

@@ -1,38 +1,5 @@
 // Work Report Master Data (단독경보형감지기 보급지원확인서 및 작업 보고서)
 
-export interface ReportPhoto {
-  title: string;
-  url: string;
-  type: 'door' | 'before1' | 'after1' | 'before2' | 'after2';
-}
-
-export interface WorkReport {
-  id: string;
-  siteId: string;
-  siteName: string;
-  sido: string;
-  sigungu: string;
-  eupmyeondong: string;
-  address: string;
-  dong: string;
-  ho: string;
-  headName: string;
-  installDate: string;          // YYYY-MM-DD (설치일자)
-  installDateFormatted: string; // YYYY년 M월 D일
-  reportTime: string;           // YYYY-MM-DD HH:mm (보고일시)
-  reporterName: string;        // 보고자
-  installerName?: string;       // (하위 호환) 설치자
-  installerId: string;
-  visitorName: string;          // 방문자 (서명 대상)
-  confirmerName: string;        // 확인자 (세대주 또는 관리자)
-  confirmerSignature?: string;  // 확인자(세대주) 전자서명 Base64 데이터
-  photos: ReportPhoto[];
-  status: '확인완료' | '검토대기' | '수정필요';
-  fixReason?: string;           // 수정 필요(보완) 사유
-  submittedAt?: string;         // YYYY-MM-DD HH:mm
-  remarks?: string;
-}
-
 export const INITIAL_REPORTS_DATA: WorkReport[] = [
   {
     id: 'rep_001',
@@ -53,13 +20,13 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     visitorName: '강인호',
     confirmerName: '권순형',
     photos: [
-      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'door' },
-      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'before1' },
-      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'after1' },
-      { title: '설치 전 ②', url: '/assets/img/report_sheet_sample.png', type: 'before2' },
-      { title: '설치 후 ②', url: '/assets/img/report_sheet_sample.png', type: 'after2' },
+      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
+      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
+      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
+      { title: '설치 전 ②', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE2' },
+      { title: '설치 후 ②', url: '/assets/img/report_sheet_sample.png', type: 'AFTER2' },
     ],
-    status: '확인완료',
+    status: 'COMPLETED',
     submittedAt: '2026-08-04 14:32',
     remarks: '특이사항 없음, 정상 작동 시험 완료',
   },
@@ -82,12 +49,12 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     visitorName: '김연태',
     confirmerName: '박태병',
     photos: [
-      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'door' },
-      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'before1' },
-      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'after1' },
-      { title: '설치 후 ②', url: '/assets/img/report_sheet_sample.png', type: 'after2' },
+      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
+      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
+      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
+      { title: '설치 후 ②', url: '/assets/img/report_sheet_sample.png', type: 'AFTER2' },
     ],
-    status: '확인완료',
+    status: 'COMPLETED',
     submittedAt: '2026-08-28 11:20',
     remarks: '거실 및 주방 2개소 부착 완료',
   },
@@ -110,11 +77,11 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     visitorName: '김연태',
     confirmerName: '이지수',
     photos: [
-      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'door' },
-      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'before1' },
-      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'after1' },
+      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
+      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
+      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
     ],
-    status: '수정필요',
+    status: 'REJECTED',
     fixReason: '설치 전① 사진이 다소 어둡고 흔들려 감지기 부착 위치 식별이 어렵습니다. 밝은 조명에서 재촬영해 주시기 바랍니다.',
     submittedAt: '2026-08-28 15:45',
     remarks: '안방 천장 보강 후 감지기 설치',
@@ -138,12 +105,12 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     visitorName: '이성민',
     confirmerName: '최현우',
     photos: [
-      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'door' },
-      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'before1' },
-      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'after1' },
-      { title: '설치 후 ②', url: '/assets/img/report_sheet_sample.png', type: 'after2' },
+      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
+      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
+      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
+      { title: '설치 후 ②', url: '/assets/img/report_sheet_sample.png', type: 'AFTER2' },
     ],
-    status: '검토대기',
+    status: 'PENDING',
     submittedAt: '2026-08-29 09:15',
     remarks: '금일 오전 설치 완료 보고',
   },
@@ -166,11 +133,11 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     visitorName: '이성민',
     confirmerName: '정다빈',
     photos: [
-      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'door' },
-      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'before1' },
-      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'after1' },
+      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
+      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
+      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
     ],
-    status: '확인완료',
+    status: 'COMPLETED',
     submittedAt: '2026-08-29 10:40',
     remarks: '노인 세대 음성형 감지기 설치 안내 완료',
   },
@@ -193,11 +160,11 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     visitorName: '강인호',
     confirmerName: '김민수',
     photos: [
-      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'door' },
-      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'before1' },
-      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'after1' },
+      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
+      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
+      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
     ],
-    status: '확인완료',
+    status: 'COMPLETED',
     submittedAt: '2026-08-04 15:10',
     remarks: '정상 설치 완료',
   },
@@ -220,12 +187,12 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     visitorName: '박영호',
     confirmerName: '강호동',
     photos: [
-      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'door' },
-      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'before1' },
-      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'after1' },
-      { title: '설치 후 ②', url: '/assets/img/report_sheet_sample.png', type: 'after2' },
+      { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
+      { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
+      { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
+      { title: '설치 후 ②', url: '/assets/img/report_sheet_sample.png', type: 'AFTER2' },
     ],
-    status: '확인완료',
+    status: 'COMPLETED',
     submittedAt: '2026-08-25 16:30',
     remarks: '침실 및 거실 설치 완료',
   }
