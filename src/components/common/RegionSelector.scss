@@ -1,0 +1,60 @@
+@use '../../styles/mixins' as *;
+
+.common-region-selector-bar {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  .selector-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    .active-region-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 0.125rem;
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--slate-900);
+      .breadcrumb-arrow {
+        color: var(--slate-600);
+        flex-shrink: 0;
+      }
+      .region-part {
+        color: var(--slate-900);
+        white-space: nowrap;
+      }
+    }
+  }
+  .selector-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    .select-col {
+      min-width: 170px;
+    }
+  }
+}
+
+@include mobile {
+  .common-region-selector-bar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem;
+    gap: 1rem;
+    .selector-inputs {
+      flex-direction: column;
+      .select-col {
+        width: 100%;
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #aeaeb2;
+  text-align: center;
+
+  &--page {
+    padding: 5rem 1.25rem;
+  }
+
+  &--dialog {
+    padding: 3rem 1.25rem;
+  }
+
+  &--inline {
+    padding: 2rem 1.25rem;
+  }
+
+  &__icon {
+    margin-bottom: 1rem;
+    opacity: 0.6;
+  }
+
+  &__message {
+    font-size: 0.9375rem;
+    margin: 0;
+    line-height: 1.5;
+    word-break: keep-all;
+  }
+}

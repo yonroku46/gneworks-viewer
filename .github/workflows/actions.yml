@@ -1,0 +1,41 @@
+name: Deploy Viewer to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: Production
+    env:
+      REPO_PATH: /home/app-service/app-viewer
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Fetch latest code
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.SERVER_IP }} "cd $REPO_PATH && git fetch && git reset --hard origin/main"
+
+      - name: Update environment variables
+        run: |
+          ssh ubuntu@${{ secrets.SERVER_IP }} "
+            cd $REPO_PATH
+          "
+
+      - name: Install dependencies
+        run: ssh ubuntu@${{ secrets.SERVER_IP }} "cd $REPO_PATH && yarn install --ignore-engines"
+
+      - name: Build
+        run: ssh ubuntu@${{ secrets.SERVER_IP }} "cd $REPO_PATH && yarn build"
+
+      - name: Deploy with PM2
+        run: |
+          ssh ubuntu@${{ secrets.SERVER_IP }} "pm2 delete nextjs-app || true"
+          ssh ubuntu@${{ secrets.SERVER_IP }} "cd $REPO_PATH && pm2 start yarn --name nextjs-app -- start"
+          ssh ubuntu@${{ secrets.SERVER_IP }} "pm2 save"

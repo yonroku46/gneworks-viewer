@@ -1,0 +1,129 @@
+.app-calendar-wrapper {
+  width: 100%;
+  .react-calendar {
+    width: 100%;
+    font-family: inherit;
+    button,
+    span,
+    abbr {
+      font-family: inherit !important;
+    }
+    &__navigation {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      height: auto;
+      button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        min-width: 2.75rem;
+        &:enabled:hover,
+        &:enabled:focus {
+          background: none;
+        }
+      }
+      &__label {
+        flex-grow: 0 !important;
+        margin: 0 1rem;
+      }
+      &__arrow {
+        color: var(--slate-300);
+        font-size: 1.5rem;
+      }
+    }
+    &__month-view {
+      &__weekdays {
+        text-align: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+        abbr {
+          text-decoration: none;
+        }
+        &__weekday {
+          padding: 0.5rem;
+          &:nth-child(1) {
+            color: var(--danger);
+          }
+          &:nth-child(7) {
+            color: var(--primary-color);
+          }
+        }
+      }
+    }
+    .react-calendar__tile {
+      height: 3.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: none;
+      border: none;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      border-radius: 0.5rem;
+      abbr {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 1rem;
+        transition: all 0.2s;
+      }
+      &.react-calendar__month-view__days__day--neighboringMonth {
+        color: var(--slate-400);
+        opacity: 0.35;
+        transition: all 0.2s;
+        &:enabled:hover {
+          opacity: 0.7;
+          background-color: var(--slate-100) !important;
+        }
+      }
+      &--active {
+        background: none !important;
+        color: var(--white) !important;
+        abbr {
+          background: var(--primary-color);
+          box-shadow: 0 4px 10px rgba(0, 122, 255, 0.3);
+        }
+        &:enabled:hover,
+        &:enabled:focus {
+          background: none !important;
+        }
+      }
+      &--now {
+        color: var(--primary-color);
+        font-weight: 700;
+        &::after {
+          content: "";
+          position: absolute;
+          bottom: 0.4rem;
+          width: 0.25rem;
+          height: 0.25rem;
+          background: var(--primary-color);
+          border-radius: 50%;
+        }
+        &.react-calendar__tile--active::after {
+          background: var(--white);
+        }
+      }
+      &:enabled:hover {
+        background-color: var(--slate-100) !important;
+      }
+      &:active {
+        transform: scale(0.95);
+      }
+    }
+  }
+}

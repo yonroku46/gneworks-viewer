@@ -1,0 +1,212 @@
+@use '../../styles/mixins' as *;
+
+.site-assign-slide-dialog {
+  .site-assign-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    .dialog-desc {
+      font-size: 0.875rem;
+      color: var(--slate-500);
+      line-height: 1.5;
+      margin: 0;
+    }
+    .assign-filter-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      background: var(--slate-50);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      padding: 1rem;
+    }
+    .assign-site-list-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      .assign-list-header {
+        font-size: 0.8125rem;
+        color: var(--slate-500);
+        strong {
+          color: var(--manage-primary);
+          font-weight: 700;
+        }
+      }
+      .assign-sites-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        .assign-site-card {
+          background: var(--card-bg);
+          border: 1px solid var(--border);
+          border-radius: 0.875rem;
+          padding: 1rem 1.125rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          transition: all 0.2s ease;
+          &.is-me {
+            border-color: var(--manage-primary-border);
+            background: var(--manage-primary-light);
+          }
+          &.is-other {
+            opacity: 0.75;
+          }
+          .card-top-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.375rem;
+            .site-title-row {
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+              flex-wrap: wrap;
+              .site-icon {
+                color: var(--manage-primary);
+                flex-shrink: 0;
+              }
+              .site-name {
+                font-size: 0.9375rem;
+                font-weight: 700;
+                color: var(--slate-900);
+                margin: 0;
+              }
+              .region-badge {
+                font-size: 0.6875rem;
+                font-weight: 600;
+                padding: 0.125rem 0.375rem;
+                border-radius: 0.25rem;
+                background: var(--slate-100);
+                color: var(--slate-600);
+              }
+            }
+            .site-address {
+              display: flex;
+              align-items: center;
+              gap: 0.25rem;
+              font-size: 0.8125rem;
+              color: var(--slate-500);
+            }
+            .assigned-workers-info {
+              display: flex;
+              align-items: center;
+              gap: 0.375rem;
+              font-size: 0.75rem;
+              color: var(--slate-600);
+              .workers-icon {
+                color: var(--manage-primary);
+                flex-shrink: 0;
+              }
+              .workers-text {
+                strong {
+                  color: var(--manage-primary);
+                }
+                &.empty {
+                  color: var(--slate-400);
+                }
+              }
+            }
+          }
+          .card-bottom-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 0.625rem;
+            border-top: 1px dashed var(--border);
+            .scale-meta {
+              display: flex;
+              align-items: center;
+              gap: 0.875rem;
+              font-size: 0.75rem;
+              color: var(--slate-600);
+              strong {
+                color: var(--slate-800);
+              }
+            }
+            .assign-action {
+              .badge-status {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.25rem;
+                font-size: 0.75rem;
+                font-weight: 700;
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.375rem;
+                &.current-assigned {
+                  background: var(--manage-primary);
+                  color: var(--white);
+                }
+              }
+              .btn-select-assign {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.25rem;
+                padding: 0.375rem 0.75rem;
+                border-radius: 0.5rem;
+                background: var(--manage-primary);
+                color: var(--white);
+                border: none;
+                font-size: 0.75rem;
+                font-weight: 700;
+                cursor: pointer;
+                transition: all 0.15s ease;
+                &.co-assign {
+                  background: var(--slate-700);
+                }
+              }
+            }
+          }
+        }
+        .assign-empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          padding: 3rem 1rem;
+          color: var(--slate-400);
+          text-align: center;
+          p {
+            font-size: 0.875rem;
+            margin: 0;
+          }
+        }
+      }
+    }
+  }
+}
+
+@include mobile {
+  .site-assign-slide-dialog {
+    .site-assign-dialog-body {
+      padding: 1rem;
+    }
+  }
+}
+
+@include pc {
+  .site-assign-slide-dialog {
+    .site-assign-dialog-body {
+      padding: 1.5rem;
+    }
+  }
+}
+
+@include hover {
+  .site-assign-slide-dialog {
+    .site-assign-dialog-body .assign-site-list-wrapper .assign-sites-list .assign-site-card {
+      &:hover {
+        border-color: var(--manage-primary-border);
+      }
+      .card-bottom-info .assign-action .btn-select-assign {
+        &:hover {
+          background: var(--manage-primary-dark);
+        }
+        &.co-assign:hover {
+          background: var(--slate-900);
+        }
+      }
+    }
+  }
+}

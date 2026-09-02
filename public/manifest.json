@@ -1,0 +1,23 @@
+{
+  "name": "Gneworks",
+  "short_name": "Gneworks",
+  "description": "GNE 온라인 포탈관리시스템",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007aff",
+  "icons": [
+    {
+      "src": "/assets/icons/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

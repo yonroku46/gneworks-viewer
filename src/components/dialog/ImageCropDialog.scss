@@ -1,0 +1,151 @@
+@use '../../styles/mixins' as *;
+
+.image-crop-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  &.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.image-crop-modal {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  .crop-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    .header-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-primary);
+      font-size: 1.0625rem;
+      font-weight: 800;
+    }
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.25rem;
+      border-radius: 0.5rem;
+      transition: all 0.15s ease;
+    }
+  }
+  .crop-modal-body {
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    gap: 1.25rem;
+    .cropper-container {
+      position: relative;
+      width: 100%;
+      height: 320px;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background-color: var(--white);
+      background-image: linear-gradient(45deg, var(--slate-200) 25%, transparent 25%), linear-gradient(-45deg, var(--slate-200) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--slate-200) 75%), linear-gradient(-45deg, transparent 75%, var(--slate-200) 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+      .reactEasyCrop_Container {
+        border-radius: 0.75rem;
+        background: transparent !important;
+      }
+    }
+    .zoom-control-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-secondary);
+      padding: 0 0.5rem;
+      .zoom-slider {
+        flex: 1;
+        accent-color: var(--manage-primary);
+        cursor: pointer;
+        height: 6px;
+      }
+    }
+  }
+  .crop-modal-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border);
+    background: var(--slate-50);
+    .action-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 1rem;
+      border-radius: 0.75rem;
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      &.cancel {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+      }
+      &.confirm {
+        background: var(--manage-primary);
+        border: 1px solid var(--manage-primary);
+        color: var(--white);
+      }
+    }
+  }
+}
+
+@include mobile {
+  .image-crop-modal {
+    max-width: 100%;
+    border-radius: 1rem;
+    .crop-modal-body .cropper-container {
+      height: 260px;
+    }
+  }
+}
+
+@include hover {
+  .image-crop-modal .crop-modal-header .close-btn:hover {
+    color: var(--text-primary);
+    background: var(--gray-alpha-100);
+  }
+  .image-crop-modal .crop-modal-footer .action-btn.cancel:hover {
+    background: var(--gray-alpha-100);
+    color: var(--text-primary);
+  }
+  .image-crop-modal .crop-modal-footer .action-btn.confirm:hover {
+    background: var(--manage-primary-hover);
+  }
+}

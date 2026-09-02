@@ -1,0 +1,2 @@
+// System common constants
+export {};

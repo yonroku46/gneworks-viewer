@@ -1,0 +1,101 @@
+@use '../../styles/mixins' as *;
+
+.custom-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  &.full-width {
+    width: 100%;
+  }
+  &.has-icon {
+    .custom-select-native {
+      padding-left: 2rem;
+    }
+  }
+  .select-lead-icon {
+    position: absolute;
+    left: 0.625rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--slate-400);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .custom-select-native {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background-color: var(--white);
+    background-image: none !important;
+    color: var(--slate-800);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0 1.875rem 0 0.75rem;
+    &::-ms-expand {
+      display: none;
+    }
+    &:hover {
+      border-color: var(--slate-400);
+    }
+    &:focus {
+      border-color: var(--manage-primary);
+      box-shadow: 0 0 0 2px var(--manage-primary-glow);
+    }
+    option {
+      background: var(--white);
+      color: var(--slate-900);
+      padding: 0.5rem;
+    }
+  }
+  .select-chevron-icon {
+    position: absolute;
+    right: 0.625rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--slate-400);
+    pointer-events: none;
+    transition: color 0.15s ease;
+  }
+  &:focus-within .select-chevron-icon {
+    color: var(--manage-primary);
+  }
+  &.size-sm {
+    .custom-select-native {
+      height: 1.875rem;
+      font-size: 0.75rem;
+      padding-left: 0.5rem;
+      padding-right: 1.5rem;
+      border-radius: 0.375rem;
+    }
+    .select-chevron-icon {
+      right: 0.375rem;
+    }
+  }
+  &.size-md {
+    .custom-select-native {
+      height: 2.25rem;
+      font-size: 0.8125rem;
+      padding-left: 0.625rem;
+      padding-right: 1.75rem;
+      border-radius: 0.375rem;
+    }
+  }
+  &.size-lg {
+    .custom-select-native {
+      height: 2.75rem;
+      font-size: 0.875rem;
+      padding-left: 0.875rem;
+      padding-right: 2.25rem;
+      border-radius: 0.625rem;
+    }
+  }
+}
