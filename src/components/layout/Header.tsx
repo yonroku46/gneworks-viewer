@@ -19,14 +19,10 @@ const Header = () => {
     switch (path) {
       case `${servicePrefix}`:
         return { title: '작업 포탈' };
-      case `${servicePrefix}/lounge`:
-        return { title: '라운지' };
-      case `${servicePrefix}/reserve`:
-        return { title: '수업예약' };
+      case `${servicePrefix}/work`:
+        return { title: '작업 목록' };
       case `${servicePrefix}/profile`:
         return { title: '마이페이지' };
-      case `${servicePrefix}/notice`:
-        return { title: '공지사항' };
       default:
         return { title: '' };
     }

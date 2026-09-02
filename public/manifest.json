@@ -1,6 +1,6 @@
 {
-  "name": "Gneworks",
-  "short_name": "Gneworks",
+  "name": "GNEWorks",
+  "short_name": "GNEWorks",
   "description": "GNE 온라인 포탈관리시스템",
   "start_url": "/",
   "display": "standalone",
@@ -8,16 +8,21 @@
   "theme_color": "#007aff",
   "icons": [
     {
-      "src": "/assets/icons/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/assets/app/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/app/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/icons/favicon.svg",
+      "src": "/assets/app/android-chrome-512x512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
+      "type": "image/png",
+      "purpose": "maskable any"
     }
   ]
 }

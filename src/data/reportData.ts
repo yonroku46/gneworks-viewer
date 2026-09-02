@@ -25,6 +25,7 @@ export interface WorkReport {
   installerId: string;
   visitorName: string;          // 방문자 (서명 대상)
   confirmerName: string;        // 확인자 (세대주 또는 관리자)
+  confirmerSignature?: string;  // 확인자(세대주) 전자서명 Base64 데이터
   photos: ReportPhoto[];
   status: '확인완료' | '검토대기' | '수정필요';
   fixReason?: string;           // 수정 필요(보완) 사유

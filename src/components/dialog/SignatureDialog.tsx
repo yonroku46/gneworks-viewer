@@ -12,6 +12,8 @@ interface SignatureDialogProps {
   onClose: () => void;
   onSave: (signatureDataUrl: string) => void;
   userName?: string;
+  title?: string;
+  disableBackdropClick?: boolean;
 }
 
 export default function SignatureDialog({
@@ -19,6 +21,8 @@ export default function SignatureDialog({
   onClose,
   onSave,
   userName,
+  title = '확인자 서명',
+  disableBackdropClick = true,
 }: SignatureDialogProps) {
   const sigPadRef = useRef<SignatureCanvas | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -122,13 +126,20 @@ export default function SignatureDialog({
   if (!dialogRoot) return null;
 
   return createPortal(
-    <div className={`signature-modal-overlay ${isOpen ? 'open' : ''}`} onClick={onClose}>
+    <div
+      className={`signature-modal-overlay ${isOpen ? 'open' : ''}`}
+      onClick={() => {
+        if (!disableBackdropClick) {
+          onClose();
+        }
+      }}
+    >
       <div className="signature-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-body">
           <div className="pad-terminal">
             <div className="pad-terminal-header">
               <div className="pad-status">
-                <span className="pad-status-text">GNE 전자서명</span>
+                <span className="pad-status-text">{title}</span>
               </div>
               <button type="button" className="btn-clear" onClick={handleClear}>
                 <RotateCcw size={12} />

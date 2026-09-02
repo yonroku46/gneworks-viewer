@@ -171,7 +171,7 @@ export default function ManageSettings() {
                 <div className="setting-toggle-item">
                   <div className="toggle-info">
                     <strong>확인서 인쇄 시 전자서명 포함</strong>
-                    <p>보급지원확인서 출력 시 세대주 확인 전자서명을 함께 인쇄합니다.</p>
+                    <p>보급지원확인서 출력 시 확인자 전자서명을 함께 인쇄합니다.</p>
                   </div>
                   <label className="custom-switch-label">
                     <input 

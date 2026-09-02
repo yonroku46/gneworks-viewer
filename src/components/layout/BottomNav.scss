@@ -8,7 +8,7 @@
   width: 100%;
   max-width: 600px;
   margin: 0 auto;
-  height: var(--bottom-nav-height);
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
   background: var(--card-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -18,9 +18,10 @@
   box-shadow: 0 -4px 16px var(--shadow-sm);
   display: flex;
   justify-content: space-around;
-  align-items: center;
+  align-items: flex-start;
   padding: 0 0.625rem;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
   z-index: 1000;
   flex-shrink: 0;
   .nav-item {
@@ -33,7 +34,7 @@
     color: var(--text-secondary);
     transition: all 0.2s ease;
     flex: 1;
-    height: 100%;
+    height: var(--bottom-nav-height);
     &:active {
       opacity: 0.6;
       transform: scale(0.95);
@@ -44,11 +45,13 @@
     .icon {
       width: 1.5rem;
       height: 1.5rem;
+      flex-shrink: 0;
     }
     .label {
       font-size: 0.6875rem;
       font-weight: 600;
       letter-spacing: -0.01em;
+      flex-shrink: 0;
     }
   }
 }

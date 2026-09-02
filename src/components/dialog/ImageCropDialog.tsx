@@ -1,36 +1,49 @@
 'use client';
 
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
-import Cropper, { Area } from 'react-easy-crop';
-import { Crop as CropIcon, X, ZoomIn, ZoomOut } from 'lucide-react';
+import Cropper from 'react-easy-crop';
+import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import './ImageCropDialog.scss';
 
+interface CropArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface ImageCropDialogProps {
-  open: boolean;
+  isOpen?: boolean;
+  open?: boolean;
   imageSrc: string;
   onClose: () => void;
   onCropComplete: (croppedDataUrl: string) => void;
+  aspect?: number;
+  title?: string;
+  disableBackdropClick?: boolean;
 }
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new Image();
     image.addEventListener('load', () => resolve(image));
-    image.addEventListener('error', (error) => reject(error));
+    image.addEventListener('error', error => reject(error));
     image.src = url;
   });
 
-const getCroppedImg = async (imageSrc: string, pixelCrop: Area): Promise<string> => {
+const getCroppedImgWebP = async (
+  imageSrc: string,
+  pixelCrop: CropArea,
+  maxDim = 1200
+): Promise<string> => {
   const image = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: false });
 
   if (!ctx) {
-    throw new Error('Canvas context is not available');
+    throw new Error('Canvas 2D Context를 가져올 수 없습니다.');
   }
 
-  const maxDim = 512;
   let targetWidth = Math.round(pixelCrop.width);
   let targetHeight = Math.round(pixelCrop.height);
 
@@ -62,117 +75,141 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: Area): Promise<string>
     targetHeight
   );
 
-  return canvas.toDataURL('image/jpeg', 0.88);
+  // 고효율 WebP 압축 (품질 0.85)
+  const mimeType = 'image/webp';
+  const quality = 0.85;
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      }
+    }, mimeType, quality);
+  });
 };
 
 export default function ImageCropDialog({
+  isOpen,
   open,
   imageSrc,
   onClose,
   onCropComplete,
+  aspect = 4 / 3,
+  title = '사진 자르기 (4:3)',
+  disableBackdropClick = true,
 }: ImageCropDialogProps) {
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [crop, setCrop] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState<number>(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  if (!open || !imageSrc) return null;
+  const isShow = isOpen ?? open ?? false;
+  if (!isShow || !imageSrc) return null;
 
-  const handleCropChange = (newCrop: { x: number; y: number }) => {
-    setCrop(newCrop);
+  const handleCropChange = (location: { x: number; y: number }) => {
+    setCrop(location);
   };
 
   const handleZoomChange = (newZoom: number) => {
     setZoom(newZoom);
   };
 
-  const handleCropPixels = (_: Area, croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(croppedAreaPixels);
+  const handleCropAreaChange = (_croppedArea: any, croppedPixels: CropArea) => {
+    setCroppedAreaPixels(croppedPixels);
   };
 
-  const handleConfirm = async () => {
+  const handleApply = async () => {
     if (!croppedAreaPixels) return;
     try {
       setIsProcessing(true);
-      const croppedBase64 = await getCroppedImg(imageSrc, croppedAreaPixels);
-      onCropComplete(croppedBase64);
+      const croppedDataUrl = await getCroppedImgWebP(imageSrc, croppedAreaPixels, 1200);
+      onCropComplete(croppedDataUrl);
       onClose();
-    } catch (e) {
-      console.error('Crop failed:', e);
+    } catch (err) {
+      console.error('이미지 크롭 실패:', err);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const dialogRoot = typeof document !== 'undefined'
-    ? document.getElementById('dialog-root') || document.body
-    : null;
-
-  if (!dialogRoot) return null;
-
-  return createPortal(
-    <div className={`image-crop-modal-overlay ${open ? 'open' : ''}`} onClick={onClose}>
-      <div className="image-crop-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="crop-modal-header">
-          <div className="header-title-group">
-            <CropIcon size={18} />
-            <span>프로필 사진 편집</span>
-          </div>
-          <button type="button" className="close-btn" onClick={onClose} title="닫기">
+  return (
+    <div
+      className="image-crop-overlay"
+      onClick={() => {
+        if (!disableBackdropClick && !isProcessing) onClose();
+      }}
+    >
+      <div className="image-crop-modal" onClick={e => e.stopPropagation()}>
+        <header className="crop-header">
+          <button
+            type="button"
+            className="crop-header-btn back"
+            onClick={onClose}
+            disabled={isProcessing}
+          >
             <X size={20} />
           </button>
+          <h3 className="crop-title">{title}</h3>
+          <div className="crop-header-spacer" />
+        </header>
+
+        <div className="crop-cropper-body">
+          <Cropper
+            image={imageSrc}
+            crop={crop}
+            zoom={zoom}
+            aspect={aspect}
+            minZoom={1}
+            maxZoom={3}
+            zoomSpeed={0.2}
+            restrictPosition={true}
+            showGrid={true}
+            onCropChange={handleCropChange}
+            onZoomChange={handleZoomChange}
+            onCropComplete={handleCropAreaChange}
+          />
         </div>
 
-        <div className="crop-modal-body">
-          <div className="cropper-container">
-            <Cropper
-              image={imageSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={1}
-              cropShape="round"
-              showGrid={false}
-              onCropChange={handleCropChange}
-              onZoomChange={handleZoomChange}
-              onCropComplete={handleCropPixels}
-            />
-          </div>
-
-          <div className="zoom-control-row">
-            <ZoomOut size={16} />
+        <div className="crop-footer">
+          <div className="zoom-controller">
+            <ZoomOut size={16} className="zoom-icon" />
             <input
               type="range"
               min={1}
               max={3}
-              step={0.05}
+              step={0.02}
               value={zoom}
-              onChange={(e) => setZoom(Number(e.target.value))}
+              onChange={e => setZoom(Number(e.target.value))}
               className="zoom-slider"
             />
-            <ZoomIn size={16} />
+            <ZoomIn size={16} className="zoom-icon" />
+          </div>
+          <div className="crop-actions">
+            <button
+              type="button"
+              className="btn-crop-cancel"
+              onClick={onClose}
+              disabled={isProcessing}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="btn-crop-submit"
+              onClick={handleApply}
+              disabled={isProcessing}
+            >
+              {isProcessing ? '압축 중...' : '자르기 완료'}
+            </button>
           </div>
         </div>
-
-        <div className="crop-modal-footer">
-          <button
-            type="button"
-            className="action-btn cancel"
-            onClick={onClose}
-            disabled={isProcessing}
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            className="action-btn confirm"
-            onClick={handleConfirm}
-            disabled={isProcessing}
-          >
-            {isProcessing ? '처리 중...' : '적용하기'}
-          </button>
-        </div>
       </div>
-    </div>,
-    dialogRoot
+    </div>
   );
 }

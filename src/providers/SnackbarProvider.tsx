@@ -38,6 +38,9 @@ export default function SnackbarProvider({ children }: { children: React.ReactNo
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       autoHideDuration={3000}
       preventDuplicate
+      classes={{
+        containerRoot: 'custom-snackbar-container-root',
+      }}
       Components={{
         default: CustomSnackbar,
         success: CustomSnackbar,

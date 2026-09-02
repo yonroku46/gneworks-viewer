@@ -62,6 +62,24 @@
   --mockup-dot-green: #34d399;
   --avatar-gradient-start: #a5b4fc;
   --avatar-gradient-end: #6366f1;
+  --manage-primary-dark: #4338ca;
+  --success-light: rgba(16, 185, 129, 0.1);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --text-muted: #94a3b8;
+  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --gray-alpha-100: rgba(0, 0, 0, 0.04);
+  --gray-alpha-200: rgba(0, 0, 0, 0.08);
+  --primary-glow: rgba(0, 122, 255, 0.15);
+  --warning-glow: rgba(245, 158, 11, 0.15);
+  --success-glow: rgba(16, 185, 129, 0.15);
+  --danger-glow: rgba(239, 68, 68, 0.15);
+  --warning-surface: #fffbeb;
+  --warning-border: #fde68a;
+  --info-border: #bae6fd;
+  --table-header-bg: #f8fafc;
+  --table-th-color: #64748b;
+  --table-row-hover: #f1f5f9;
 }
 
 * {
@@ -103,6 +121,8 @@ main {
     display: flex;
     flex-direction: column;
     .content-area {
+      overflow-x: clip;
+      overflow-y: visible;
       padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 1.25rem);
     }
   }
@@ -307,8 +327,14 @@ button {
   }
 }
 
-// Custom Snackbar Styles
+.custom-snackbar-container-root,
+.SnackbarContainer-root,
+.notistack-SnackbarContainer,
+[class*="SnackbarContainer-root"] {
+  z-index: 99999 !important;
+}
 .custom-snackbar-content {
+  z-index: 99999 !important;
   display: flex;
   align-items: center;
   gap: 0.75rem;

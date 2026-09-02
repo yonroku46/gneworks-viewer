@@ -1,14 +1,144 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
-import { ClipboardCheck, Camera, Calendar, Headphones, ArrowRight, Bell, Sparkles } from 'lucide-react';
+import {
+  ClipboardCheck,
+  CheckCircle2,
+  Hourglass,
+  AlertCircle,
+  Clock,
+  ArrowRight,
+  ChevronRight,
+  Headphones,
+  Sparkles,
+  Building2,
+  Search,
+  Check,
+} from 'lucide-react';
+import { SiteInfo } from '@/data/siteData';
+import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
+import {
+  AssignedRegion,
+  getStoredAssignedRegions,
+  subscribeToAssignedRegionsUpdate,
+} from '@/data/regionStorage';
+import {
+  getStoredReports,
+  subscribeToReportsUpdate,
+} from '@/data/reportStorage';
+import { WorkReport } from '@/data/reportData';
+import WorkReportDialog, { TargetHousehold } from '@/components/dialog/WorkReportDialog';
+import WorkHistoryDialog from '@/components/dialog/WorkHistoryDialog';
+import WorkHistoryCard from '@/components/common/WorkHistoryCard';
+import StatusBadge from '@/components/common/StatusBadge';
 import './Portal.scss';
 
 export default function PortalPage() {
   const { user } = useAuth();
   const displayName = user?.userName || '현장 작업자';
+
+  // Storage states
+  const [allSites, setAllSites] = useState<SiteInfo[]>([]);
+  const [assignedRegions, setAssignedRegions] = useState<AssignedRegion[]>([]);
+  const [reports, setReports] = useState<WorkReport[]>([]);
+
+  // Dialog state for viewing report & history
+  const [reportTarget, setReportTarget] = useState<TargetHousehold | null>(null);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+
+  useEffect(() => {
+    setAllSites(getStoredSites());
+    setAssignedRegions(getStoredAssignedRegions());
+    setReports(getStoredReports());
+
+    const unsubSites = subscribeToSitesUpdate(sites => setAllSites(sites));
+    const unsubRegions = subscribeToAssignedRegionsUpdate(regions => setAssignedRegions(regions));
+    const unsubReports = subscribeToReportsUpdate(reps => setReports(reps));
+
+    return () => {
+      unsubSites();
+      unsubRegions();
+      unsubReports();
+    };
+  }, []);
+
+  // 담당 지역의 현장들
+  const assignedSites = useMemo(() => {
+    if (assignedRegions.length === 0) return [];
+    return allSites.filter(site =>
+      assignedRegions.some(reg => reg.sido === site.sido && reg.sigungu === site.sigungu)
+    );
+  }, [allSites, assignedRegions]);
+
+  // 담당 지역의 전체 세대 수
+  const totalAssignedHouseholds = useMemo(() => {
+    return assignedSites.reduce((acc, site) => acc + (site.households?.length || 0), 0);
+  }, [assignedSites]);
+
+  // 실시간 통계 계산
+  const stats = useMemo(() => {
+    let completed = 0;
+    let pending = 0;
+    let revise = 0;
+    let todayCount = 0;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    reports.forEach(r => {
+      if (r.status === '확인완료') completed += 1;
+      else if (r.status === '검토대기') pending += 1;
+      else if (r.status === '수정필요') revise += 1;
+
+      if (r.installDate === todayStr || (r.reportTime && r.reportTime.startsWith(todayStr))) {
+        todayCount += 1;
+      }
+    });
+
+    const completionRate =
+      totalAssignedHouseholds > 0
+        ? Math.round((completed / totalAssignedHouseholds) * 100)
+        : 0;
+
+    return {
+      completed,
+      pending,
+      revise,
+      todayCount,
+      completionRate,
+      totalAssignedHouseholds,
+    };
+  }, [reports, totalAssignedHouseholds]);
+
+  // 최근 작업 이력 (최신순 5건)
+  const recentReports = useMemo(() => {
+    return [...reports]
+      .sort((a, b) => {
+        const timeA = a.reportTime || a.installDate || '';
+        const timeB = b.reportTime || b.installDate || '';
+        return timeB.localeCompare(timeA);
+      })
+      .slice(0, 5);
+  }, [reports]);
+
+  // 이력 항목 클릭 시 보고서 다이얼로그 열기
+  const handleOpenReportFromHistory = (report: WorkReport) => {
+    setReportTarget({
+      siteId: report.siteId,
+      siteName: report.siteName,
+      sido: report.sido,
+      sigungu: report.sigungu,
+      eupmyeondong: report.eupmyeondong,
+      address: report.address,
+      dong: report.dong,
+      ho: report.ho,
+      headName: report.headName,
+      existingReport: report,
+    });
+    setIsReportDialogOpen(true);
+  };
 
   return (
     <div className="portal-page">
@@ -16,102 +146,122 @@ export default function PortalPage() {
       <section className="portal-hero-banner">
         <div className="hero-text">
           <h1 className="hero-greeting">반갑습니다, {displayName}님!</h1>
-          <p className="hero-sub">GNEWorks 현장 포탈에서 오늘 배정된 작업을 확인하고 관리하세요.</p>
-        </div>
-        <div className="hero-meta">
-          <div className="user-profile-badge">
-            <div className="user-avatar-circle">
-              {user?.profileImg ? (
-                <img src={user.profileImg} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                displayName.charAt(0)
-              )}
-            </div>
-            <div className="user-text-info">
-              <span className="user-name">{displayName}</span>
-              <span className="user-role">{user?.userId || '작업자'}</span>
-            </div>
-          </div>
+          <p className="hero-sub">
+            배정된 현장의 작업 현황과 최근 제출 이력을 한눈에 확인하세요.
+          </p>
         </div>
       </section>
 
-      {/* ── STATS SUMMARY ── */}
+      {/* ── STATS SUMMARY (REALTIME 4-GRID) ── */}
       <section className="portal-stats-grid">
         <div className="stat-card">
-          <div className="stat-icon-wrapper blue">
-            <ClipboardCheck size={22} />
+          <div className="stat-icon-wrapper green">
+            <CheckCircle2 size={22} />
           </div>
           <div className="stat-info">
-            <span className="stat-label">진행 중 현장</span>
-            <span className="stat-value">2건</span>
+            <span className="stat-label">확인완료</span>
+            <span className="stat-value">{stats.completed}건</span>
           </div>
         </div>
+
         <div className="stat-card">
           <div className="stat-icon-wrapper amber">
-            <Camera size={22} />
+            <Hourglass size={22} />
           </div>
           <div className="stat-info">
-            <span className="stat-label">보고서 제출 대기</span>
-            <span className="stat-value">1건</span>
+            <span className="stat-label">검토대기</span>
+            <span className="stat-value">{stats.pending}건</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon-wrapper green">
-            <Bell size={22} />
+
+        <div className={`stat-card ${stats.revise > 0 ? 'highlight-alert' : ''}`}>
+          <div className="stat-icon-wrapper red">
+            <AlertCircle size={22} />
           </div>
           <div className="stat-info">
-            <span className="stat-label">새 알림</span>
-            <span className="stat-value">3건</span>
+            <span className="stat-label">수정요청</span>
+            <span className="stat-value">{stats.revise}건</span>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon-wrapper blue">
+            <Clock size={22} />
+          </div>
+          <div className="stat-info">
+            <span className="stat-label">오늘 작업</span>
+            <span className="stat-value">{stats.todayCount}건</span>
           </div>
         </div>
       </section>
 
-      {/* ── QUICK ACTIONS ── */}
-      <h2 className="portal-section-title">주요 업무 및 서비스</h2>
-      <section className="portal-action-grid">
-        <Link href="/contact?type=work_report" className="action-card">
-          <div className="action-header">
-            <div className="action-icon-box">
-              <Camera size={20} />
-            </div>
-            <ArrowRight size={18} className="action-arrow" />
-          </div>
-          <h3 className="action-title">현장 사진 및 보고서 등록</h3>
-          <p className="action-desc">시공 완료 사진 및 현장 보고서를 작성하고 전송합니다.</p>
-        </Link>
+      {/* ── RECENT WORK HISTORY SECTION ── */}
+      <section className="recent-works-section">
+        <div className="section-header-row">
+          <h2 className="portal-section-title">최근 작업 이력</h2>
+          <button
+            type="button"
+            className="btn-history-search"
+            onClick={() => setIsHistoryDialogOpen(true)}
+          >
+            <Search size={13} />
+            <span>전체 이력 조회</span>
+          </button>
+        </div>
 
-        <Link href="/contact?type=inquiry" className="action-card">
-          <div className="action-header">
-            <div className="action-icon-box">
-              <Headphones size={20} />
-            </div>
-            <ArrowRight size={18} className="action-arrow" />
+        {recentReports.length === 0 ? (
+          <div className="recent-works-empty">
+            <ClipboardCheck size={36} className="empty-icon" />
+            <p className="empty-title">아직 등록된 작업 이력이 없습니다.</p>
+            <p className="empty-desc">
+              [작업 목록]에서 배정된 세대를 선택하고 시공 사진과 보고서를 등록해 보세요.
+            </p>
+            <Link href="/portal/work" className="btn-start-work">
+              작업 시작하기
+            </Link>
           </div>
-          <h3 className="action-title">현장 지원 및 업무 문의</h3>
-          <p className="action-desc">작업 현장 관련 지원 요청이나 시스템 문의사항을 접수합니다.</p>
-        </Link>
+        ) : (
+          <div className="recent-works-list">
+            {recentReports.map(report => (
+              <WorkHistoryCard
+                key={report.id}
+                report={report}
+                onClick={() => handleOpenReportFromHistory(report)}
+                showSiteName={true}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
-        <Link href="/contact?type=schedule" className="action-card">
-          <div className="action-header">
-            <div className="action-icon-box">
-              <Calendar size={20} />
+      {/* ── QUICK ACTIONS & SUPPORT ── */}
+      <section className="support-section">
+        <div className="section-header-row">
+          <h2 className="portal-section-title">현장 지원 및 안내</h2>
+        </div>
+        <div className="portal-action-grid">
+          <Link href="/contact?type=inquiry" className="action-card">
+            <div className="action-header">
+              <div className="action-icon-box">
+                <Headphones size={20} />
+              </div>
+              <ArrowRight size={18} className="action-arrow" />
             </div>
-            <ArrowRight size={18} className="action-arrow" />
-          </div>
-          <h3 className="action-title">일정 및 배정 조회</h3>
-          <p className="action-desc">이번 주 예정된 배정 일정과 작업지를 확인합니다.</p>
-        </Link>
+            <h3 className="action-title">현장 지원 및 업무 문의</h3>
+            <p className="action-desc">작업 중 발생한 특이사항이나 지원 요청을 접수합니다.</p>
+          </Link>
 
-        <Link href="/contact?type=general" className="action-card">
-          <div className="action-header">
-            <div className="action-icon-box">
-              <Sparkles size={20} />
+          <Link href="/portal/work" className="action-card">
+            <div className="action-header">
+              <div className="action-icon-box">
+                <Building2 size={20} />
+              </div>
+              <ArrowRight size={18} className="action-arrow" />
             </div>
-            <ArrowRight size={18} className="action-arrow" />
-          </div>
-          <h3 className="action-title">공지사항 및 안내</h3>
-          <p className="action-desc">사내 안전 수칙 및 최신 작업 지침 가이드를 확인합니다.</p>
-        </Link>
+            <h3 className="action-title">담당 현장 세대 관리</h3>
+            <p className="action-desc">배정된 지역 아파트 세대 목록과 작업 상태를 조회합니다.</p>
+          </Link>
+        </div>
       </section>
 
       {/* ── NOTICE FEED ── */}
@@ -120,13 +270,29 @@ export default function PortalPage() {
           <span className="notice-badge">
             <Sparkles size={12} /> 현장 안내사항
           </span>
-          <span className="notice-date">2026.08.31</span>
+          <span className="notice-date">2026.09.02</span>
         </div>
-        <h4 className="notice-title">하절기 야외 시공 현장 안전 수칙 및 휴게시간 준수 안내</h4>
+        <h4 className="notice-title">현장 사진 촬영 및 보고서 작성 지침 안내</h4>
         <p className="notice-content">
-          폭염 특보 발효 시 정기적인 수분 섭취와 지정 휴게시간을 반드시 준수하여 주시기 바라며, 작업 종료 후 현장 사진 보고를 누락 없이 제출해 주시기 바랍니다.
+          작업 전/후 사진은 가이드라인 안내선에 맞추어 선명하게 촬영해 주시기 바라며, 작업 확인 완료된 세대는 임의 수정이 불가하오니 제출 전 확인자 서명 및 기재사항을 꼼꼼히 확인 바랍니다.
         </p>
       </section>
+
+      {/* ── WORK REPORT DETAIL DIALOG ── */}
+      <WorkReportDialog
+        isOpen={isReportDialogOpen}
+        onClose={() => setIsReportDialogOpen(false)}
+        target={reportTarget}
+      />
+
+      {/* ── WORK HISTORY SEARCH & FILTER DIALOG ── */}
+      <WorkHistoryDialog
+        isOpen={isHistoryDialogOpen}
+        onClose={() => setIsHistoryDialogOpen(false)}
+        onSelectReport={report => {
+          handleOpenReportFromHistory(report);
+        }}
+      />
     </div>
   );
 }
