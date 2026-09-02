@@ -2,7 +2,7 @@
 
 export const INITIAL_REPORTS_DATA: WorkReport[] = [
   {
-    id: 'rep_001',
+    reportId: 'rep_001',
     siteId: 'site_ansan_09',
     siteName: '주공아파트 9단지',
     sido: '경기도',
@@ -31,7 +31,7 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     remarks: '특이사항 없음, 정상 작동 시험 완료',
   },
   {
-    id: 'rep_002',
+    reportId: 'rep_002',
     siteId: 'site_1',
     siteName: '조흥아파트',
     sido: '경기도',
@@ -59,7 +59,7 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     remarks: '거실 및 주방 2개소 부착 완료',
   },
   {
-    id: 'rep_003',
+    reportId: 'rep_003',
     siteId: 'site_1',
     siteName: '조흥아파트',
     sido: '경기도',
@@ -87,7 +87,7 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     remarks: '안방 천장 보강 후 감지기 설치',
   },
   {
-    id: 'rep_004',
+    reportId: 'rep_004',
     siteId: 'site_1',
     siteName: '조흥아파트',
     sido: '경기도',
@@ -115,7 +115,7 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     remarks: '금일 오전 설치 완료 보고',
   },
   {
-    id: 'rep_005',
+    reportId: 'rep_005',
     siteId: 'site_2',
     siteName: '전곡 한일아파트',
     sido: '경기도',
@@ -142,7 +142,7 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     remarks: '노인 세대 음성형 감지기 설치 안내 완료',
   },
   {
-    id: 'rep_006',
+    reportId: 'rep_006',
     siteId: 'site_ansan_09',
     siteName: '주공아파트 9단지',
     sido: '경기도',
@@ -169,7 +169,7 @@ export const INITIAL_REPORTS_DATA: WorkReport[] = [
     remarks: '정상 설치 완료',
   },
   {
-    id: 'rep_007',
+    reportId: 'rep_007',
     siteId: 'site_suwon_1',
     siteName: '우만주공 1단지',
     sido: '경기도',

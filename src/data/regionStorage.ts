@@ -1,12 +1,7 @@
 import { getStoredSites } from './siteStorage';
 import { SiteInfo } from './siteData';
 
-export interface AssignedRegion {
-  id: string;          // e.g. '경기도_안산시'
-  sido: string;        // e.g. '경기도'
-  sigungu: string;     // e.g. '안산시'
-  assignedDate?: string; // e.g. '2026.09.02'
-}
+export type { AssignedRegion };
 
 const REGIONS_STORAGE_KEY = 'gneworks_worker_assigned_regions_v1';
 const REGIONS_UPDATE_EVENT = 'gneworks_worker_regions_updated';

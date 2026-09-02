@@ -1,15 +1,6 @@
 // Generated siteData.ts with Korea Regional Hierarchy & Worker Assignment
 
-export interface Household {
-  id: string;
-  seq?: number | string;      // 세대/명부 연번 (순번)
-  dong: string;
-  ho: string;
-  headName: string;
-  targetType: '노인(65세 이상)' | '아동(13세 미만)' | '장애인' | '일반';
-  installStatus: InstallStatus | '설치완료' | '방문예정' | '부재/보류' | '미설치';
-  remarks?: string;
-}
+export type { Household, AssignedWorker, SiteInfo };
 
 export const getHouseholdSeq = (hh: Household): number | string | undefined => {
   if (hh.seq !== undefined && hh.seq !== null && hh.seq !== '') return hh.seq;
@@ -17,39 +8,6 @@ export const getHouseholdSeq = (hh: Household): number | string | undefined => {
   if (match) return parseInt(match[1], 10);
   return undefined;
 };
-
-export interface AssignedWorker {
-  userId: string;
-  userName: string;
-  userPhone?: string;
-}
-
-export interface SiteInfo {
-  id: string;
-  name: string;
-  address: string;
-  region: string;
-  sido: string;               // 광역시/도 (예: '경기도')
-  sigungu: string;            // 시/군/구 (예: '연천군', '수원시')
-  eupmyeondong: string;       // 읍/면/동 (예: '연천읍', '전곡읍', '팔달구 (우만동)')
-  routeGroup: string;         // 이동동선 그룹 (예: '연천 1동선 (연천읍 권역)', '수원 2동선 (우만/팔달 B권역)')
-  dongCount: number;
-  dongList: string[];
-  totalHouseholds: number;
-  completedHouseholds: number;
-  contactPhone: string;
-  status: '진행중' | '대기' | '완료';
-
-  // 담당자(작업자) 복수 배정 정보
-  assignedWorkers?: AssignedWorker[];
-  assignedUserId?: string;      // (하위 호환) 대표 작업자 아이디
-  assignedUserName?: string;    // (하위 호환) 대표 담당자 성명
-  assignedUserPhone?: string;   // (하위 호환) 대표 연락처
-  workStartDate?: string;       // 작업 시작일자
-  workCompletedCount?: number;  // 실제 작업/설치 대수
-
-  households: Household[];
-}
 
 export const getSiteWorkers = (site: SiteInfo): AssignedWorker[] => {
   if (site.assignedWorkers && site.assignedWorkers.length > 0) {

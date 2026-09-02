@@ -3,7 +3,7 @@
 import React from 'react';
 import './StatusBadge.scss';
 
-export type StatusVariant = 'installed' | 'needs-fix' | 'hold' | 'scheduled' | 'uninstalled';
+export type { StatusVariant };
 
 export interface StatusBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   status: string;

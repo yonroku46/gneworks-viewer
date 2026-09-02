@@ -13,6 +13,8 @@ import {
   Search,
   ClipboardList,
   RotateCcw,
+  ArrowUpDown,
+  X,
 } from 'lucide-react';
 import WorkHistoryCard from '@/components/common/WorkHistoryCard';
 import './WorkHistoryDialog.scss';
@@ -76,8 +78,8 @@ export default function WorkHistoryDialog({
     }));
   }, [reports]);
 
-  // Filtered reports
-  const filteredReports = useMemo(() => {
+  // Base reports filtered by region, date, and search query (used to compute status counts)
+  const baseReports = useMemo(() => {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
 
@@ -94,42 +96,57 @@ export default function WorkHistoryDialog({
       cutoffDate = d.toISOString().split('T')[0];
     }
 
-    return reports
-      .filter(r => {
-        // Region filter (sido_sigungu)
-        if (selectedRegionKey !== 'all') {
-          const rKey = `${r.sido}_${r.sigungu}`;
-          if (rKey !== selectedRegionKey) return false;
-        }
+    return reports.filter(r => {
+      // Region filter (sido_sigungu)
+      if (selectedRegionKey !== 'all') {
+        const rKey = `${r.sido}_${r.sigungu}`;
+        if (rKey !== selectedRegionKey) return false;
+      }
 
-        // Status filter
+      // Date filter
+      const rawDate = r.installDate || (r.reportTime ? r.reportTime.split(' ')[0] : '');
+      const normDate = rawDate ? rawDate.replace(/\./g, '-') : '';
+
+      if (datePreset === 'custom') {
+        if (customStartDate && normDate && normDate < customStartDate) return false;
+        if (customEndDate && normDate && normDate > customEndDate) return false;
+      } else if (datePreset !== 'all' && normDate) {
+        if (normDate < cutoffDate) return false;
+      }
+
+      // Text search filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const matches =
+          r.siteName.toLowerCase().includes(q) ||
+          r.dong.toLowerCase().includes(q) ||
+          r.ho.toLowerCase().includes(q) ||
+          (r.headName && r.headName.toLowerCase().includes(q)) ||
+          (r.address && r.address.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [reports, selectedRegionKey, datePreset, customStartDate, customEndDate, searchQuery]);
+
+  // Counts by status
+  const statusCounts = useMemo(() => {
+    return {
+      all: baseReports.length,
+      completed: baseReports.filter(r => r.status === 'COMPLETED').length,
+      pending: baseReports.filter(r => r.status === 'PENDING').length,
+      rejected: baseReports.filter(r => r.status === 'REJECTED').length,
+    };
+  }, [baseReports]);
+
+  // Filtered reports by status & sort
+  const filteredReports = useMemo(() => {
+    return baseReports
+      .filter(r => {
         if (statusFilter !== 'all' && r.status !== statusFilter) {
           return false;
         }
-
-        // Date filter
-        const rawDate = r.installDate || (r.reportTime ? r.reportTime.split(' ')[0] : '');
-        const normDate = rawDate ? rawDate.replace(/\./g, '-') : '';
-
-        if (datePreset === 'custom') {
-          if (customStartDate && normDate && normDate < customStartDate) return false;
-          if (customEndDate && normDate && normDate > customEndDate) return false;
-        } else if (datePreset !== 'all' && normDate) {
-          if (normDate < cutoffDate) return false;
-        }
-
-        // Text search filter
-        if (searchQuery.trim()) {
-          const q = searchQuery.trim().toLowerCase();
-          const matches =
-            r.siteName.toLowerCase().includes(q) ||
-            r.dong.toLowerCase().includes(q) ||
-            r.ho.toLowerCase().includes(q) ||
-            (r.headName && r.headName.toLowerCase().includes(q)) ||
-            (r.address && r.address.toLowerCase().includes(q));
-          if (!matches) return false;
-        }
-
         return true;
       })
       .sort((a, b) => {
@@ -137,7 +154,7 @@ export default function WorkHistoryDialog({
         const timeB = b.reportTime || b.installDate || '';
         return sortOrder === 'desc' ? timeB.localeCompare(timeA) : timeA.localeCompare(timeB);
       });
-  }, [reports, selectedRegionKey, statusFilter, datePreset, customStartDate, customEndDate, searchQuery, sortOrder]);
+  }, [baseReports, statusFilter, sortOrder]);
 
   // Group filtered reports by Site Name
   const groupedBySite = useMemo(() => {
@@ -164,6 +181,7 @@ export default function WorkHistoryDialog({
     setCustomStartDate('');
     setCustomEndDate('');
     setStatusFilter('all');
+    setSortOrder('desc');
   };
 
   const isFiltered =
@@ -172,7 +190,8 @@ export default function WorkHistoryDialog({
     datePreset !== 'all' ||
     customStartDate !== '' ||
     customEndDate !== '' ||
-    statusFilter !== 'all';
+    statusFilter !== 'all' ||
+    sortOrder !== 'desc';
 
   return (
     <SlideDialog
@@ -182,7 +201,7 @@ export default function WorkHistoryDialog({
       className="work-history-dialog"
     >
       <div className="work-history-modal-body">
-        {/* ── 1. SEARCH BAR ── */}
+        {/* ── 1. SEARCH BAR & SORT ORDER ── */}
         <div className="history-search-row">
           <div className="search-input-box">
             <Search size={16} className="search-icon" />
@@ -197,11 +216,21 @@ export default function WorkHistoryDialog({
                 type="button"
                 className="btn-clear-search"
                 onClick={() => setSearchQuery('')}
+                title="검색어 지우기"
               >
-                ×
+                <X size={14} />
               </button>
             )}
           </div>
+          <button
+            type="button"
+            className="btn-sort-order"
+            onClick={() => setSortOrder(prev => (prev === 'desc' ? 'asc' : 'desc'))}
+            title="정렬 순서 변경"
+          >
+            <ArrowUpDown size={13} />
+            <span>{sortOrder === 'desc' ? '최신순' : '과거순'}</span>
+          </button>
           {isFiltered && (
             <button
               type="button"
@@ -322,7 +351,7 @@ export default function WorkHistoryDialog({
                 className={`pill-btn ${statusFilter === 'all' ? 'active' : ''}`}
                 onClick={() => setStatusFilter('all')}
               >
-                전체
+                <span>전체 ({statusCounts.all})</span>
               </button>
               <button
                 type="button"
@@ -330,7 +359,7 @@ export default function WorkHistoryDialog({
                 onClick={() => setStatusFilter('COMPLETED')}
               >
                 <span className="status-dot green" />
-                <span>확인완료</span>
+                <span>확인완료 ({statusCounts.completed})</span>
               </button>
               <button
                 type="button"
@@ -338,7 +367,7 @@ export default function WorkHistoryDialog({
                 onClick={() => setStatusFilter('PENDING')}
               >
                 <span className="status-dot amber" />
-                <span>검토대기</span>
+                <span>검토대기 ({statusCounts.pending})</span>
               </button>
               <button
                 type="button"
@@ -346,25 +375,10 @@ export default function WorkHistoryDialog({
                 onClick={() => setStatusFilter('REJECTED')}
               >
                 <span className="status-dot red" />
-                <span>수정필요</span>
+                <span>수정필요 ({statusCounts.rejected})</span>
               </button>
             </div>
           </div>
-        </div>
-
-        {/* ── 4. SUMMARY COUNT STRIP ── */}
-        <div className="history-summary-strip">
-          <span className="summary-count">
-            조회 결과 <strong>{filteredReports.length}</strong>건
-          </span>
-          <select 
-            className="history-sort-select"
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
-          >
-            <option value="desc">최신순</option>
-            <option value="asc">과거순</option>
-          </select>
         </div>
 
         {/* ── 5. SITES & HOUSEHOLDS LIST (모던 카드 그리드) ── */}
@@ -396,7 +410,7 @@ export default function WorkHistoryDialog({
                 <div className="site-households-list">
                   {group.items.map(report => (
                     <WorkHistoryCard
-                      key={report.id}
+                      key={report.reportId}
                       report={report}
                       onClick={() => onSelectReport && onSelectReport(report)}
                     />

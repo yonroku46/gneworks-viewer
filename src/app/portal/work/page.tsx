@@ -32,13 +32,7 @@ import {
 } from 'lucide-react';
 import './Work.scss';
 
-export type WorkStatusFilter =
-  | 'all'
-  | 'uncompleted'
-  | 'unsubmitted'
-  | 'pending'
-  | 'revise'
-  | 'completed';
+export type { WorkStatusFilter };
 
 export const normalizeReportStatus = (status?: string): ReportStatus => {
   if (!status) return 'UNSUBMITTED';

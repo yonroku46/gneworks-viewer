@@ -241,9 +241,9 @@ export default function ManageWorkPage() {
       fixReason: statusFormData.status === 'REJECTED' ? statusFormData.fixReason.trim() : '',
     };
 
-    setReports(prev => prev.map(r => (r.id === updatedReport.id ? updatedReport : r)));
+    setReports(prev => prev.map(r => (r.reportId === updatedReport.reportId ? updatedReport : r)));
 
-    if (selectedReport && selectedReport.id === updatedReport.id) {
+    if (selectedReport && selectedReport.reportId === updatedReport.reportId) {
       setSelectedReport(updatedReport);
     }
 
@@ -355,7 +355,7 @@ export default function ManageWorkPage() {
           <tbody>
             {filteredReports.length > 0 ? (
               filteredReports.map((report, idx) => (
-                <tr key={report.id} className="report-table-row">
+                <tr key={report.reportId} className="report-table-row">
                   <td className="col-num">
                     <span className="row-index">{idx + 1}</span>
                   </td>

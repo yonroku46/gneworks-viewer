@@ -11,18 +11,7 @@ import { upsertReport } from '@/data/reportStorage';
 import { Plus, X, Check, AlertCircle } from 'lucide-react';
 import './WorkReportDialog.scss';
 
-export interface TargetHousehold {
-  siteId: string;
-  siteName: string;
-  sido: string;
-  sigungu: string;
-  eupmyeondong: string;
-  address: string;
-  dong: string;
-  ho: string;
-  headName: string;
-  existingReport?: WorkReport;
-}
+export type { TargetHousehold };
 
 interface WorkReportDialogProps {
   isOpen: boolean;

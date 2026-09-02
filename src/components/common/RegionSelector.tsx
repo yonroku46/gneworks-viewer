@@ -6,11 +6,7 @@ import { KOREA_ADMIN_REGIONS, getSigunguList, getEupmyeondongList } from '@/data
 import CustomSelect from './CustomSelect';
 import './RegionSelector.scss';
 
-export interface RegionValue {
-  sido: string;
-  sigungu: string;
-  eupmyeondong: string;
-}
+export type { RegionValue };
 
 interface RegionSelectorProps {
   value: RegionValue;

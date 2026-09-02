@@ -2,11 +2,7 @@ import React, { forwardRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import './CustomSelect.scss';
 
-export interface SelectOption {
-  value: string;
-  label: string;
-  disabled?: boolean;
-}
+export type { SelectOption };
 
 export interface CustomSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   options?: SelectOption[];

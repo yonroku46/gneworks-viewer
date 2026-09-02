@@ -14,6 +14,7 @@ declare global {
     groupTitle?: string;
     items: MenuItem[];
   }
+  // ─── Region & Address (지역 & 행정구역) ───
   interface SigunguData {
     name: string;
     eupmyeondongs: string[];
@@ -24,6 +25,92 @@ declare global {
     shortName: string;
     sigungus: SigunguData[];
   }
+  interface RegionValue {
+    sido: string;
+    sigungu: string;
+    eupmyeondong: string;
+  }
+  interface AssignedRegion {
+    id: string;          // e.g. '경기도_안산시'
+    sido: string;        // e.g. '경기도'
+    sigungu: string;     // e.g. '안산시'
+    assignedDate?: string; // e.g. '2026.09.02'
+  }
+
+  // ─── Site & Household & Assignment (현장, 세대, 작업자 배정) ───
+  type HouseholdTargetType = '노인(65세 이상)' | '아동(13세 미만)' | '장애인' | '일반';
+  type HouseholdInstallStatus = InstallStatus | '설치완료' | '방문예정' | '부재/보류' | '미설치';
+
+  interface Household {
+    id: string;
+    seq?: number | string;      // 세대/명부 연번 (순번)
+    dong: string;
+    ho: string;
+    headName: string;
+    targetType: HouseholdTargetType;
+    installStatus: HouseholdInstallStatus;
+    remarks?: string;
+  }
+
+  interface AssignedWorker {
+    userId: string;
+    userName: string;
+    userPhone?: string;
+  }
+
+  type SiteStatus = '진행중' | '대기' | '완료';
+
+  interface SiteInfo {
+    id: string;
+    name: string;
+    address: string;
+    region: string;
+    sido: string;               // 광역시/도 (예: '경기도')
+    sigungu: string;            // 시/군/구 (예: '연천군', '수원시')
+    eupmyeondong: string;       // 읍/면/동 (예: '연천읍', '전곡읍', '팔달구 (우만동)')
+    routeGroup: string;         // 이동동선 그룹 (예: '연천 1동선 (연천읍 권역)', '수원 2동선 (우만/팔달 B권역)')
+    dongCount: number;
+    dongList: string[];
+    totalHouseholds: number;
+    completedHouseholds: number;
+    contactPhone: string;
+    status: SiteStatus;
+    assignedWorkers?: AssignedWorker[];
+    assignedUserId?: string;      // (하위 호환) 대표 작업자 아이디
+    assignedUserName?: string;    // (하위 호환) 대표 담당자 성명
+    assignedUserPhone?: string;   // (하위 호환) 대표 연락처
+    workStartDate?: string;       // 작업 시작일자
+    workCompletedCount?: number;  // 실제 작업/설치 대수
+    households: Household[];
+  }
+
+  interface TargetHousehold {
+    siteId: string;
+    siteName: string;
+    sido: string;
+    sigungu: string;
+    eupmyeondong: string;
+    address: string;
+    dong: string;
+    ho: string;
+    headName: string;
+    existingReport?: WorkReport;
+  }
+
+  // ─── Common UI Models ───
+  interface SelectOption {
+    value: string;
+    label: string;
+    disabled?: boolean;
+  }
+  type StatusVariant = 'installed' | 'needs-fix' | 'hold' | 'scheduled' | 'uninstalled';
+  type WorkStatusFilter =
+    | 'all'
+    | 'uncompleted'
+    | 'unsubmitted'
+    | 'pending'
+    | 'revise'
+    | 'completed';
   type NotificationIconType = 'LOGO' | 'AVATAR';
   type ReportStatus = 'COMPLETED' | 'PENDING' | 'REJECTED' | 'UNSUBMITTED';
   type InstallStatus = 'INSTALLED' | 'SCHEDULED' | 'HOLD' | 'UNINSTALLED';
@@ -35,7 +122,7 @@ declare global {
     type: ReportPhotoType;
   }
   interface WorkReport {
-    id: string;
+    reportId: string;
     siteId: string;
     siteName: string;
     sido: string;

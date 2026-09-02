@@ -226,7 +226,7 @@ export default function PortalPage() {
           <div className="recent-works-list">
             {recentReports.map(report => (
               <WorkHistoryCard
-                key={report.id}
+                key={report.reportId}
                 report={report}
                 onClick={() => handleOpenReportFromHistory(report)}
                 showSiteName={true}

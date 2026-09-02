@@ -71,7 +71,7 @@ export const upsertReport = (report: Partial<WorkReport> & { siteName: string; d
     current[existingIdx] = updatedReport;
   } else {
     updatedReport = {
-      id: `rep_${Date.now()}`,
+      reportId: `rep_${Date.now()}`,
       siteId: report.siteId || 'site_custom',
       siteName: report.siteName,
       status: report.status || 'PENDING',
