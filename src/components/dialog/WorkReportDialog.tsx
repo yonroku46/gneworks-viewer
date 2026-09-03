@@ -8,7 +8,7 @@ import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
 import { upsertReport } from '@/data/reportStorage';
 
-import { Plus, X, Check, AlertCircle } from 'lucide-react';
+import { Plus, X, Check, AlertCircle, Building2 } from 'lucide-react';
 import './WorkReportDialog.scss';
 
 export type { TargetHousehold };
@@ -287,44 +287,56 @@ export default function WorkReportDialog({
             </div>
           ) : (
             <div className="wizard-sub-header">
-              {/* 상단: 세대 정보 (좌) & 스텝 카운터 (우) */}
               <div className="wizard-header-line">
                 <div className="wizard-target-info">
-                  <span className="target-site-badge">{target.siteName}</span>
-                  <span className="target-unit-text">{target.dong}동 {target.ho}호 ({target.headName})</span>
+                  {step === 1 ? (
+                    <>
+                      <span className="target-site-badge guide">STEP 1</span>
+                      <span className="target-guide-text">작업 장소 및 설치 일자 확인</span>
+                    </>
+                  ) : step === 2 ? (
+                    <>
+                      <span className="target-site-badge guide">STEP 2</span>
+                      <span className="target-unit-text">
+                        {target.dong}동 {target.ho}호 사진 등록
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="target-site-badge guide">STEP 3</span>
+                      <span className="target-unit-text">
+                        {target.dong}동 {target.ho}호 서명 및 완료
+                      </span>
+                    </>
+                  )}
                 </div>
-                <span className="wizard-step-counter">
-                  <strong>{step}</strong> / 3단계
-                </span>
-              </div>
-
-              {/* 하단: 토스/iOS 스타일 3분할 세그먼트 게이지 바 */}
-              <div className="wizard-segment-track">
-                <div
-                  className={`segment-bar ${step >= 1 ? 'active' : ''}`}
-                  onClick={() => setStep(1)}
-                  role="button"
-                  tabIndex={0}
-                  title="1단계: 세대·일자 확인"
-                />
-                <div
-                  className={`segment-bar ${step >= 2 ? 'active' : ''}`}
-                  onClick={() => {
-                    if (installDate) setStep(2);
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  title="2단계: 현장 사진"
-                />
-                <div
-                  className={`segment-bar ${step >= 3 ? 'active' : ''}`}
-                  onClick={() => {
-                    if (Object.keys(photos).length > 0) setStep(3);
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  title="3단계: 확인자 서명 및 완료"
-                />
+                <div className="wizard-step-dots" role="status" aria-label={`3단계 중 ${step}단계 진행 중`}>
+                  <span
+                    className={`step-dot ${step >= 1 ? 'active' : ''}`}
+                    onClick={() => setStep(1)}
+                    role="button"
+                    tabIndex={0}
+                    title="1단계: 세대·일자 확인"
+                  />
+                  <span
+                    className={`step-dot ${step >= 2 ? 'active' : ''}`}
+                    onClick={() => {
+                      if (installDate) setStep(2);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    title="2단계: 현장 사진"
+                  />
+                  <span
+                    className={`step-dot ${step >= 3 ? 'active' : ''}`}
+                    onClick={() => {
+                      if (Object.keys(photos).length > 0) setStep(3);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    title="3단계: 확인자 서명 및 완료"
+                  />
+                </div>
               </div>
             </div>
           )
@@ -426,31 +438,39 @@ export default function WorkReportDialog({
           ══════════════════════════════════════════════════ */}
           {isReadOnly ? (
             <div className="readonly-report-wrapper">
-              {/* 1. 설치 일자 & 작업자 */}
-              <div className="form-row-2">
-                <div className="form-group">
-                  <label className="form-label">
-                    <span>설치 일자</span>
-                  </label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={installDate}
-                    disabled
-                  />
+              {/* 기본 정보 통합 카드 (작업 장소 + 일정/작업자) */}
+              <div className="step-location-card">
+                <div className="location-header-row">
+                  <div className="site-name-wrap">
+                    <Building2 size={15} className="location-icon" />
+                    <span className="site-name">{target.siteName}</span>
+                  </div>
+                  {target.address && (
+                    <span className="address-text" title={target.address}>
+                      {target.address}
+                    </span>
+                  )}
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    <span>작업자 (보고자)</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={reporterName}
-                    readOnly
-                    tabIndex={-1}
-                  />
+                <div className="location-detail-row">
+                  <div className="unit-text">
+                    <span className="dong-text">{target.dong}동</span>
+                    <span className="ho-text">{target.ho}호</span>
+                  </div>
+                  <div className="head-badge">
+                    <span className="name">{target.headName}</span>
+                    <span className="role">세대주</span>
+                  </div>
+                </div>
+                <div className="summary-meta-footer">
+                  <div className="meta-item">
+                    <span className="meta-label">설치 일자</span>
+                    <span className="meta-val">{installDate || '-'}</span>
+                  </div>
+                  <span className="meta-divider" />
+                  <div className="meta-item">
+                    <span className="meta-label">작업자</span>
+                    <span className="meta-val">{reporterName || '-'}</span>
+                  </div>
                 </div>
               </div>
 
@@ -576,38 +596,62 @@ export default function WorkReportDialog({
               {/* ── STEP 1: 세대 및 설치 일자 확인 ── */}
               {step === 1 && (
                 <div className="wizard-step-panel step-1-panel">
-                  <div className="step-notice-alert">
-                    <AlertCircle size={16} className="notice-icon" />
-                    <span>상단에 표시된 <strong>작업 장소(동·호수)</strong>와 <strong>세대주</strong> 정보가 일치하는지 반드시 확인해 주세요.</span>
-                  </div>
-                  {/* 설치 일자 & 작업자 본인 확인 */}
-                  <div className="step-fields-card">
-                    <div className="form-group">
-                      <label className="form-label">
-                        <span>설치 일자</span>
-                        <span className="required-tag">(필수)</span>
-                      </label>
-                      <input
-                        type="date"
-                        className="form-input"
-                        value={installDate}
-                        onChange={e => setInstallDate(e.target.value)}
-                        required
-                      />
+                  {/* 단일 통합 정보 및 입력 카드 */}
+                  <div className="step-fields-card integrated-card">
+                    {/* 상단: 작업 대상 세대 정보 */}
+                    <div className="card-location-header">
+                      <div className="location-header-row">
+                        <div className="site-name-wrap">
+                          <Building2 size={15} className="location-icon" />
+                          <span className="site-name">{target.siteName}</span>
+                        </div>
+                        {target.address && (
+                          <span className="address-text" title={target.address}>
+                            {target.address}
+                          </span>
+                        )}
+                      </div>
+                      <div className="location-detail-row">
+                        <div className="unit-text">
+                          <span className="dong-text">{target.dong}동</span>
+                          <span className="ho-text">{target.ho}호</span>
+                        </div>
+                        <div className="head-badge">
+                          <span className="name">{target.headName}</span>
+                          <span className="role">세대주</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="form-group">
-                      <label className="form-label">
-                        <span>작업자 (보고자)</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={reporterName}
-                        readOnly
-                        tabIndex={-1}
-                        title="로그인된 작업자 본인 계정으로 자동 고정됩니다."
-                      />
+                    {/* 하단: 설치 일자 & 작업자 입력 */}
+                    <div className="card-fields-body">
+                      <div className="form-group">
+                        <label className="form-label">
+                          <span>설치 일자</span>
+                          <span className="required-tag">(필수)</span>
+                        </label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={installDate}
+                          onChange={e => setInstallDate(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">
+                          <span>작업자 (보고자)</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={reporterName}
+                          readOnly
+                          tabIndex={-1}
+                          title="로그인된 작업자 본인 계정으로 자동 고정됩니다."
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

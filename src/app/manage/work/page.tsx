@@ -6,6 +6,7 @@ import {
   Calendar, 
   CheckCircle2, 
   Printer, 
+  FileDown,
   Image as ImageIcon,
   ClipboardCheck,
   Filter,
@@ -24,6 +25,7 @@ import { useManageRegion } from '@/providers/ManageRegionProvider';
 import SearchInput from '@/components/common/SearchInput';
 import StatusBadge from '@/components/common/StatusBadge';
 import { INITIAL_REPORTS_DATA } from '@/data/reportData';
+import { getStoredReports, subscribeToReportsUpdate } from '@/data/reportStorage';
 import '../ManageLayout.scss';
 
 dayjs.locale('ko');
@@ -34,8 +36,20 @@ export default function ManageWorkPage() {
   // Master Reports Data
   const [reports, setReports] = useState<WorkReport[]>(INITIAL_REPORTS_DATA);
 
+  // Load from Storage & Subscribe to Updates
+  React.useEffect(() => {
+    setReports(getStoredReports());
+    const unsub = subscribeToReportsUpdate(newReports => {
+      setReports(newReports);
+    });
+    return () => unsub();
+  }, []);
+
   // Region State for Common RegionSelector (Global Shared State)
   const { region, setRegion } = useManageRegion();
+
+  // Batch Print State
+  const [isBatchPrinting, setIsBatchPrinting] = useState(false);
 
   // Applied Filter States (실제 목록에 적용되는 상태)
   const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | 'PENDING' | 'REJECTED' | 'COMPLETED'>('ALL');
@@ -253,8 +267,45 @@ export default function ManageWorkPage() {
     });
   };
 
-  // Handle Print
+  // Region Label Display
+  const regionLabel = useMemo(() => {
+    if (region.sido === 'ALL') return '전국';
+    if (region.sigungu === 'ALL') return region.sido;
+    if (region.eupmyeondong === 'ALL') return `${region.sido} ${region.sigungu}`;
+    return `${region.sido} ${region.sigungu} ${region.eupmyeondong}`;
+  }, [region]);
+
+  // Handle Batch Print
+  const handleBatchPrint = () => {
+    if (filteredReports.length === 0) {
+      enqueueSnackbar('인쇄할 대상 보고서가 없습니다.', { variant: 'warning' });
+      return;
+    }
+
+    setIsBatchPrinting(true);
+    document.body.classList.add('batch-print-active');
+
+    setTimeout(() => {
+      window.print();
+    }, 250);
+  };
+
+  React.useEffect(() => {
+    const handleAfterPrint = () => {
+      setIsBatchPrinting(false);
+      document.body.classList.remove('batch-print-active');
+    };
+
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('afterprint', handleAfterPrint);
+      document.body.classList.remove('batch-print-active');
+    };
+  }, []);
+
+  // Handle Print (Single)
   const handlePrint = () => {
+    document.body.classList.remove('batch-print-active');
     window.print();
   };
 
@@ -265,6 +316,18 @@ export default function ManageWorkPage() {
         <div>
           <h2>보고서 관리</h2>
           <p>현장 작업 보고서를 확인하고 처리합니다.</p>
+        </div>
+        <div className="page-header-actions">
+          <button
+            type="button"
+            className="btn-batch-pdf-action"
+            onClick={handleBatchPrint}
+            title={`${regionLabel} 지역의 모든 보고서를 대지와 함께 일괄 PDF로 출력합니다.`}
+          >
+            <FileDown size={15} />
+            <span>지역별 일괄 PDF 출력</span>
+            <span className="batch-badge">{filteredReports.length}건</span>
+          </button>
         </div>
       </div>
 
@@ -863,6 +926,238 @@ export default function ManageWorkPage() {
           </div>
         </div>
       </SlideDialog>
+
+      {/* ── 6. BATCH PRINT BUNDLE (지역별 일괄 PDF/인쇄 전용 대지 + 확인서 묶음) ── */}
+      <div id="printable-batch-bundle" className="printable-batch-container">
+        {/* ── PAGE 1: 대지 (Cover Sheet) ── */}
+        <div className="batch-cover-page page-break">
+          <div className="cover-top-line">
+            <span className="cover-badge">화재취약계층 주택용 소방시설 보급사업</span>
+            <table className="cover-approval-table">
+              <thead>
+                <tr>
+                  <th>담당</th>
+                  <th>검토</th>
+                  <th>승인</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="sign-cell"></td>
+                  <td className="sign-cell"></td>
+                  <td className="sign-cell"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="cover-title-area">
+            <h1 className="cover-main-title">단독경보형감지기 보급지원사업</h1>
+            <h2 className="cover-sub-title">【 작업 완료 보고서 및 현장 확인서철 】</h2>
+          </div>
+
+          <div className="cover-info-card">
+            <table className="cover-meta-table">
+              <tbody>
+                <tr>
+                  <th>사업명</th>
+                  <td>2026년 화재취약계층 단독경보형감지기 무상 보급·설치 사업</td>
+                  <th>출력일시</th>
+                  <td>{dayjs().format('YYYY년 MM월 DD일 HH:mm')}</td>
+                </tr>
+                <tr>
+                  <th>대상 지역</th>
+                  <td><strong className="hl-region">{regionLabel}</strong></td>
+                  <th>총 보고 건수</th>
+                  <td>
+                    총 <strong>{filteredReports.length}</strong>세대 
+                    (승인완료 {filteredReports.filter(r => r.status === 'COMPLETED').length}건, 
+                    검토대기 {filteredReports.filter(r => r.status === 'PENDING').length}건)
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="cover-records-section">
+            <div className="section-title-line">
+              <h4>■ 세대별 작업 요약 일람표</h4>
+              <span className="summary-count">총 {filteredReports.length}건 수록</span>
+            </div>
+            <table className="cover-records-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '36px' }}>No</th>
+                  <th>사업지 (단지명)</th>
+                  <th style={{ width: '50px' }}>동</th>
+                  <th style={{ width: '50px' }}>호</th>
+                  <th style={{ width: '65px' }}>세대주</th>
+                  <th style={{ width: '85px' }}>설치일자</th>
+                  <th style={{ width: '65px' }}>작업자</th>
+                  <th style={{ width: '65px' }}>상태</th>
+                  <th>비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="empty-td">출력 대상 보고서가 없습니다.</td>
+                  </tr>
+                ) : (
+                  filteredReports.map((rep, idx) => (
+                    <tr key={rep.reportId}>
+                      <td className="center">{idx + 1}</td>
+                      <td className="site-td">{rep.siteName}</td>
+                      <td className="center">{rep.dong}동</td>
+                      <td className="center">{rep.ho}호</td>
+                      <td className="center">{rep.headName}</td>
+                      <td className="center">{rep.installDate || '-'}</td>
+                      <td className="center">{rep.reporterName}</td>
+                      <td className="center">
+                        <span className={`batch-status-tag ${rep.status}`}>
+                          {rep.status === 'COMPLETED' ? '완료' : rep.status === 'PENDING' ? '대기' : '반려'}
+                        </span>
+                      </td>
+                      <td className="remarks-td">{rep.remarks || '-'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="cover-footer-note">
+            <p>위와 같이 단독경보형감지기 보급지원사업 현장 작업이 완료되었음을 확인하고 보고서를 제출합니다.</p>
+          </div>
+        </div>
+
+        {/* ── PAGE 2 ~ N+1: 각 세대별 확인서 순차 렌더링 ── */}
+        {filteredReports.map((rep, idx) => {
+          const doorPhoto = rep.photos?.find(p => p.type === 'DOOR')?.url || '/assets/img/report_sheet_sample.png';
+          const before1Photo = rep.photos?.find(p => p.type === 'BEFORE1')?.url || '/assets/img/report_sheet_sample.png';
+          const after1Photo = rep.photos?.find(p => p.type === 'AFTER1')?.url || '/assets/img/report_sheet_sample.png';
+          const after2Photo = rep.photos?.find(p => p.type === 'AFTER2' || p.type === 'BEFORE2')?.url || '/assets/img/report_sheet_sample.png';
+
+          return (
+            <div key={rep.reportId} className="batch-report-sheet confirmation-document-paper page-break">
+              <div className="doc-top-bar">
+                <span className="doc-version-badge">보급지원확인서 ({idx + 1} / {filteredReports.length})</span>
+                <span className="doc-target-badge">{rep.siteName} {rep.dong}동 {rep.ho}호 ({rep.headName} 세대)</span>
+              </div>
+
+              <div className="doc-header-row">
+                <div className="doc-title-box">
+                  <h1 className="doc-main-title">단독경보형감지기 보급지원확인서</h1>
+                </div>
+                <table className="approval-stamp-table">
+                  <thead>
+                    <tr>
+                      <th>방문자</th>
+                      <th>확인자</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="stamp-name-row">
+                      <td>{rep.visitorName || rep.reporterName}</td>
+                      <td>{rep.confirmerName || rep.headName}</td>
+                    </tr>
+                    <tr className="stamp-sign-row">
+                      <td className="stamp-cell">
+                        <span className="hand-signature">{rep.visitorName || rep.reporterName}</span>
+                      </td>
+                      <td className="stamp-cell">
+                        {rep.confirmerSignature ? (
+                          <img src={rep.confirmerSignature} alt="확인자 서명" className="signature-thumb" />
+                        ) : (
+                          <span className="hand-signature">{rep.confirmerName || rep.headName}</span>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="doc-address-banner">
+                <span className="addr-label">주소</span>
+                <span className="addr-content">{rep.address}</span>
+              </div>
+
+              <div className="doc-body-columns">
+                <div className="doc-left-table-col">
+                  <table className="spec-table">
+                    <thead>
+                      <tr>
+                        <th>구분</th>
+                        <th>내용</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="row-th">성명</td>
+                        <td className="row-td">{rep.headName}</td>
+                      </tr>
+                      <tr>
+                        <td className="row-th">동 / 호수</td>
+                        <td className="row-td">{rep.dong}동 {rep.ho}호</td>
+                      </tr>
+                      <tr>
+                        <td className="row-th">설치일자</td>
+                        <td className="row-td">{rep.installDateFormatted || rep.installDate}</td>
+                      </tr>
+                      <tr>
+                        <td className="row-th">보고일시</td>
+                        <td className="row-td">{rep.reportTime || rep.submittedAt}</td>
+                      </tr>
+                      <tr>
+                        <td className="row-th">보고자</td>
+                        <td className="row-td">{rep.reporterName}</td>
+                      </tr>
+                      {rep.remarks && (
+                        <tr>
+                          <td className="row-th">특이사항</td>
+                          <td className="row-td remarks-val">{rep.remarks}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="doc-right-photos-col">
+                  <h3 className="photos-section-title">설치 현장 사진</h3>
+                  <div className="photos-frame-box">
+                    <div className="photos-2x2-grid">
+                      <div className="photo-item-card">
+                        <div className="photo-view-box">
+                          <img src={doorPhoto} alt="대문" />
+                        </div>
+                        <span className="photo-caption">신주소 보이는 대문 등</span>
+                      </div>
+                      <div className="photo-item-card">
+                        <div className="photo-view-box">
+                          <img src={before1Photo} alt="설치 전 1" />
+                        </div>
+                        <span className="photo-caption">설치 전 ①</span>
+                      </div>
+                      <div className="photo-item-card">
+                        <div className="photo-view-box">
+                          <img src={after1Photo} alt="설치 후 1" />
+                        </div>
+                        <span className="photo-caption">설치 후 ①</span>
+                      </div>
+                      <div className="photo-item-card">
+                        <div className="photo-view-box">
+                          <img src={after2Photo} alt="설치 전/후 2" />
+                        </div>
+                        <span className="photo-caption">설치 전/후 ②</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

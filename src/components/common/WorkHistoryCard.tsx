@@ -60,7 +60,7 @@ export default function WorkHistoryCard({
               {showSiteName ? `${report.siteName} ${report.dong}동 ${report.ho}호` : `${report.dong}동 ${report.ho}호`}
             </span>
             {report.headName && (
-              <span className="head-name">({report.headName})</span>
+              <span className="head-name">{report.headName} 세대</span>
             )}
           </div>
         </div>
@@ -70,12 +70,8 @@ export default function WorkHistoryCard({
           {(dateStr || timeStr) && <span className="dot">•</span>}
           {dateStr && (
             <span className="info-date">
-              <Calendar size={11} />
-              <span>{dateStr}</span>
+              <span>{`${dateStr} ${timeStr ? `${timeStr} 보고` : ''}`}</span>
             </span>
-          )}
-          {timeStr && (
-            <span className="info-time">{timeStr} 보고</span>
           )}
         </div>
       </div>
