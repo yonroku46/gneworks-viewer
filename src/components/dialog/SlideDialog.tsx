@@ -70,6 +70,11 @@ export default function SlideDialog({
   const [active, setActive] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   const isPushedRef = useRef(false);
   const isClosingByPopstateRef = useRef(false);
 
@@ -82,16 +87,17 @@ export default function SlideDialog({
     if (!isOpen) {
       if (isPushedRef.current && !isClosingByPopstateRef.current) {
         isPushedRef.current = false;
-        if (typeof window !== 'undefined' && window.history.state?.isSlideDialog) {
+        try {
           window.history.back();
-        }
+        } catch {}
       }
       isClosingByPopstateRef.current = false;
       return;
     }
 
     if (typeof window !== 'undefined' && !isPushedRef.current) {
-      window.history.pushState({ isSlideDialog: true, time: Date.now() }, '');
+      const currentHistoryState = window.history.state || {};
+      window.history.pushState({ ...currentHistoryState, isSlideDialog: true, dialogTime: Date.now() }, '');
       isPushedRef.current = true;
     }
 
@@ -99,7 +105,7 @@ export default function SlideDialog({
       if (isPushedRef.current) {
         isPushedRef.current = false;
         isClosingByPopstateRef.current = true;
-        onClose();
+        onCloseRef.current();
       }
     };
 
@@ -107,14 +113,20 @@ export default function SlideDialog({
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isOpen]);
+
+  // 컴포넌트 언마운트 시 미처 회수되지 않은 가상 히스토리 안전 정리
+  useEffect(() => {
+    return () => {
       if (isPushedRef.current && !isClosingByPopstateRef.current) {
         isPushedRef.current = false;
-        if (typeof window !== 'undefined' && window.history.state?.isSlideDialog) {
+        try {
           window.history.back();
-        }
+        } catch {}
       }
     };
-  }, [isOpen, onClose]);
+  }, []);
 
   // 바디 스크롤 락 제어 (백드롭 스크롤 누수 완벽 차단)
   useEffect(() => {

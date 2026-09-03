@@ -387,7 +387,7 @@ export default function ManageCustomers() {
             <strong className="chip-val highlight">{metrics.totalHouseholds.toLocaleString()}세대</strong>
           </div>
           <div className="summary-sub-chip">
-            <span className="chip-label">해당지역 담당자</span>
+            <span className="chip-label">지역 담당자</span>
             <strong className="chip-val highlight">{metrics.totalWorkers}명</strong>
           </div>
         </div>
