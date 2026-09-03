@@ -63,6 +63,49 @@ export const removeAssignedRegion = (regionId: string): AssignedRegion[] => {
   return updated;
 };
 
+export interface RegionWorker {
+  userId: string;
+  userName: string;
+  userPhone?: string;
+  assignedDate?: string;
+  regionName: string;
+}
+
+// 기본 지역별 작업자 매핑 데이터 (행정구역 귀속)
+export const DEFAULT_REGION_WORKERS: Record<string, RegionWorker[]> = {
+  '경기도_연천군': [
+    { userId: 'worker_lee', userName: '이작업', userPhone: '010-3344-5566', assignedDate: '2026.08.25', regionName: '경기도 연천군' },
+    { userId: 'worker_kim', userName: '김기술', userPhone: '010-5566-7788', assignedDate: '2026.08.26', regionName: '경기도 연천군' },
+  ],
+  '경기도_안산시': [
+    { userId: 'worker_park', userName: '박안산', userPhone: '010-7788-9900', assignedDate: '2026.08.20', regionName: '경기도 안산시' },
+  ],
+  '서울특별시_강남구': [
+    { userId: 'worker_choi', userName: '최강남', userPhone: '010-9988-1122', assignedDate: '2026.08.15', regionName: '서울특별시 강남구' },
+  ],
+};
+
+// 특정 시/도, 시/군/구 지역을 담당하는 작업자 목록 조회
+export const getRegionWorkers = (sido: string, sigungu: string): RegionWorker[] => {
+  const key = `${sido}_${sigungu}`;
+  if (DEFAULT_REGION_WORKERS[key]) {
+    return DEFAULT_REGION_WORKERS[key];
+  }
+  const assigned = getStoredAssignedRegions().find(r => r.sido === sido && r.sigungu === sigungu);
+  if (assigned) {
+    return [
+      {
+        userId: 'worker_default',
+        userName: '현장담당자',
+        userPhone: '010-1234-5678',
+        assignedDate: assigned.assignedDate || '2026.08.25',
+        regionName: `${sido} ${sigungu}`,
+      },
+    ];
+  }
+  return [];
+};
+
 // 특정 지역에 속한 현장 목록 조회
 export const getSitesInRegion = (sido: string, sigungu: string): SiteInfo[] => {
   const allSites = getStoredSites();

@@ -192,8 +192,8 @@
             align-items: center;
             gap: 0.5rem;
             padding: 0.75rem 1rem;
-            background: var(--warning-surface, #fffbeb);
-            border: 1px solid var(--warning-border, #fcd34d);
+            background: var(--info-bg);
+            border: 1px solid var(--info-border);
             border-radius: 0.75rem;
             color: var(--slate-800);
             font-size: 0.8125rem;
@@ -204,13 +204,13 @@
               left: -0.375rem;
               width: 1.25rem;
               height: 1.25rem;
-              background-color: var(--warning, #f59e0b);
+              background-color: var(--info-blue);
               color: var(--white);
               border-radius: 9999px;
               flex-shrink: 0;
             }
             strong {
-              color: var(--warning, #f59e0b);
+              color: var(--info-text);
               font-weight: 700;
             }
           }

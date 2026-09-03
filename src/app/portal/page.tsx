@@ -5,18 +5,15 @@ import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import {
   ClipboardCheck,
-  CheckCircle2,
   Hourglass,
   AlertCircle,
   Clock,
   ArrowRight,
-  ChevronRight,
   Headphones,
   Sparkles,
-  Building2,
   Search,
   Check,
-  MessageSquareText,
+  MessageCircle,
 } from 'lucide-react';
 import { SiteInfo } from '@/data/siteData';
 import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
@@ -260,7 +257,7 @@ export default function PortalPage() {
           >
             <div className="action-header">
               <div className="action-icon-box">
-                <MessageSquareText size={20} />
+                <MessageCircle size={20} />
               </div>
               <ArrowRight size={18} className="action-arrow" />
             </div>

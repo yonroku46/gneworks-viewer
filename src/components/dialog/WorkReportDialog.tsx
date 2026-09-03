@@ -271,7 +271,7 @@ export default function WorkReportDialog({
       <SlideDialog
         isOpen={isOpen}
         onClose={handleSafeClose}
-        disableBackdropClick={true}
+        disableBackdropClick={!isReadOnly}
         title={isReadOnly ? "작업 보고서" : "작업 보고서 작성"}
         className="work-report-slide-dialog"
         subHeader={

@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import { Calendar, ChevronRight } from 'lucide-react';
+import { AlertCircle, Calendar, Check, ChevronRight, Hourglass } from 'lucide-react';
 import './WorkHistoryCard.scss';
 
 interface WorkHistoryCardProps {
@@ -23,6 +23,22 @@ export default function WorkHistoryCard({
       ? 'pending'
       : 'revise';
 
+  const statusConfig = {
+    completed: {
+      icon: Check,
+      label: '확인완료',
+    },
+    pending: {
+      icon: Hourglass,
+      label: '검토대기',
+    },
+    revise: {
+      icon: AlertCircle,
+      label: '수정필요',
+    },
+  }[statusKey];
+
+  const StatusIcon = statusConfig.icon;
   const dateStr = report.installDate || report.reportTime?.split(' ')[0] || '';
   const timeStr = report.reportTime?.includes(' ') ? report.reportTime.split(' ')[1] : '';
 
@@ -33,10 +49,10 @@ export default function WorkHistoryCard({
       role="button"
       tabIndex={0}
     >
-      {/* 1) 좌측 3.5px 슬림 컬러 인디케이터 바 */}
-      <div className={`status-indicator ${statusKey}`} />
+      <div className={`status-avatar ${statusKey}`}>
+        <StatusIcon size={16} strokeWidth={2.5} />
+      </div>
 
-      {/* 2) 본문 정보 */}
       <div className="card-body">
         <div className="card-main-line">
           <div className="unit-left">
@@ -50,6 +66,8 @@ export default function WorkHistoryCard({
         </div>
 
         <div className="card-sub-line">
+          <span className={`status-text ${statusKey}`}>{statusConfig.label}</span>
+          {(dateStr || timeStr) && <span className="dot">•</span>}
           {dateStr && (
             <span className="info-date">
               <Calendar size={11} />
@@ -57,15 +75,11 @@ export default function WorkHistoryCard({
             </span>
           )}
           {timeStr && (
-            <>
-              <span className="dot">•</span>
-              <span className="info-time">{timeStr} 보고</span>
-            </>
+            <span className="info-time">{timeStr} 보고</span>
           )}
         </div>
       </div>
 
-      {/* 3) 우측 이동 화살표 */}
       <div className="card-arrow-col">
         <ChevronRight size={15} className="arrow-icon" />
       </div>

@@ -11,10 +11,13 @@ import {
   Trash2, 
   Phone,
   Users,
-  X
+  X,
+  Info,
+  MapPin,
 } from 'lucide-react';
-import { INITIAL_SITES_DATA, SiteInfo, Household, getSiteWorkers } from '@/data/siteData';
-import { getStoredSites, saveStoredSites, subscribeToSitesUpdate, unassignSite } from '@/data/siteStorage';
+import { INITIAL_SITES_DATA, SiteInfo, Household } from '@/data/siteData';
+import { getStoredSites, saveStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
+import { getRegionWorkers, RegionWorker } from '@/data/regionStorage';
 import CustomSelect from '@/components/common/CustomSelect';
 import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
@@ -112,14 +115,21 @@ export default function ManageCustomers() {
     });
   }, [sites, region, searchQuery]);
 
-  // Summary Metrics (Sites, Households, Assigned count)
+  // Summary Metrics (Sites, Households, Regional Worker count)
   const metrics = useMemo(() => {
     const totalSites = filteredSites.length;
     const totalHouseholds = filteredSites.reduce((sum, s) => sum + s.totalHouseholds, 0);
     const totalDongs = filteredSites.reduce((sum, s) => sum + s.dongCount, 0);
-    const assignedSites = filteredSites.filter(s => getSiteWorkers(s).length > 0).length;
 
-    return { totalSites, totalHouseholds, totalDongs, assignedSites };
+    // 현재 조회된 지역들의 고유 담당 작업자 수 집계
+    const uniqueWorkerIds = new Set<string>();
+    filteredSites.forEach(s => {
+      const workers = getRegionWorkers(s.sido, s.sigungu);
+      workers.forEach(w => uniqueWorkerIds.add(w.userId));
+    });
+    const totalWorkers = uniqueWorkerIds.size;
+
+    return { totalSites, totalHouseholds, totalDongs, totalWorkers };
   }, [filteredSites]);
 
   // Open Add Site Dialog
@@ -319,16 +329,6 @@ export default function ManageCustomers() {
     enqueueSnackbar(`[${formatDong(newH.dong)} ${formatHo(newH.ho)}] 세대(연번: ${newH.seq})가 추가되었습니다.`, { variant: 'success' });
   };
 
-  // Remove worker from site
-  const handleRemoveWorkerFromSite = (site: SiteInfo, worker: { userId: string; userName: string }) => {
-    if (confirm(`[${worker.userName}] 담당자를 [${site.name}] 현장에서 배정 해제하시겠습니까?`)) {
-      const updated = unassignSite(site.id, worker.userId);
-      setSites(updated);
-      const currentSite = updated.find((s: SiteInfo) => s.id === site.id) || null;
-      setSelectedSite(currentSite);
-      enqueueSnackbar(`[${worker.userName}] 담당자가 배정 해제되었습니다.`, { variant: 'info' });
-    }
-  };
 
   // Filtered Households in Detail View
   const filteredHouseholds = useMemo(() => {
@@ -387,8 +387,8 @@ export default function ManageCustomers() {
             <strong className="chip-val highlight">{metrics.totalHouseholds.toLocaleString()}세대</strong>
           </div>
           <div className="summary-sub-chip">
-            <span className="chip-label">담당자 배정</span>
-            <strong className="chip-val highlight">{metrics.assignedSites} / {metrics.totalSites}개소</strong>
+            <span className="chip-label">해당지역 담당자</span>
+            <strong className="chip-val highlight">{metrics.totalWorkers}명</strong>
           </div>
         </div>
       </div>
@@ -420,8 +420,7 @@ export default function ManageCustomers() {
               <th className="col-region">지역</th>
               <th className="col-scale">단지 규모</th>
               <th className="col-households">대상 세대</th>
-              <th className="col-worker">배정 담당자</th>
-              <th className="col-actions">관리</th>
+              <th className="col-worker">지역 담당자</th>
             </tr>
           </thead>
           <tbody>
@@ -431,6 +430,7 @@ export default function ManageCustomers() {
                   <tr
                     key={site.id}
                     className="site-table-row"
+                    onClick={() => handleOpenDetail(site, 'households')}
                   >
                     <td className="col-num">
                       <span className="row-index">{idx + 1}</span>
@@ -445,8 +445,8 @@ export default function ManageCustomers() {
                     </td>
                     <td className="col-region">
                       <div className="region-tag-group">
-                        <span className="sigungu-tag">{site.sigungu}</span>
-                        <span className="eup-tag">{site.eupmyeondong}</span>
+                        <span>{site.sigungu}</span>
+                        <span>{site.eupmyeondong}</span>
                       </div>
                     </td>
                     <td className="col-scale">
@@ -457,48 +457,42 @@ export default function ManageCustomers() {
                     </td>
                     <td className="col-worker">
                       {(() => {
-                        const workers = getSiteWorkers(site);
+                        const workers = getRegionWorkers(site.sido, site.sigungu);
                         if (workers.length === 0) {
                           return (
                             <span 
                               className="unassigned-badge clickable" 
-                              onClick={() => handleOpenDetail(site, 'workers')}
-                              title="클릭 시 배정 담당자 관리로 이동"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDetail(site, 'workers');
+                              }}
+                              title="해당 지역에 배정된 담당자가 없습니다. 클릭 시 지역 담당자 현황으로 이동"
                             >
-                              미배정
+                              지역 미배정
                             </span>
                           );
                         }
                         return (
                           <span
                             className="worker-count-pill"
-                            onClick={() => handleOpenDetail(site, 'workers')}
-                            title={`배정 담당자 ${workers.length}명 (클릭 시 담당자 탭으로 이동)`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDetail(site, 'workers');
+                            }}
+                            title={`${site.sigungu} 지역 담당자 ${workers.length}명 (${workers.map(w => w.userName).join(', ')})`}
                           >
                             <Users size={13} />
-                            <span>{workers.length}명</span>
+                            <span>{workers.length > 1 ? `${workers[0].userName} 외 ${workers.length - 1}명` : workers[0].userName}</span>
                           </span>
                         );
                       })()}
-                    </td>
-                    <td className="col-actions">
-                      <div className="row-action-btns">
-                        <button
-                          type="button"
-                          className="btn-row-edit"
-                          title="현장 및 세대 관리"
-                          onClick={() => handleOpenDetail(site, 'households')}
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                      </div>
                     </td>
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan={8} className="empty-table-cell">
+                <td colSpan={7} className="empty-table-cell">
                   <Building2 size={36} className="empty-icon" />
                   <p>선택된 지역 및 조건에 일치하는 현장 정보가 없습니다.</p>
                 </td>
@@ -638,8 +632,8 @@ export default function ManageCustomers() {
                 className={`detail-tab-btn ${siteDetailTab === 'workers' ? 'active' : ''}`}
                 onClick={() => setSiteDetailTab('workers')}
               >
-                <span>배정 담당자</span>
-                <span className="tab-count-badge">{getSiteWorkers(selectedSite).length}</span>
+                <span>지역 담당자</span>
+                <span className="tab-count-badge">{getRegionWorkers(selectedSite.sido, selectedSite.sigungu).length}</span>
               </button>
             </div>
 
@@ -821,11 +815,11 @@ export default function ManageCustomers() {
                 </div>
               </>
             ) : (
-              /* Tab 2: 배정 담당자 Content */
+              /* Tab 2: 지역 담당자 Content (행정구역 단위 귀속) */
               <div className="assigned-workers-tab-content">
                 {(() => {
-                  const allSiteWorkers = getSiteWorkers(selectedSite);
-                  const filteredTabWorkers = allSiteWorkers.filter(w =>
+                  const regionWorkers = getRegionWorkers(selectedSite.sido, selectedSite.sigungu);
+                  const filteredTabWorkers = regionWorkers.filter(w =>
                     !workersTabSearch.trim() ||
                     w.userName.toLowerCase().includes(workersTabSearch.toLowerCase()) ||
                     w.userId.toLowerCase().includes(workersTabSearch.toLowerCase()) ||
@@ -833,14 +827,26 @@ export default function ManageCustomers() {
                   );
                   return (
                     <>
-                      {/* Workers Search Controls Bar (세대관리 검색바와 동일) */}
+                      {/* 지역 담당자 귀속 안내 배너 */}
+                      <div className="region-worker-notice-card">
+                        <Info size={18} className="notice-icon" />
+                        <div className="notice-body">
+                          <strong>{selectedSite.sido} {selectedSite.sigungu} 지역 담당 작업자</strong>
+                          <p>
+                            작업자는 개별 아파트가 아닌 <strong>행정구역(시·도 / 시·군·구)</strong> 단위로 귀속됩니다.
+                            현재 <strong>[{selectedSite.sido} {selectedSite.sigungu}]</strong> 지역으로 등록된 작업자들이 본 현장의 모든 설치 및 점검을 담당합니다.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Workers Search Controls Bar */}
                       <div className="household-controls-bar">
                         <div className="controls-left">
                           <div className="household-search-input">
                             <Search size={15} />
                             <input
                               type="text"
-                              placeholder="담당자 성명, 아이디, 연락처로 빠른 검색..."
+                              placeholder="담당자 성명, 아이디, 연락처 검색..."
                               value={workersTabSearch}
                               onChange={e => setWorkersTabSearch(e.target.value)}
                             />
@@ -858,24 +864,25 @@ export default function ManageCustomers() {
                         </div>
                       </div>
 
-                      {/* Workers Table List (세대관리 테이블과 동일한 규격) */}
+                      {/* Workers Table List */}
                       <div className="households-table-container">
                         <table className="households-table">
                           <thead>
                             <tr>
-                              <th style={{ width: '60px', textAlign: 'center' }}>순번</th>
+                              <th className="col-num">순번</th>
                               <th>담당자 성명</th>
                               <th>아이디</th>
                               <th>연락처</th>
-                              <th style={{ width: '50px', textAlign: 'center' }}>삭제</th>
+                              <th>배정지역</th>
+                              <th style={{ width: '100px', textAlign: 'center' }}>배정일자</th>
                             </tr>
                           </thead>
                           <tbody>
                             {filteredTabWorkers.length > 0 ? (
                               filteredTabWorkers.map((worker, idx) => (
                                 <tr key={worker.userId}>
-                                  <td className="col-seq">
-                                    <span className="seq-badge">{idx + 1}</span>
+                                  <td className="col-num">
+                                    <span className="row-index">{idx + 1}</span>
                                   </td>
                                   <td className="col-worker-name">
                                     <div className="worker-table-cell">
@@ -898,22 +905,18 @@ export default function ManageCustomers() {
                                       <span className="worker-phone-link empty">연락처 미등록</span>
                                     )}
                                   </td>
-                                  <td className="col-actions">
-                                    <button
-                                      type="button"
-                                      className="btn-delete-hh"
-                                      title="배정 해제"
-                                      onClick={() => handleRemoveWorkerFromSite(selectedSite, worker)}
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
+                                  <td className="col-region-name">
+                                    <span className="region-name-tag">{worker.regionName}</span>
+                                  </td>
+                                  <td style={{ textAlign: 'center', fontSize: '0.8125rem', color: 'var(--slate-500)' }}>
+                                    <span>{worker.assignedDate || '—'}</span>
                                   </td>
                                 </tr>
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={5} className="empty-households">
-                                  {allSiteWorkers.length === 0 ? '현재 이 현장에 배정된 담당자가 없습니다.' : '조회된 담당자 정보가 없습니다.'}
+                                <td colSpan={6} className="empty-households">
+                                  {regionWorkers.length === 0 ? `현재 [${selectedSite.sido} ${selectedSite.sigungu}] 지역에 배정된 담당자가 없습니다.` : '조회된 담당자 정보가 없습니다.'}
                                 </td>
                               </tr>
                             )}

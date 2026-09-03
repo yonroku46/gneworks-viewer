@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import './SlideDialog.scss';
 
 interface SlideDialogProps {
@@ -70,9 +70,51 @@ export default function SlideDialog({
   const [active, setActive] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  const isPushedRef = useRef(false);
+  const isClosingByPopstateRef = useRef(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // 모바일 뒤로가기 (안드로이드 시스템 백버튼 / 아이폰 좌측 스와이프) 연동
+  useEffect(() => {
+    if (!isOpen) {
+      if (isPushedRef.current && !isClosingByPopstateRef.current) {
+        isPushedRef.current = false;
+        if (typeof window !== 'undefined' && window.history.state?.isSlideDialog) {
+          window.history.back();
+        }
+      }
+      isClosingByPopstateRef.current = false;
+      return;
+    }
+
+    if (typeof window !== 'undefined' && !isPushedRef.current) {
+      window.history.pushState({ isSlideDialog: true, time: Date.now() }, '');
+      isPushedRef.current = true;
+    }
+
+    const handlePopState = () => {
+      if (isPushedRef.current) {
+        isPushedRef.current = false;
+        isClosingByPopstateRef.current = true;
+        onClose();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (isPushedRef.current && !isClosingByPopstateRef.current) {
+        isPushedRef.current = false;
+        if (typeof window !== 'undefined' && window.history.state?.isSlideDialog) {
+          window.history.back();
+        }
+      }
+    };
+  }, [isOpen, onClose]);
 
   // 바디 스크롤 락 제어 (백드롭 스크롤 누수 완벽 차단)
   useEffect(() => {
@@ -127,8 +169,8 @@ export default function SlideDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <header className="dialog-header">
-          <button className="back-btn" onClick={onClose}>
-            {className?.includes('manage-page') ? <X size={22} /> : <ArrowLeft size={24} />}
+          <button className="back-btn" onClick={onClose} aria-label="닫기">
+            <X size={22} />
           </button>
           <h2 className="dialog-title">{title}</h2>
           <div className="header-right">

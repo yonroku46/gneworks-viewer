@@ -314,7 +314,6 @@ export default function ManageInquiriesPage() {
               <th className="col-phone">연락처</th>
               <th className="col-content">문의 내용</th>
               <th className="col-status">상태</th>
-              <th className="col-action">관리</th>
             </tr>
           </thead>
           <tbody>
@@ -322,7 +321,11 @@ export default function ManageInquiriesPage() {
               filteredInquiries.map((item, idx) => {
                 const typeInfo = INQUIRY_TYPE_MAP[item.inquiryType] || { label: item.inquiryType, badgeClass: 'type-general' };
                 return (
-                  <tr key={item.inquiryId} className="inquiry-table-row">
+                  <tr 
+                    key={item.inquiryId} 
+                    className="inquiry-table-row"
+                    onClick={() => handleOpenDetail(item)}
+                  >
                     <td className="col-num">
                       <span className="row-index">{idx + 1}</span>
                     </td>
@@ -355,22 +358,12 @@ export default function ManageInquiriesPage() {
                         status={item.processedFlg ? 'RESOLVED' : 'WAITING'}
                       />
                     </td>
-                    <td className="col-action">
-                      <button
-                        type="button"
-                        className="btn-open-inquiry"
-                        onClick={() => handleOpenDetail(item)}
-                      >
-                        <MessageCircle size={14} />
-                        <span>{item.processedFlg ? '상세보기' : '답변작성'}</span>
-                      </button>
-                    </td>
                   </tr>
                 );
               })
             ) : (
               <tr className="empty-table-row">
-                <td colSpan={8} className="empty-table-cell">
+                <td colSpan={7} className="empty-table-cell">
                   <MessageSquare size={36} className="empty-icon" />
                   <p>선택된 조건에 해당하는 문의 내역이 없습니다.</p>
                 </td>

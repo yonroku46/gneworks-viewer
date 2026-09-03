@@ -9,8 +9,7 @@ import {
   Search,
   X,
   ArrowUpDown,
-  MessageSquareText,
-  MessageSquare,
+  MessageCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import './InquiryHistoryDialog.scss';
@@ -163,7 +162,7 @@ export default function InquiryHistoryDialog({
       <div className="inquiry-list-body">
         {filteredInquiries.length === 0 ? (
           <div className="inquiry-empty-state">
-            <MessageSquareText size={36} />
+            <MessageCircle size={36} />
             <p className="empty-title">
               {searchQuery ? '검색된 문의 내역이 없습니다.' : '등록된 문의 내역이 없습니다.'}
             </p>
@@ -197,7 +196,7 @@ export default function InquiryHistoryDialog({
                   <div className="item-answer-box">
                     <div className="answer-meta">
                       <div className="answerer-info">
-                        <MessageSquare size={14} />
+                        <MessageCircle size={14} />
                         <span>관리자 답변 ({inq.answerUserName || '관리자'})</span>
                       </div>
                       {inq.answerTime && <span className="answer-time">{inq.answerTime}</span>}

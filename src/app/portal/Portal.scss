@@ -46,8 +46,8 @@
       box-shadow: 0 2px 6px var(--shadow-sm);
       transition: transform 0.2s ease, border-color 0.2s ease;
       &.highlight-alert {
-        border-color: var(--danger);
-        background: #fff5f5;
+        border-color: var(--danger-border);
+        background: var(--danger-light);
       }
       .stat-icon-wrapper {
         width: 2.5rem;
@@ -58,20 +58,20 @@
         justify-content: center;
         flex-shrink: 0;
         &.blue {
-          background: var(--manage-primary);
-          color: var(--white);
+          background: var(--manage-primary-light);
+          color: var(--manage-primary);
         }
         &.green {
-          background: var(--success);
-          color: var(--white);
+          background: var(--success-bg);
+          color: var(--success);
         }
         &.amber {
-          background: var(--warning);
-          color: var(--white);
+          background: var(--warning-bg);
+          color: var(--warning-text);
         }
         &.red {
-          background: var(--danger);
-          color: var(--white);
+          background: var(--danger-bg);
+          color: var(--danger);
         }
       }
       .stat-info {

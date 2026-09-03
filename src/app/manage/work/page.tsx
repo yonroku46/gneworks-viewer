@@ -349,13 +349,16 @@ export default function ManageWorkPage() {
               <th className="col-installer">보고자</th>
               <th className="col-photos">현장사진</th>
               <th className="col-status">상태</th>
-              <th className="col-actions">관리</th>
             </tr>
           </thead>
           <tbody>
             {filteredReports.length > 0 ? (
               filteredReports.map((report, idx) => (
-                <tr key={report.reportId} className="report-table-row">
+                <tr 
+                  key={report.reportId} 
+                  className="report-table-row"
+                  onClick={() => setSelectedReport(report)}
+                >
                   <td className="col-num">
                     <span className="row-index">{idx + 1}</span>
                   </td>
@@ -383,31 +386,11 @@ export default function ManageWorkPage() {
                   <td className="col-status">
                     <StatusBadge status={report.status} />
                   </td>
-                  <td className="col-actions">
-                    <div className="row-action-btns">
-                      <button
-                        type="button"
-                        className="btn-row-edit"
-                        title="상태 및 사유 변경"
-                        onClick={(e) => handleOpenStatusModal(report, e)}
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-row-edit"
-                        title="보급지원확인서 보기"
-                        onClick={() => setSelectedReport(report)}
-                      >
-                        <FileText size={14} />
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               ))
             ) : (
               <tr className="empty-table-row">
-                <td colSpan={8} className="empty-table-cell">
+                <td colSpan={7} className="empty-table-cell">
                   <FileText size={36} className="empty-icon" />
                   <p>선택된 날짜 및 조건에 일치하는 작업 보고서가 없습니다.</p>
                 </td>

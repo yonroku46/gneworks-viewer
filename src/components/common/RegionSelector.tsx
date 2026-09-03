@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { KOREA_ADMIN_REGIONS, getSigunguList, getEupmyeondongList } from '@/data/koreaRegions';
+import { KOREA_ADMIN_REGIONS, getSigunguList } from '@/data/koreaRegions';
 import CustomSelect from './CustomSelect';
 import './RegionSelector.scss';
 
@@ -56,19 +56,12 @@ export default function RegionSelector({
     return getSigunguList(sido);
   }, [sido]);
 
-  // Dynamic Eupmyeondong options from Master Data
-  const availableEupmyeondongs = useMemo(() => {
-    if (sido === 'ALL' || sigungu === 'ALL') return [];
-    return getEupmyeondongList(sido, sigungu);
-  }, [sido, sigungu]);
-
-  // Format Current Active Region Parts
+  // Format Current Active Region Parts (시/도 > 시/군/구 2단계)
   const activeRegionParts = useMemo(() => {
     const parts = [sido === 'ALL' ? '전국' : sido];
     if (sigungu !== 'ALL') parts.push(sigungu);
-    if (eupmyeondong !== 'ALL') parts.push(eupmyeondong);
     return parts;
-  }, [sido, sigungu, eupmyeondong]);
+  }, [sido, sigungu]);
 
   return (
     <div className={`common-region-selector-bar ${className}`}>
@@ -118,26 +111,6 @@ export default function RegionSelector({
             {availableSigungus.map(sgg => (
               <option key={sgg} value={sgg}>
                 {sgg}
-              </option>
-            ))}
-          </CustomSelect>
-        </div>
-
-        {/* 3단계: 읍/면/동 */}
-        <div className="select-col">
-          <CustomSelect
-            fullWidth
-            sizeVariant="md"
-            value={eupmyeondong}
-            disabled={sigungu === 'ALL'}
-            onChange={e => handleEupmyeondongChange(e.target.value)}
-          >
-            <option value="ALL">
-              {sigungu === 'ALL' ? '(시·군·구 선택 필요)' : `전체 읍·면·동 (${availableEupmyeondongs.length}개)`}
-            </option>
-            {availableEupmyeondongs.map(eup => (
-              <option key={eup} value={eup}>
-                {eup}
               </option>
             ))}
           </CustomSelect>
