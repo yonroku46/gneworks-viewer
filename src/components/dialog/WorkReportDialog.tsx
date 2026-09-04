@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 import SignatureDialog from './SignatureDialog';
 import ImageCropDialog from './ImageCropDialog';
@@ -8,7 +9,7 @@ import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
 import { upsertReport } from '@/data/reportStorage';
 
-import { Plus, X, Check, AlertCircle, Building2 } from 'lucide-react';
+import { Plus, X, Check, AlertCircle, Building2, MapPin, Calendar, User } from 'lucide-react';
 import './WorkReportDialog.scss';
 
 export type { TargetHousehold };
@@ -70,8 +71,7 @@ export default function WorkReportDialog({
   useEffect(() => {
     if (target && isOpen) {
       setStep(1); // 열릴 때 항상 1단계부터 시작
-      const now = new Date();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const todayStr = dayjs().format('YYYY-MM-DD');
       
       const initInstallDate = target.existingReport?.installDate || todayStr;
       const initReporterName = target.existingReport?.reporterName || user?.userName || '현장 작업자';
@@ -85,11 +85,6 @@ export default function WorkReportDialog({
         target.existingReport.photos.forEach(p => {
           photoMap[p.type] = p.url;
         });
-      } else {
-        // 첫 3장 기본 샘플 세팅 (작업 편의)
-        photoMap['door'] = '/assets/img/report_sheet_sample.png';
-        photoMap['before1'] = '/assets/img/report_sheet_sample.png';
-        photoMap['after1'] = '/assets/img/report_sheet_sample.png';
       }
 
       setInstallDate(initInstallDate);
@@ -438,38 +433,33 @@ export default function WorkReportDialog({
           ══════════════════════════════════════════════════ */}
           {isReadOnly ? (
             <div className="readonly-report-wrapper">
-              {/* 기본 정보 통합 카드 (작업 장소 + 일정/작업자) */}
+              {/* 기본 정보 통합 카드 (관리자 보고서 다이얼로그와 통일) */}
               <div className="step-location-card">
-                <div className="location-header-row">
-                  <div className="site-name-wrap">
-                    <Building2 size={15} className="location-icon" />
-                    <span className="site-name">{target.siteName}</span>
+                <div className="report-target-summary">
+                  <div className="target-title-line">
+                    <Building2 size={16} />
+                    <h3>{target.siteName} {target.dong}동 {target.ho}호</h3>
+                    {target.headName && (
+                      <span className="head-badge">{target.headName} 세대주</span>
+                    )}
                   </div>
                   {target.address && (
-                    <span className="address-text" title={target.address}>
-                      {target.address}
-                    </span>
+                    <p className="target-address">
+                      {target.address && target.siteName && !target.address.includes(target.siteName)
+                        ? `${target.address} (${target.siteName})`
+                        : target.address}
+                    </p>
                   )}
                 </div>
-                <div className="location-detail-row">
-                  <div className="unit-text">
-                    <span className="dong-text">{target.dong}동</span>
-                    <span className="ho-text">{target.ho}호</span>
+
+                <div className="report-quick-meta-grid">
+                  <div className="meta-cell">
+                    <span className="label">설치 일자</span>
+                    <span className="val">{installDate || '-'}</span>
                   </div>
-                  <div className="head-badge">
-                    <span className="name">{target.headName}</span>
-                    <span className="role">세대주</span>
-                  </div>
-                </div>
-                <div className="summary-meta-footer">
-                  <div className="meta-item">
-                    <span className="meta-label">설치 일자</span>
-                    <span className="meta-val">{installDate || '-'}</span>
-                  </div>
-                  <span className="meta-divider" />
-                  <div className="meta-item">
-                    <span className="meta-label">작업자</span>
-                    <span className="meta-val">{reporterName || '-'}</span>
+                  <div className="meta-cell">
+                    <span className="label">작업자</span>
+                    <span className="val">{reporterName || '-'}</span>
                   </div>
                 </div>
               </div>
@@ -598,29 +588,22 @@ export default function WorkReportDialog({
                 <div className="wizard-step-panel step-1-panel">
                   {/* 단일 통합 정보 및 입력 카드 */}
                   <div className="step-fields-card integrated-card">
-                    {/* 상단: 작업 대상 세대 정보 */}
-                    <div className="card-location-header">
-                      <div className="location-header-row">
-                        <div className="site-name-wrap">
-                          <Building2 size={15} className="location-icon" />
-                          <span className="site-name">{target.siteName}</span>
-                        </div>
-                        {target.address && (
-                          <span className="address-text" title={target.address}>
-                            {target.address}
-                          </span>
+                    {/* 상단: 작업 대상 세대 정보 (관리자 화면과 완벽 통일) */}
+                    <div className="card-location-header report-target-summary">
+                      <div className="target-title-line">
+                        <Building2 size={16} />
+                        <h3>{target.siteName} {target.dong}동 {target.ho}호</h3>
+                        {target.headName && (
+                          <span className="head-badge">{target.headName} 세대주</span>
                         )}
                       </div>
-                      <div className="location-detail-row">
-                        <div className="unit-text">
-                          <span className="dong-text">{target.dong}동</span>
-                          <span className="ho-text">{target.ho}호</span>
-                        </div>
-                        <div className="head-badge">
-                          <span className="name">{target.headName}</span>
-                          <span className="role">세대주</span>
-                        </div>
-                      </div>
+                      {target.address && (
+                        <p className="target-address">
+                          {target.address && target.siteName && !target.address.includes(target.siteName)
+                            ? `${target.address} (${target.siteName})`
+                            : target.address}
+                        </p>
+                      )}
                     </div>
 
                     {/* 하단: 설치 일자 & 작업자 입력 */}

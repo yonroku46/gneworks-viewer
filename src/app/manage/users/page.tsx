@@ -1,21 +1,23 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import SlideDialog from '@/components/dialog/SlideDialog';
+import AccountDetailDialog from '@/components/dialog/AccountDetailDialog';
 import CustomSelect from '@/components/common/CustomSelect';
 import SearchInput from '@/components/common/SearchInput';
 import StatusBadge from '@/components/common/StatusBadge';
 import { getStoredReports } from '@/data/reportStorage';
+import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
 import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
-import { 
-  Plus, 
-  Search, 
-  User as UserIcon, 
-  KeyRound, 
-  Trash2, 
-  Edit3, 
+import {
+  Plus,
+  Search,
+  User as UserIcon,
+  KeyRound,
+  Trash2,
+  Edit3,
   Info,
   Calendar,
   MapPin,
@@ -23,71 +25,43 @@ import {
   FileText,
   RotateCcw,
   ArrowUpDown,
-  X
+  X,
+  Settings,
 } from 'lucide-react';
+import { INITIAL_USERS_DATA } from '@/data/userData';
+import { getStoredUsers, saveStoredUsers, subscribeToUsersUpdate } from '@/data/userStorage';
+import { getUserAssignedRegions, subscribeToAssignedRegionsUpdate } from '@/data/regionStorage';
 import '../ManageLayout.scss';
 
 export default function AccountManagementPage() {
   const { enqueueSnackbar } = useSnackbar();
 
-  // Mock initial users (Strictly based on User interface)
-  const [users, setUsers] = useState<User[]>([
-    {
-      userId: 'admin_gneworks',
-      userName: '김관리',
-      phoneNum: '010-1234-5678',
-      gender: 'M',
-      birthday: '1985-03-15',
-      postalCode: '06544',
-      detailAddress: '서울시 서초구 신반포로 100 관리동 2층',
-      lastUpdated: '2026-08-25T14:30:00+09:00',
-      createTime: '2026-01-10T09:00:00+09:00',
-    },
-    {
-      userId: 'worker_lee',
-      userName: '이현장',
-      phoneNum: '010-9876-5432',
-      gender: 'M',
-      birthday: '1990-07-22',
-      postalCode: '13529',
-      detailAddress: '경기도 성남시 분당구 판교역로 146',
-      lastUpdated: '2026-08-27T10:15:00+09:00',
-      createTime: '2026-02-01T11:00:00+09:00',
-    },
-    {
-      userId: 'worker_park',
-      userName: '박시공',
-      phoneNum: '010-5555-7777',
-      gender: 'M',
-      birthday: '1988-11-05',
-      postalCode: '04322',
-      detailAddress: '서울시 용산구 한강대로 405',
-      lastUpdated: '2026-08-26T16:40:00+09:00',
-      createTime: '2026-03-15T13:30:00+09:00',
-    },
-    {
-      userId: 'worker_choi',
-      userName: '최검수',
-      phoneNum: '010-3333-8888',
-      gender: 'F',
-      birthday: '1993-09-18',
-      postalCode: '05505',
-      detailAddress: '서울시 송파구 올림픽로 300',
-      lastUpdated: '2026-08-20T09:20:00+09:00',
-      createTime: '2026-04-10T15:00:00+09:00',
-    },
-    {
-      userId: 'worker_jung',
-      userName: '정담당',
-      phoneNum: '010-4444-1212',
-      gender: 'M',
-      birthday: '1991-04-02',
-      postalCode: '06241',
-      detailAddress: '서울시 강남구 테헤란로 152',
-      lastUpdated: '2026-08-28T09:00:00+09:00',
-      createTime: '2026-05-12T10:20:00+09:00',
-    },
-  ]);
+  // 실제 등록된 사용자 데이터 (고품질 profileImg 포함, 로컬 스토리지 연동)
+  const [users, setUsers] = useState<User[]>(() => {
+    if (typeof window !== 'undefined') return getStoredUsers();
+    return INITIAL_USERS_DATA;
+  });
+  const [sites, setSites] = useState<SiteInfo[]>([]);
+  const [, setRegionsVersion] = useState(0);
+
+  useEffect(() => {
+    setUsers(getStoredUsers());
+    const unsubUsers = subscribeToUsersUpdate(newUsers => {
+      setUsers(newUsers);
+    });
+    setSites(getStoredSites());
+    const unsubSites = subscribeToSitesUpdate(newSites => {
+      setSites(newSites);
+    });
+    const unsubRegions = subscribeToAssignedRegionsUpdate(() => {
+      setRegionsVersion(v => v + 1);
+    });
+    return () => {
+      unsubUsers();
+      unsubSites();
+      unsubRegions();
+    };
+  }, []);
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,58 +78,13 @@ export default function AccountManagementPage() {
     return [];
   });
 
-  // User Detail Tab State ('profile' | 'performance')
-  const [detailTab, setDetailTab] = useState<'profile' | 'performance'>('profile');
-
-  // Performance Tab Filter States (포탈 작업 이력 조회 스타일)
-  const [perfSearchQuery, setPerfSearchQuery] = useState('');
-  const [perfSortOrder, setPerfSortOrder] = useState<'desc' | 'asc'>('desc');
-  const [perfPreset, setPerfPreset] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
-  const [perfStartDate, setPerfStartDate] = useState('');
-  const [perfEndDate, setPerfEndDate] = useState('');
-  const [perfStatusFilter, setPerfStatusFilter] = useState<'ALL' | 'COMPLETED' | 'PENDING' | 'REJECTED'>('ALL');
-
-  // Filter Reset Handler
-  const handleResetPerfFilter = () => {
-    setPerfSearchQuery('');
-    setPerfSortOrder('desc');
-    setPerfPreset('all');
-    setPerfStartDate('');
-    setPerfEndDate('');
-    setPerfStatusFilter('ALL');
-  };
-
-  // Preset Date Filter Handler
-  const handleSetPerfPreset = (preset: 'all' | 'today' | 'week' | 'month' | 'custom') => {
-    setPerfPreset(preset);
-    const today = dayjs().format('YYYY-MM-DD');
-    if (preset === 'all') {
-      setPerfStartDate('');
-      setPerfEndDate('');
-    } else if (preset === 'today') {
-      setPerfStartDate(today);
-      setPerfEndDate(today);
-    } else if (preset === 'week') {
-      setPerfStartDate(dayjs().subtract(6, 'day').format('YYYY-MM-DD'));
-      setPerfEndDate(today);
-    } else if (preset === 'month') {
-      setPerfStartDate(dayjs().subtract(29, 'day').format('YYYY-MM-DD'));
-      setPerfEndDate(today);
-    } else if (preset === 'custom') {
-      if (!perfStartDate) {
-        setPerfStartDate(dayjs().subtract(6, 'day').format('YYYY-MM-DD'));
-      }
-      if (!perfEndDate) {
-        setPerfEndDate(today);
-      }
-    }
-  };
+  // User Detail Initial Tab State
+  const [detailInitialTab, setDetailInitialTab] = useState<'profile' | 'regions' | 'performance'>('performance');
 
   // Open User Detail Dialog Handler
-  const handleOpenDetail = (user: User, initialTab: 'profile' | 'performance' = 'performance') => {
+  const handleOpenDetail = (user: User, initialTab: 'profile' | 'regions' | 'performance' = 'performance') => {
     setSelectedUser(user);
-    setDetailTab(initialTab);
-    handleResetPerfFilter();
+    setDetailInitialTab(initialTab);
     setAllReports(getStoredReports());
     setIsDetailOpen(true);
   };
@@ -169,60 +98,10 @@ export default function AccountManagementPage() {
     ).length;
   };
 
-  // Filtered Reports for Selected User
-  const userReports = useMemo(() => {
-    if (!selectedUser) return [];
-    return allReports.filter(r => 
-      r.installerId === selectedUser.userId || 
-      r.reporterName === selectedUser.userName ||
-      r.visitorName === selectedUser.userName
-    );
-  }, [selectedUser, allReports]);
-
-  // Is Filter Active Check
-  const isPerfFiltered = perfPreset !== 'all' || perfStatusFilter !== 'ALL' || !!perfSearchQuery.trim() || perfSortOrder !== 'desc';
-
-  // Base filtered reports by Date and Search Query (for status counts)
-  const baseUserReports = useMemo(() => {
-    return userReports.filter(r => {
-      const date = r.installDate || (r.reportTime ? r.reportTime.split(' ')[0] : '');
-      if (perfStartDate && date < perfStartDate) return false;
-      if (perfEndDate && date > perfEndDate) return false;
-      if (perfSearchQuery.trim()) {
-        const q = perfSearchQuery.trim().toLowerCase();
-        const matchSite = r.siteName?.toLowerCase().includes(q);
-        const matchDong = r.dong?.toLowerCase().includes(q);
-        const matchHo = r.ho?.toLowerCase().includes(q);
-        const matchHead = r.headName?.toLowerCase().includes(q);
-        if (!matchSite && !matchDong && !matchHo && !matchHead) return false;
-      }
-      return true;
-    });
-  }, [userReports, perfStartDate, perfEndDate, perfSearchQuery]);
-
-  // Counts by status within current date/search scope
-  const statusCounts = useMemo(() => {
-    return {
-      all: baseUserReports.length,
-      completed: baseUserReports.filter(r => r.status === 'COMPLETED').length,
-      pending: baseUserReports.filter(r => r.status === 'PENDING').length,
-      rejected: baseUserReports.filter(r => r.status === 'REJECTED').length,
-    };
-  }, [baseUserReports]);
-
-  // Final Filtered Reports for Table
-  const filteredUserReports = useMemo(() => {
-    const list = baseUserReports.filter(r => {
-      if (perfStatusFilter !== 'ALL' && r.status !== perfStatusFilter) return false;
-      return true;
-    });
-
-    return [...list].sort((a, b) => {
-      const dateA = a.installDate || a.reportTime || '';
-      const dateB = b.installDate || b.reportTime || '';
-      return perfSortOrder === 'desc' ? dateB.localeCompare(dateA) : dateA.localeCompare(dateB);
-    });
-  }, [baseUserReports, perfStatusFilter, perfSortOrder]);
+  // Helper to count assigned regions for any user
+  const getUserRegionCount = (userId: string) => {
+    return getUserAssignedRegions(userId).length;
+  };
 
   // Form State (strictly based on User)
   const [formData, setFormData] = useState<{
@@ -261,6 +140,7 @@ export default function AccountManagementPage() {
   // Open Edit Dialog
   const handleOpenEdit = (user: User) => {
     setEditingUser(user);
+    setSelectedUser(user);
     setFormData({
       userId: user.userId,
       userName: user.userName,
@@ -270,7 +150,17 @@ export default function AccountManagementPage() {
       postalCode: user.postalCode || '',
       detailAddress: user.detailAddress || '',
     });
+    setIsDetailOpen(false);
     setIsFormOpen(true);
+  };
+
+  // Close Form Dialog (상세 다이얼로그에서 진입했으면 복귀)
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setEditingUser(null);
+    if (selectedUser) {
+      setIsDetailOpen(true);
+    }
   };
 
 
@@ -291,24 +181,19 @@ export default function AccountManagementPage() {
       return;
     }
 
-    const now = new Date().toISOString();
+    const now = dayjs().toISOString();
 
     if (editingUser) {
-      // Update
-      setUsers(prev =>
-        prev.map(u =>
-          u.userId === editingUser.userId
-            ? {
-                ...u,
-                ...formData,
-                lastUpdated: now,
-              }
-            : u
-        )
-      );
-      if (selectedUser && selectedUser.userId === editingUser.userId) {
-        setSelectedUser(prev => (prev ? { ...prev, ...formData, lastUpdated: now } : null));
-      }
+      const updatedUser: User = {
+        ...editingUser,
+        ...formData,
+        lastUpdated: now,
+      };
+      const nextUsers = users.map(u => (u.userId === editingUser.userId ? updatedUser : u));
+      setUsers(nextUsers);
+      saveStoredUsers(nextUsers);
+      setSelectedUser(updatedUser);
+      setIsDetailOpen(true);
       enqueueSnackbar(`[${formData.userName}] 계정 정보가 수정되었습니다.`, { variant: 'success' });
     } else {
       // Check duplicate ID
@@ -330,7 +215,9 @@ export default function AccountManagementPage() {
         createTime: now,
       };
 
-      setUsers(prev => [newUser, ...prev]);
+      const nextUsers = [newUser, ...users];
+      setUsers(nextUsers);
+      saveStoredUsers(nextUsers);
       enqueueSnackbar(
         `[${newUser.userName}] 계정이 발급되었습니다. 초기 비밀번호는 전화번호(${newUser.phoneNum})입니다.`,
         { variant: 'success', autoHideDuration: 4000 }
@@ -338,6 +225,7 @@ export default function AccountManagementPage() {
     }
 
     setIsFormOpen(false);
+    setEditingUser(null);
   };
 
   // Reset Password Handler
@@ -356,12 +244,12 @@ export default function AccountManagementPage() {
 
   // Delete User Handler
   const handleDeleteUser = (user: User) => {
-    if (confirm(`[${user.userName} (${user.userId})] 계정을 완전히 삭제하시겠습니까?`)) {
-      setUsers(prev => prev.filter(u => u.userId !== user.userId));
-      setIsDetailOpen(false);
-      setIsFormOpen(false);
-      enqueueSnackbar(`[${user.userName}] 계정이 삭제되었습니다.`, { variant: 'success' });
-    }
+    const nextUsers = users.filter(u => u.userId !== user.userId);
+    setUsers(nextUsers);
+    saveStoredUsers(nextUsers);
+    setIsDetailOpen(false);
+    setIsFormOpen(false);
+    enqueueSnackbar(`[${user.userName}] 계정이 삭제되었습니다.`, { variant: 'success' });
   };
 
   // Filtered List
@@ -406,10 +294,9 @@ export default function AccountManagementPage() {
               <th className="col-user">사용자명</th>
               <th className="col-id">아이디</th>
               <th className="col-phone">전화번호</th>
+              <th className="col-region">담당 지역</th>
               <th className="col-perf">작업 실적</th>
-              <th className="col-gender">성별</th>
               <th className="col-birthday">생년월일</th>
-              <th className="col-address">상세 주소</th>
               <th className="col-created">등록일</th>
             </tr>
           </thead>
@@ -427,7 +314,11 @@ export default function AccountManagementPage() {
                   <td className="col-user">
                     <div className="user-cell">
                       <div className="user-avatar-mini">
-                        {user.userName.charAt(0)}
+                        {user.profileImg ? (
+                          <img src={user.profileImg} alt={user.userName} className="user-avatar-mini-img" />
+                        ) : (
+                          user.userName.charAt(0)
+                        )}
                       </div>
                       <span className="user-name-text">{user.userName}</span>
                     </div>
@@ -437,6 +328,25 @@ export default function AccountManagementPage() {
                   </td>
                   <td className="col-phone">
                     <span className="user-phone-cell">{user.phoneNum}</span>
+                  </td>
+                  <td className="col-region">
+                    {(() => {
+                      const count = getUserRegionCount(user.userId);
+                      return (
+                        <button
+                          type="button"
+                          className={`btn-user-region-pill ${count === 0 ? 'empty' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDetail(user, 'regions');
+                          }}
+                          title="클릭 시 담당 지역 관리 확인 및 설정"
+                        >
+                          <MapPin size={12} />
+                          <span>{count > 0 ? `${count}곳` : '0곳'}</span>
+                        </button>
+                      );
+                    })()}
                   </td>
                   <td className="col-perf">
                     {(() => {
@@ -457,18 +367,8 @@ export default function AccountManagementPage() {
                       );
                     })()}
                   </td>
-                  <td className="col-gender">
-                    <span className={`gender-tag ${user.gender || 'M'}`}>
-                      {user.gender === 'M' ? '남성' : user.gender === 'F' ? '여성' : '기타'}
-                    </span>
-                  </td>
                   <td className="col-birthday">
                     <span>{user.birthday || '—'}</span>
-                  </td>
-                  <td className="col-address">
-                    <span className="address-cell-text" title={user.detailAddress || ''}>
-                      {user.detailAddress || '—'}
-                    </span>
                   </td>
                   <td className="col-created">
                     <span className="date-text">{dayjs(user.createTime).format('YYYY.MM.DD')}</span>
@@ -477,7 +377,7 @@ export default function AccountManagementPage() {
               ))
             ) : (
               <tr>
-                <td colSpan={9} className="empty-table-cell">
+                <td colSpan={8} className="empty-table-cell">
                   <UserIcon size={36} className="empty-icon" />
                   <p>일치하는 계정 정보가 존재하지 않습니다.</p>
                 </td>
@@ -490,7 +390,7 @@ export default function AccountManagementPage() {
       {/* ── SLIDE DIALOG: CREATE / EDIT USER ── */}
       <SlideDialog
         isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
+        onClose={handleCloseForm}
         title={editingUser ? '계정 정보 수정' : '신규 계정 발급'}
         className="manage-page"
         footer={
@@ -504,7 +404,7 @@ export default function AccountManagementPage() {
                 <span>계정 삭제</span>
               </button>
             ) : (
-              <button type="button" className="btn-cancel" onClick={() => setIsFormOpen(false)}>
+              <button type="button" className="btn-cancel" onClick={handleCloseForm}>
                 <span>취소</span>
               </button>
             )}
@@ -605,312 +505,23 @@ export default function AccountManagementPage() {
         </form>
       </SlideDialog>
 
-      {/* ── SLIDE DIALOG: USER DETAIL ── */}
-      <SlideDialog
+      {/* ── ACCOUNT DETAIL DIALOG (통합 컴포넌트) ── */}
+      <AccountDetailDialog
         isOpen={isDetailOpen && !!selectedUser}
-        onClose={() => setIsDetailOpen(false)}
-        title="계정 상세 정보"
-        className="manage-page user-detail-dialog"
-        footer={
-          selectedUser ? (
-            <div className="detail-btn-row">
-              <button
-                type="button"
-                className="btn-edit-modal"
-                onClick={() => {
-                  setIsDetailOpen(false);
-                  handleOpenEdit(selectedUser);
-                }}
-              >
-                <span>계정 정보 수정</span>
-              </button>
-            </div>
-          ) : undefined
-        }
-      >
-        {selectedUser && (
-          <div className="account-detail-modal">
-            <div className="account-profile-header">
-              <div className="avatar-huge">
-                {selectedUser.userName.charAt(0)}
-              </div>
-              <div className="profile-texts">
-                <h3>{selectedUser.userName}</h3>
-                <span className="id-tag">아이디: {selectedUser.userId}</span>
-              </div>
-            </div>
-
-            {/* ── Tabs Bar: 기본 정보 / 작업 실적 및 이력 ── */}
-            <div className="account-detail-tabs-bar">
-              <button
-                type="button"
-                className={`detail-tab-btn ${detailTab === 'profile' ? 'active' : ''}`}
-                onClick={() => setDetailTab('profile')}
-              >
-                <span>기본 정보</span>
-              </button>
-              <button
-                type="button"
-                className={`detail-tab-btn ${detailTab === 'performance' ? 'active' : ''}`}
-                onClick={() => setDetailTab('performance')}
-              >
-                <span>작업 실적 및 이력</span>
-                <span className="tab-count-badge">{userReports.length}건</span>
-              </button>
-            </div>
-
-            {detailTab === 'profile' ? (
-              <>
-                <div className="info-card-section">
-                  <h5 className="section-head">기본 정보</h5>
-                  <div className="info-grid-list">
-                    <div className="info-row">
-                      <span className="row-key">전화번호</span>
-                      <span className="row-val font-semibold">{selectedUser.phoneNum}</span>
-                    </div>
-                    <div className="info-row">
-                      <span className="row-key">성별</span>
-                      <span className="row-val">
-                        {selectedUser.gender === 'M' ? '남성' : selectedUser.gender === 'F' ? '여성' : '미지정'}
-                      </span>
-                    </div>
-                    <div className="info-row">
-                      <span className="row-key">생년월일</span>
-                      <span className="row-val">{selectedUser.birthday || '—'}</span>
-                    </div>
-                    <div className="info-row">
-                      <span className="row-key">우편번호</span>
-                      <span className="row-val">{selectedUser.postalCode || '—'}</span>
-                    </div>
-                    <div className="info-row">
-                      <span className="row-key">상세 주소</span>
-                      <span className="row-val">{selectedUser.detailAddress || '—'}</span>
-                    </div>
-                    <div className="info-row">
-                      <span className="row-key">계정 생성일</span>
-                      <span className="row-val">
-                        {dayjs(selectedUser.createTime).format('YYYY년 MM월 DD일 HH:mm')}
-                      </span>
-                    </div>
-                    <div className="info-row">
-                      <span className="row-key">최근 정보 수정일</span>
-                      <span className="row-val">
-                        {dayjs(selectedUser.lastUpdated).format('YYYY년 MM월 DD일 HH:mm')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Password Reset Action Box */}
-                <div className="pw-reset-alert-box">
-                  <div className="pw-reset-desc">
-                    <strong>비밀번호 초기화</strong>
-                    <p>비밀번호 분실 시 해당 유저의 <strong>전화번호({selectedUser.phoneNum})</strong>로 즉시 초기화됩니다.</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn-pw-action"
-                    onClick={() => handleResetPassword(selectedUser)}
-                  >
-                    <KeyRound size={15} />
-                    <span>초기화</span>
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* ── TAB 2: PERFORMANCE & HISTORY ── */
-              <div className="performance-tab-content">
-                {/* ── 1. SEARCH BAR & SORT / RESET ── */}
-                <div className="perf-search-row">
-                  <div className="search-input-box">
-                    <Search size={15} className="search-icon" />
-                    <input
-                      type="text"
-                      placeholder="현장명, 동/호수, 세대주 검색"
-                      value={perfSearchQuery}
-                      onChange={e => setPerfSearchQuery(e.target.value)}
-                    />
-                    {perfSearchQuery && (
-                      <button
-                        type="button"
-                        className="btn-clear-search"
-                        onClick={() => setPerfSearchQuery('')}
-                        title="검색어 지우기"
-                      >
-                        <X size={13} />
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="btn-sort-order"
-                    onClick={() => setPerfSortOrder(prev => (prev === 'desc' ? 'asc' : 'desc'))}
-                    title="정렬 순서 변경"
-                  >
-                    <ArrowUpDown size={13} />
-                    <span>{perfSortOrder === 'desc' ? '최신순' : '과거순'}</span>
-                  </button>
-                  {isPerfFiltered && (
-                    <button
-                      type="button"
-                      className="btn-reset-filters"
-                      onClick={handleResetPerfFilter}
-                      title="필터 초기화"
-                    >
-                      <RotateCcw size={13} />
-                      <span>초기화</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* ── 2. FILTER CONTROLS (포탈 작업 이력 조회 스타일) ── */}
-                <div className="perf-filter-controls-box">
-                  {/* 기간 선택 라인 */}
-                  <div className="filter-line">
-                    <span className="line-label">기간</span>
-                    <div className="pill-group">
-                      <button
-                        type="button"
-                        className={`pill-btn ${perfPreset === 'all' ? 'active' : ''}`}
-                        onClick={() => handleSetPerfPreset('all')}
-                      >
-                        전체
-                      </button>
-                      <button
-                        type="button"
-                        className={`pill-btn ${perfPreset === 'today' ? 'active' : ''}`}
-                        onClick={() => handleSetPerfPreset('today')}
-                      >
-                        오늘
-                      </button>
-                      <button
-                        type="button"
-                        className={`pill-btn ${perfPreset === 'week' ? 'active' : ''}`}
-                        onClick={() => handleSetPerfPreset('week')}
-                      >
-                        최근 7일
-                      </button>
-                      <button
-                        type="button"
-                        className={`pill-btn ${perfPreset === 'month' ? 'active' : ''}`}
-                        onClick={() => handleSetPerfPreset('month')}
-                      >
-                        최근 30일
-                      </button>
-                      <button
-                        type="button"
-                        className={`pill-btn ${perfPreset === 'custom' ? 'active' : ''}`}
-                        onClick={() => handleSetPerfPreset('custom')}
-                      >
-                        <span>직접 설정</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 직접 설정 날짜 입력 폼 */}
-                  {perfPreset === 'custom' && (
-                    <div className="custom-date-row">
-                      <input
-                        type="date"
-                        className="date-input"
-                        value={perfStartDate}
-                        onChange={e => setPerfStartDate(e.target.value)}
-                      />
-                      <span className="date-sep">~</span>
-                      <input
-                        type="date"
-                        className="date-input"
-                        value={perfEndDate}
-                        onChange={e => setPerfEndDate(e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  {/* 상태 필터 라인 */}
-                  <div className="filter-line">
-                    <span className="line-label">상태</span>
-                    <div className="pill-group">
-                      <button
-                        type="button"
-                        className={`pill-btn ${perfStatusFilter === 'ALL' ? 'active' : ''}`}
-                        onClick={() => setPerfStatusFilter('ALL')}
-                      >
-                        <span>전체 ({statusCounts.all})</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`pill-btn status-completed ${perfStatusFilter === 'COMPLETED' ? 'active' : ''}`}
-                        onClick={() => setPerfStatusFilter('COMPLETED')}
-                      >
-                        <span className="status-dot green" />
-                        <span>확인완료 ({statusCounts.completed})</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`pill-btn status-pending ${perfStatusFilter === 'PENDING' ? 'active' : ''}`}
-                        onClick={() => setPerfStatusFilter('PENDING')}
-                      >
-                        <span className="status-dot amber" />
-                        <span>검토대기 ({statusCounts.pending})</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`pill-btn status-revise ${perfStatusFilter === 'REJECTED' ? 'active' : ''}`}
-                        onClick={() => setPerfStatusFilter('REJECTED')}
-                      >
-                        <span className="status-dot red" />
-                        <span>수정필요 ({statusCounts.rejected})</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 작업 내역 테이블 */}
-                <div className="perf-table-wrapper">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th className="col-num">순번</th>
-                        <th>설치 일자</th>
-                        <th>현장 (아파트명)</th>
-                        <th>동 / 호수</th>
-                        <th>세대주</th>
-                        <th style={{ textAlign: 'center' }}>상태</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredUserReports.length > 0 ? (
-                        filteredUserReports.map((report, idx) => (
-                          <tr key={report.reportId}>
-                            <td className="col-num">
-                              <span className="row-index">{idx + 1}</span>
-                            </td>
-                            <td>{report.installDate || report.installDateFormatted || '—'}</td>
-                            <td><strong>{report.siteName}</strong></td>
-                            <td>{report.dong}동 {report.ho}호</td>
-                            <td>{report.headName}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <StatusBadge status={report.status} />
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={6} className="perf-empty-state">
-                            {userReports.length === 0
-                              ? `[${selectedUser.userName}] 작업자의 등록된 작업 보고서가 없습니다.`
-                              : '선택하신 기간 내의 작업 보고서가 없습니다.'}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </SlideDialog>
+        onClose={() => {
+          setIsDetailOpen(false);
+          setSelectedUser(null);
+        }}
+        user={selectedUser}
+        reports={allReports}
+        sites={sites}
+        initialTab={detailInitialTab}
+        showEditButton
+        showDeleteButton
+        onEditUser={(u) => handleOpenEdit(u)}
+        onDeleteUser={(u) => handleDeleteUser(u)}
+        onResetPassword={(u) => handleResetPassword(u)}
+      />
     </div>
   );
 }

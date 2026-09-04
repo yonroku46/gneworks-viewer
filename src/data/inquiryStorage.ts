@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { INITIAL_INQUIRIES } from './inquiryData';
 
 const INQUIRIES_STORAGE_KEY = 'gneworks_inquiries_data_v1';
@@ -31,11 +32,10 @@ export const saveStoredInquiries = (inquiries: Inquiry[]): void => {
 
 export const addStoredInquiry = (inquiry: Partial<Inquiry> & { inquiryContents: string; phoneNum: string }): Inquiry => {
   const current = getStoredInquiries();
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const dateStr = dayjs().format('YYYY-MM-DD HH:mm');
 
   const newInquiry: Inquiry = {
-    inquiryId: `inq_${Date.now()}`,
+    inquiryId: `inq_${dayjs().valueOf()}`,
     userId: inquiry.userId,
     userName: inquiry.userName,
     phoneNum: inquiry.phoneNum,

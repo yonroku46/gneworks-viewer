@@ -78,6 +78,16 @@ export default function ManageInquiriesPage() {
 
   // Detail & Answer Modal State
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
+  const [cachedInquiry, setCachedInquiry] = useState<Inquiry | null>(null);
+
+  useEffect(() => {
+    if (selectedInquiry) {
+      setCachedInquiry(selectedInquiry);
+    }
+  }, [selectedInquiry]);
+
+  const activeInquiry = selectedInquiry || cachedInquiry;
+
   const [answerForm, setAnswerForm] = useState<{
     processedFlg: boolean;
     answerText: string;
@@ -522,7 +532,7 @@ export default function ManageInquiriesPage() {
       <SlideDialog
         isOpen={!!selectedInquiry}
         onClose={() => setSelectedInquiry(null)}
-        title={selectedInquiry ? `[${selectedInquiry.userName || '비회원'}] 님의 문의 상세 및 답변` : '문의 상세'}
+        title={activeInquiry ? `[${activeInquiry.userName || '비회원'}] 님의 문의 상세 및 답변` : '문의 상세'}
         className="manage-page inquiry-detail-dialog"
         footer={
           <div className="dialog-btn-group">
@@ -535,44 +545,44 @@ export default function ManageInquiriesPage() {
           </div>
         }
       >
-        {selectedInquiry && (
+        {activeInquiry && (
           <form id="inquiry-answer-form" className="inquiry-detail-modal-content" onSubmit={handleSubmitAnswer}>
             {/* ── 1. 상단: 접수된 문의 원문 카드 (메타정보 + 문의내용 통합) ── */}
             <div className="inquiry-source-card">
               <div className="source-card-header">
                 <div className="user-primary-info">
-                  <strong className={`user-name ${!selectedInquiry.userName ? 'non-member' : ''}`}>
-                    {selectedInquiry.userName || '비회원'}
+                  <strong className={`user-name ${!activeInquiry.userName ? 'non-member' : ''}`}>
+                    {activeInquiry.userName || '비회원'}
                   </strong>
-                  {selectedInquiry.userId && (
+                  {activeInquiry.userId && (
                     <span className="user-id-badge">
                       <span className="id-label">ID</span>
-                      <span className="id-val">{selectedInquiry.userId}</span>
+                      <span className="id-val">{activeInquiry.userId}</span>
                     </span>
                   )}
                 </div>
 
                 <div className="header-meta-right">
                   <a
-                    href={`tel:${selectedInquiry.phoneNum}`}
+                    href={`tel:${activeInquiry.phoneNum}`}
                     className="phone-contact-pill"
                     title="클릭 시 전화 연결"
                   >
                     <Phone size={12} className="phone-icon" />
-                    <span>{selectedInquiry.phoneNum}</span>
+                    <span>{activeInquiry.phoneNum}</span>
                   </a>
                   <span className="date-text">
-                    {formatInquiryDateWithRelative(selectedInquiry.createTime)}
+                    {formatInquiryDateWithRelative(activeInquiry.createTime)}
                   </span>
                 </div>
               </div>
 
               <div className="source-card-body">
                 <div className="inquiry-type-heading">
-                  <span>{INQUIRY_TYPE_MAP[selectedInquiry.inquiryType]?.label || selectedInquiry.inquiryType}</span>
+                  <span>{INQUIRY_TYPE_MAP[activeInquiry.inquiryType]?.label || activeInquiry.inquiryType}</span>
                 </div>
                 <div className="content-text-block">
-                  {selectedInquiry.inquiryContents}
+                  {activeInquiry.inquiryContents}
                 </div>
               </div>
             </div>
@@ -581,9 +591,9 @@ export default function ManageInquiriesPage() {
             <div className="inquiry-answer-section">
               <div className="answer-section-header">
                 <span className="section-label">답변 작성</span>
-                {selectedInquiry.answerUserName && (
-                  <span className="last-answered-badge" title={selectedInquiry.answerTime}>
-                    최종 답변: <strong>{selectedInquiry.answerUserName}</strong> ({formatInquiryDateWithRelative(selectedInquiry.answerTime)})
+                {activeInquiry.answerUserName && (
+                  <span className="last-answered-badge" title={activeInquiry.answerTime}>
+                    최종 답변: <strong>{activeInquiry.answerUserName}</strong> ({formatInquiryDateWithRelative(activeInquiry.answerTime)})
                   </span>
                 )}
               </div>

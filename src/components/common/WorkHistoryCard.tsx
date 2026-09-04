@@ -50,19 +50,19 @@ export default function WorkHistoryCard({
       tabIndex={0}
     >
       <div className={`status-avatar ${statusKey}`}>
-        <StatusIcon size={16} strokeWidth={2.5} />
+        <StatusIcon size={17} strokeWidth={statusKey === 'completed' ? 2.5 : 2} />
       </div>
 
       <div className="card-body">
-        <div className="card-main-line">
-          <div className="unit-left">
-            <span className="unit-name">
-              {showSiteName ? `${report.siteName} ${report.dong}동 ${report.ho}호` : `${report.dong}동 ${report.ho}호`}
-            </span>
-            {report.headName && (
-              <span className="head-name">{report.headName} 세대</span>
-            )}
-          </div>
+        {showSiteName && report.siteName && (
+          <span className="card-site-name">{report.siteName}</span>
+        )}
+
+        <div className="card-unit-line">
+          <span className="unit-name">{report.dong}동 {report.ho}호</span>
+          {report.headName && (
+            <span className="head-name">· {report.headName} 세대</span>
+          )}
         </div>
 
         <div className="card-sub-line">

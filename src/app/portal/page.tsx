@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import dayjs from 'dayjs';
 import { useAuth } from '@/providers/AuthProvider';
 import {
   ClipboardCheck,
@@ -84,7 +85,7 @@ export default function PortalPage() {
     let revise = 0;
     let todayCount = 0;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = dayjs().format('YYYY-MM-DD');
 
     reports.forEach(r => {
       if (r.status === 'COMPLETED') completed += 1;
@@ -153,43 +154,65 @@ export default function PortalPage() {
 
       {/* ── STATS SUMMARY (REALTIME 4-GRID) ── */}
       <section className="portal-stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon-wrapper green">
-            <Check size={22} strokeWidth={3} />
-          </div>
-          <div className="stat-info">
+        <div className="stat-card completed">
+          <div className="stat-header">
             <span className="stat-label">확인완료</span>
-            <span className="stat-value">{stats.completed}건</span>
+            <div className="stat-icon-wrapper green">
+              <Check size={17} strokeWidth={2.5} />
+            </div>
+          </div>
+          <div className="stat-main">
+            <h3 className="stat-value">{stats.completed}<span>건</span></h3>
+          </div>
+          <div className="stat-footer">
+            <span className="sub-note">승인 완료된 보고서</span>
           </div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon-wrapper amber">
-            <Hourglass size={22} />
-          </div>
-          <div className="stat-info">
+        <div className="stat-card pending">
+          <div className="stat-header">
             <span className="stat-label">검토대기</span>
-            <span className="stat-value">{stats.pending}건</span>
+            <div className="stat-icon-wrapper amber">
+              <Hourglass size={17} />
+            </div>
+          </div>
+          <div className="stat-main">
+            <h3 className="stat-value">{stats.pending}<span>건</span></h3>
+          </div>
+          <div className="stat-footer">
+            <span className="sub-note">관리자 심사 대기</span>
           </div>
         </div>
 
-        <div className={`stat-card ${stats.revise > 0 ? 'highlight-alert' : ''}`}>
-          <div className="stat-icon-wrapper red">
-            <AlertCircle size={22} />
-          </div>
-          <div className="stat-info">
+        <div className={`stat-card revise ${stats.revise > 0 ? 'highlight-alert' : ''}`}>
+          <div className="stat-header">
             <span className="stat-label">반려됨</span>
-            <span className="stat-value">{stats.revise}건</span>
+            <div className="stat-icon-wrapper red">
+              <AlertCircle size={17} />
+            </div>
+          </div>
+          <div className="stat-main">
+            <h3 className="stat-value">{stats.revise}<span>건</span></h3>
+          </div>
+          <div className="stat-footer">
+            <span className={`sub-note ${stats.revise > 0 ? 'danger-note' : ''}`}>
+              {stats.revise > 0 ? '재작성 및 보완 필요' : '보완 요청 없음'}
+            </span>
           </div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon-wrapper blue">
-            <Clock size={22} />
-          </div>
-          <div className="stat-info">
+        <div className="stat-card today">
+          <div className="stat-header">
             <span className="stat-label">오늘 작업</span>
-            <span className="stat-value">{stats.todayCount}건</span>
+            <div className="stat-icon-wrapper blue">
+              <Clock size={17} />
+            </div>
+          </div>
+          <div className="stat-main">
+            <h3 className="stat-value">{stats.todayCount}<span>건</span></h3>
+          </div>
+          <div className="stat-footer">
+            <span className="sub-note">금일 신규 등록</span>
           </div>
         </div>
       </section>
@@ -238,6 +261,19 @@ export default function PortalPage() {
         <div className="section-header-row">
           <h2 className="portal-section-title">현장 지원 및 안내</h2>
         </div>
+        {/* ── NOTICE FEED ── */}
+        <section className="portal-notice-card">
+          <div className="notice-header">
+            <span className="notice-badge"> 
+              <Sparkles size={12} /> 현장 안내사항
+            </span>
+            <span className="notice-date">2026.09.02</span>
+          </div>
+          <h4 className="notice-title">현장 사진 촬영 및 보고서 작성 지침 안내</h4>
+          <p className="notice-content">
+            작업 전/후 사진은 가이드라인 안내선에 맞추어 선명하게 촬영해 주시기 바라며, 작업 확인 완료된 세대는 임의 수정이 불가하오니 제출 전 확인자 서명 및 기재사항을 꼼꼼히 확인 바랍니다.
+          </p>
+        </section>
         <div className="portal-action-grid">
           <Link href="/contact?type=inquiry" className="action-card">
             <div className="action-header">
@@ -265,20 +301,6 @@ export default function PortalPage() {
             <p className="action-desc">접수한 업무 문의의 처리 상태와 관리자 답변을 확인합니다.</p>
           </button>
         </div>
-      </section>
-
-      {/* ── NOTICE FEED ── */}
-      <section className="portal-notice-card">
-        <div className="notice-header">
-          <span className="notice-badge">
-            <Sparkles size={12} /> 현장 안내사항
-          </span>
-          <span className="notice-date">2026.09.02</span>
-        </div>
-        <h4 className="notice-title">현장 사진 촬영 및 보고서 작성 지침 안내</h4>
-        <p className="notice-content">
-          작업 전/후 사진은 가이드라인 안내선에 맞추어 선명하게 촬영해 주시기 바라며, 작업 확인 완료된 세대는 임의 수정이 불가하오니 제출 전 확인자 서명 및 기재사항을 꼼꼼히 확인 바랍니다.
-        </p>
       </section>
 
       {/* ── WORK REPORT DETAIL DIALOG ── */}

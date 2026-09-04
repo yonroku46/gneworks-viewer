@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { getStoredSites } from './siteStorage';
 import { SiteInfo } from './siteData';
 
@@ -50,7 +51,7 @@ export const addAssignedRegion = (sido: string, sigungu: string, assignedDate?: 
   if (current.some(r => r.id === id)) {
     return current;
   }
-  const dateStr = assignedDate || new Date().toISOString().split('T')[0].replace(/-/g, '.');
+  const dateStr = assignedDate || dayjs().format('YYYY.MM.DD');
   const updated = [...current, { id, sido, sigungu, assignedDate: dateStr }];
   saveStoredAssignedRegions(updated);
   return updated;
@@ -61,6 +62,42 @@ export const removeAssignedRegion = (regionId: string): AssignedRegion[] => {
   const updated = current.filter(r => r.id !== regionId);
   saveStoredAssignedRegions(updated);
   return updated;
+};
+
+export const getUserAssignedRegions = (userId?: string): AssignedRegion[] => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_ASSIGNED_REGIONS;
+  }
+  if (!userId) {
+    return getStoredAssignedRegions();
+  }
+  const key = `${REGIONS_STORAGE_KEY}_user_${userId}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      return getStoredAssignedRegions();
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : getStoredAssignedRegions();
+  } catch (error) {
+    console.error(`Failed to load assigned regions for user ${userId}:`, error);
+    return getStoredAssignedRegions();
+  }
+};
+
+export const saveUserAssignedRegions = (userId: string | undefined, regions: AssignedRegion[]): void => {
+  if (typeof window === 'undefined') return;
+  if (!userId) {
+    saveStoredAssignedRegions(regions);
+    return;
+  }
+  const key = `${REGIONS_STORAGE_KEY}_user_${userId}`;
+  try {
+    localStorage.setItem(key, JSON.stringify(regions));
+    window.dispatchEvent(new CustomEvent(REGIONS_UPDATE_EVENT, { detail: regions }));
+  } catch (error) {
+    console.error(`Failed to save assigned regions for user ${userId}:`, error);
+  }
 };
 
 export interface RegionWorker {

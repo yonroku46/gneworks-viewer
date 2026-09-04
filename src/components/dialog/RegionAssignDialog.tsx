@@ -137,7 +137,7 @@ export default function RegionAssignDialog({
             tabIndex={0}
           >
             <div className="label-left">
-              <span className="section-label">현재 내 담당 지역</span>
+              <span className="section-label">현재 담당 지역</span>
               <span className="badge-total">{assignedRegions.length}개</span>
             </div>
             <ChevronDown

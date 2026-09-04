@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 import StatusBadge from '@/components/common/StatusBadge';
 import { getStoredInquiries, subscribeToInquiriesUpdate } from '@/data/inquiryStorage';
@@ -61,8 +62,8 @@ export default function InquiryHistoryDialog({
 
     // Sort order
     result.sort((a, b) => {
-      const timeA = new Date(a.createTime).getTime() || 0;
-      const timeB = new Date(b.createTime).getTime() || 0;
+      const timeA = dayjs(a.createTime).valueOf() || 0;
+      const timeB = dayjs(b.createTime).valueOf() || 0;
       return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
     });
 

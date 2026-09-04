@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { INITIAL_REPORTS_DATA } from './reportData';
 
 const REPORTS_STORAGE_KEY = 'gneworks_reports_data_v1';
@@ -14,6 +15,7 @@ const normalizeReportItem = (r: any): WorkReport => {
   } else {
     status = (status as ReportStatus) || 'UNSUBMITTED';
   }
+
   return { ...r, status };
 };
 
@@ -51,10 +53,10 @@ export const upsertReport = (report: Partial<WorkReport> & { siteName: string; d
     r => r.siteName === report.siteName && r.dong === report.dong && r.ho === report.ho
   );
 
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const timeStr = `${dateStr} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const formattedDate = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
+  const now = dayjs();
+  const dateStr = now.format('YYYY-MM-DD');
+  const timeStr = now.format('YYYY-MM-DD HH:mm');
+  const formattedDate = now.format('YYYY년 M월 D일');
 
   let updatedReport: WorkReport;
 
@@ -71,7 +73,7 @@ export const upsertReport = (report: Partial<WorkReport> & { siteName: string; d
     current[existingIdx] = updatedReport;
   } else {
     updatedReport = {
-      reportId: `rep_${Date.now()}`,
+      reportId: `rep_${dayjs().valueOf()}`,
       siteId: report.siteId || 'site_custom',
       siteName: report.siteName,
       status: report.status || 'PENDING',
@@ -89,10 +91,11 @@ export const upsertReport = (report: Partial<WorkReport> & { siteName: string; d
       installerId: report.installerId || 'current_worker',
       visitorName: report.visitorName || report.reporterName || '작업자',
       confirmerName: report.confirmerName || report.headName || '세대주',
+      confirmerSignature: report.confirmerSignature || '/assets/img/sample_signature.svg',
       photos: report.photos || [
-        { title: '신주소 보이는 대문 등', url: '/assets/img/report_sheet_sample.png', type: 'DOOR' },
-        { title: '설치 전 ①', url: '/assets/img/report_sheet_sample.png', type: 'BEFORE1' },
-        { title: '설치 후 ①', url: '/assets/img/report_sheet_sample.png', type: 'AFTER1' },
+        { title: '신주소 보이는 대문 등', url: '', type: 'DOOR' },
+        { title: '설치 전 ①', url: '', type: 'BEFORE1' },
+        { title: '설치 후 ①', url: '', type: 'AFTER1' },
       ],
 
       submittedAt: timeStr,

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 
 import { getStoredReports, subscribeToReportsUpdate } from '@/data/reportStorage';
@@ -80,20 +81,15 @@ export default function WorkHistoryDialog({
 
   // Base reports filtered by region, date, and search query (used to compute status counts)
   const baseReports = useMemo(() => {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = dayjs().format('YYYY-MM-DD');
 
     let cutoffDate = '';
     if (datePreset === 'today') {
       cutoffDate = todayStr;
     } else if (datePreset === 'week') {
-      const d = new Date();
-      d.setDate(d.getDate() - 7);
-      cutoffDate = d.toISOString().split('T')[0];
+      cutoffDate = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
     } else if (datePreset === 'month') {
-      const d = new Date();
-      d.setDate(d.getDate() - 30);
-      cutoffDate = d.toISOString().split('T')[0];
+      cutoffDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
     }
 
     return reports.filter(r => {
@@ -309,12 +305,10 @@ export default function WorkHistoryDialog({
                 onClick={() => {
                   setDatePreset('custom');
                   if (!customStartDate) {
-                    const d = new Date();
-                    d.setDate(d.getDate() - 7);
-                    setCustomStartDate(d.toISOString().split('T')[0]);
+                    setCustomStartDate(dayjs().subtract(7, 'day').format('YYYY-MM-DD'));
                   }
                   if (!customEndDate) {
-                    setCustomEndDate(new Date().toISOString().split('T')[0]);
+                    setCustomEndDate(dayjs().format('YYYY-MM-DD'));
                   }
                 }}
               >

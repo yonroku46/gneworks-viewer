@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import './SlideDialog.scss';
 
@@ -14,11 +15,14 @@ interface SlideDialogProps {
   noPadding?: boolean;
   className?: string;
   disableBackdropClick?: boolean;
+  disableHistoryBack?: boolean;
 }
 
 // 전역 다이얼로그 열림 스택 카운터 (모달 중첩 시에도 스크롤 락 유지 및 위치 보존)
 let openDialogCount = 0;
 let savedScrollY = 0;
+let ignoreNextPopStateCount = 0;
+const activeDialogStack: string[] = [];
 
 const lockBodyScroll = () => {
   if (typeof document === 'undefined') return;
@@ -65,10 +69,17 @@ export default function SlideDialog({
   noPadding,
   className,
   disableBackdropClick = false,
+  disableHistoryBack = false,
 }: SlideDialogProps) {
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [active, setActive] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // 관리자 페이지(manage-page)이거나 데스크톱 뷰포트에서는 가상 히스토리 조작 비활성화
+  const isManagePage = Boolean(className?.includes('manage-page'));
+  const shouldEnableHistory = !disableHistoryBack && !isManagePage && (typeof window !== 'undefined' && window.innerWidth <= 768);
+
+  const dialogId = useRef(`slide_dialog_${Math.random().toString(36).slice(2, 9)}`).current;
 
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -82,14 +93,40 @@ export default function SlideDialog({
     setMounted(true);
   }, []);
 
-  // 모바일 뒤로가기 (안드로이드 시스템 백버튼 / 아이폰 좌측 스와이프) 연동
+  // 다이얼로그 중첩 스택 관리
   useEffect(() => {
+    if (isOpen) {
+      activeDialogStack.push(dialogId);
+      return () => {
+        const idx = activeDialogStack.indexOf(dialogId);
+        if (idx !== -1) {
+          activeDialogStack.splice(idx, 1);
+        }
+      };
+    } else {
+      const idx = activeDialogStack.indexOf(dialogId);
+      if (idx !== -1) {
+        activeDialogStack.splice(idx, 1);
+      }
+    }
+  }, [isOpen, dialogId]);
+
+  // 모바일 뒤로가기 (안드로이드 시스템 백버튼 / 아이폰 좌측 스와이프) 연동 (모바일 포탈 전용)
+  useEffect(() => {
+    if (!shouldEnableHistory) {
+      isPushedRef.current = false;
+      return;
+    }
+
     if (!isOpen) {
       if (isPushedRef.current && !isClosingByPopstateRef.current) {
         isPushedRef.current = false;
-        try {
-          window.history.back();
-        } catch {}
+        if (typeof window !== 'undefined' && window.history.state?.dialogId === dialogId) {
+          ignoreNextPopStateCount++;
+          try {
+            window.history.back();
+          } catch {}
+        }
       }
       isClosingByPopstateRef.current = false;
       return;
@@ -97,15 +134,23 @@ export default function SlideDialog({
 
     if (typeof window !== 'undefined' && !isPushedRef.current) {
       const currentHistoryState = window.history.state || {};
-      window.history.pushState({ ...currentHistoryState, isSlideDialog: true, dialogTime: Date.now() }, '');
+      window.history.pushState({ ...currentHistoryState, isSlideDialog: true, dialogId, dialogTime: dayjs().valueOf() }, '');
       isPushedRef.current = true;
     }
 
     const handlePopState = () => {
-      if (isPushedRef.current) {
-        isPushedRef.current = false;
-        isClosingByPopstateRef.current = true;
-        onCloseRef.current();
+      if (ignoreNextPopStateCount > 0) {
+        ignoreNextPopStateCount--;
+        return;
+      }
+
+      // 오직 최상단 다이얼로그만 유저 뒤로가기 수신
+      if (activeDialogStack[activeDialogStack.length - 1] === dialogId) {
+        if (isPushedRef.current) {
+          isPushedRef.current = false;
+          isClosingByPopstateRef.current = true;
+          onCloseRef.current();
+        }
       }
     };
 
@@ -114,19 +159,26 @@ export default function SlideDialog({
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isOpen]);
+  }, [isOpen, dialogId, shouldEnableHistory]);
 
   // 컴포넌트 언마운트 시 미처 회수되지 않은 가상 히스토리 안전 정리
   useEffect(() => {
     return () => {
-      if (isPushedRef.current && !isClosingByPopstateRef.current) {
+      const idx = activeDialogStack.indexOf(dialogId);
+      if (idx !== -1) {
+        activeDialogStack.splice(idx, 1);
+      }
+      if (shouldEnableHistory && isPushedRef.current && !isClosingByPopstateRef.current) {
         isPushedRef.current = false;
-        try {
-          window.history.back();
-        } catch {}
+        if (typeof window !== 'undefined' && window.history.state?.dialogId === dialogId) {
+          ignoreNextPopStateCount++;
+          try {
+            window.history.back();
+          } catch {}
+        }
       }
     };
-  }, []);
+  }, [dialogId, shouldEnableHistory]);
 
   // 바디 스크롤 락 제어 (백드롭 스크롤 누수 완벽 차단)
   useEffect(() => {
@@ -141,7 +193,11 @@ export default function SlideDialog({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        // 최상단 다이얼로그만 ESC로 닫기
+        if (activeDialogStack[activeDialogStack.length - 1] === dialogId) {
+          e.stopPropagation();
+          onClose();
+        }
       }
     };
 
@@ -162,7 +218,7 @@ export default function SlideDialog({
       }, 300); 
       return () => clearTimeout(timer);
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, dialogId]);
 
   if (!shouldRender || !mounted) return null;
 
