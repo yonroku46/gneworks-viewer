@@ -106,7 +106,7 @@ export default function ImageCropDialog({
 }: ImageCropDialogProps) {
   const [crop, setCrop] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState<number>(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea>();
   const [isProcessing, setIsProcessing] = useState(false);
 
   const isShow = isOpen ?? open ?? false;

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Camera } from 'lucide-react';
 import ImageCropDialog from './ImageCropDialog';
+import UserAvatar from '@/components/common/UserAvatar';
 import './ProfileEditDialog.scss';
 
 interface ProfileEditDialogProps {
@@ -28,7 +29,7 @@ export default function ProfileEditDialog({
   const [photo, setPhoto] = useState(initialPhoto);
   const [phone, setPhone] = useState(initialPhone);
 
-  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropImageSrc, setCropImageSrc] = useState<string>();
   const [isCropOpen, setIsCropOpen] = useState(false);
 
   useEffect(() => {
@@ -104,13 +105,11 @@ export default function ProfileEditDialog({
             <div className="modal-body">
               {/* 프로필 사진 편집 */}
               <div className="avatar-edit-section">
-                <div className="avatar-preview-box">
-                  {photo ? (
-                    <img src={photo} alt={userName} className="preview-img" />
-                  ) : (
-                    userName.charAt(0)
-                  )}
-                </div>
+                <UserAvatar 
+                  src={photo} 
+                  name={userName} 
+                  size="huge" 
+                />
                 <div className="avatar-actions-row">
                   <button
                     type="button"
@@ -165,7 +164,7 @@ export default function ProfileEditDialog({
           imageSrc={cropImageSrc}
           onClose={() => {
             setIsCropOpen(false);
-            setCropImageSrc(null);
+            setCropImageSrc(undefined);
           }}
           onCropComplete={handleCropComplete}
         />

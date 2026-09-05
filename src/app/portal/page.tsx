@@ -16,10 +16,8 @@ import {
   Check,
   MessageCircle,
 } from 'lucide-react';
-import { SiteInfo } from '@/data/siteData';
 import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
 import {
-  AssignedRegion,
   getStoredAssignedRegions,
   subscribeToAssignedRegionsUpdate,
 } from '@/data/regionStorage';
@@ -28,7 +26,7 @@ import {
   subscribeToReportsUpdate,
 } from '@/data/reportStorage';
 
-import WorkReportDialog, { TargetHousehold } from '@/components/dialog/WorkReportDialog';
+import WorkReportDialog from '@/components/dialog/WorkReportDialog';
 import WorkHistoryDialog from '@/components/dialog/WorkHistoryDialog';
 import InquiryHistoryDialog from '@/components/dialog/InquiryHistoryDialog';
 import WorkHistoryCard from '@/components/common/WorkHistoryCard';
@@ -39,12 +37,12 @@ export default function PortalPage() {
   const displayName = user?.userName || '현장 작업자';
 
   // Storage states
-  const [allSites, setAllSites] = useState<SiteInfo[]>([]);
-  const [assignedRegions, setAssignedRegions] = useState<AssignedRegion[]>([]);
+  const [allSites, setAllSites] = useState<SiteDetail[]>([]);
+  const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [reports, setReports] = useState<WorkReport[]>([]);
 
   // Dialog state for viewing report & history
-  const [reportTarget, setReportTarget] = useState<TargetHousehold | null>(null);
+  const [selectedReport, setSelectedReport] = useState<WorkReport>();
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isInquiryHistoryOpen, setIsInquiryHistoryOpen] = useState(false);
@@ -125,18 +123,7 @@ export default function PortalPage() {
 
   // 이력 항목 클릭 시 보고서 다이얼로그 열기
   const handleOpenReportFromHistory = (report: WorkReport) => {
-    setReportTarget({
-      siteId: report.siteId,
-      siteName: report.siteName,
-      sido: report.sido,
-      sigungu: report.sigungu,
-      eupmyeondong: report.eupmyeondong,
-      address: report.address,
-      dong: report.dong,
-      ho: report.ho,
-      headName: report.headName,
-      existingReport: report,
-    });
+    setSelectedReport(report);
     setIsReportDialogOpen(true);
   };
 
@@ -275,7 +262,7 @@ export default function PortalPage() {
           </p>
         </section>
         <div className="portal-action-grid">
-          <Link href="/contact?type=inquiry" className="action-card">
+          <Link href="/contact?type=task_report" className="action-card">
             <div className="action-header">
               <div className="action-icon-box">
                 <Headphones size={20} />
@@ -306,8 +293,11 @@ export default function PortalPage() {
       {/* ── WORK REPORT DETAIL DIALOG ── */}
       <WorkReportDialog
         isOpen={isReportDialogOpen}
-        onClose={() => setIsReportDialogOpen(false)}
-        target={reportTarget}
+        onClose={() => {
+          setIsReportDialogOpen(false);
+          setSelectedReport(undefined);
+        }}
+        existingReport={selectedReport}
       />
 
       {/* ── WORK HISTORY SEARCH & FILTER DIALOG ── */}

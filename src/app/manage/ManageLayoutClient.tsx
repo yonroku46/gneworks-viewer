@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import AppImage from '@/components/contents/AppImage';
+import UserAvatar from '@/components/common/UserAvatar';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, servicePrefix } from '@/providers/AuthProvider';
 import { useSnackbar } from 'notistack';
@@ -103,13 +103,11 @@ function ManageLayoutInner({ children }: { children: React.ReactNode }) {
         {user && (
           <div className="sidebar-footer">
             <div className="user-profile">
-              <div className="avatar">
-                {user.profileImg ? (
-                  <AppImage src={user.profileImg} alt={user.userName} width={32} height={32} />
-                ) : (
-                  <span className="avatar-initial">{user.userName.charAt(0)}</span>
-                )}
-              </div>
+              <UserAvatar 
+                src={user.profileImg} 
+                name={user.userName} 
+                size="md" 
+              />
               <div className="user-meta">
                 <span className="name">{user.userName}</span>
                 <span className="name-sub">{user.userId}</span>
@@ -188,13 +186,11 @@ function ManageLayoutInner({ children }: { children: React.ReactNode }) {
           {user && (
             <div className="drawer-footer">
               <div className="user-info">
-                <div className="avatar">
-                  {user.profileImg ? (
-                    <AppImage src={user.profileImg} alt={user.userName} width={36} height={36} />
-                  ) : (
-                    <span>{user.userName.charAt(0)}</span>
-                  )}
-                </div>
+                <UserAvatar 
+                  src={user.profileImg} 
+                  name={user.userName} 
+                  size={36} 
+                />
                 <div className="meta">
                   <div className="name">{user.userName}님</div>
                   <div className="name-sub">{user.userId}</div>

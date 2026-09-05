@@ -11,25 +11,6 @@
     gap: 1rem;
     padding-bottom: 1rem;
     border-bottom: 1px solid var(--border);
-    .avatar-huge {
-      width: 3.5rem;
-      height: 3.5rem;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--avatar-gradient-start), var(--manage-primary));
-      color: var(--white);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.375rem;
-      font-weight: 800;
-      flex-shrink: 0;
-      overflow: hidden;
-      .avatar-huge-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-    }
     .profile-texts {
       h3 {
         font-size: 1.25rem;

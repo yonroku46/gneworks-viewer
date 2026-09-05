@@ -5,13 +5,10 @@ import {
   FileText, 
   Calendar, 
   CheckCircle2, 
-  Printer, 
   FileDown,
   Image as ImageIcon,
   ClipboardCheck,
   Filter,
-  AlertTriangle,
-  Edit3,
   RotateCcw,
   ArrowRight
 } from 'lucide-react';
@@ -22,7 +19,7 @@ import SlideDialog from '@/components/dialog/SlideDialog';
 import WorkReportDetailDialog from '@/components/dialog/WorkReportDetailDialog';
 import RegionalBatchPrintDialog from '@/components/dialog/RegionalBatchPrintDialog';
 import CustomSelect from '@/components/common/CustomSelect';
-import RegionSelector, { RegionValue } from '@/components/common/RegionSelector';
+import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
 import SearchInput from '@/components/common/SearchInput';
 import StatusBadge, { STATUS_LABEL_MAP } from '@/components/common/StatusBadge';
@@ -38,7 +35,7 @@ export default function ManageWorkPage() {
 
   // Master Reports Data
   const [reports, setReports] = useState<WorkReport[]>(INITIAL_REPORTS_DATA);
-  const [sites, setSites] = useState<SiteInfo[]>([]);
+  const [sites, setSites] = useState<SiteDetail[]>([]);
 
   // Load from Storage & Subscribe to Updates
   React.useEffect(() => {
@@ -176,11 +173,11 @@ export default function ManageWorkPage() {
   }, [appliedInstallStartDate, appliedInstallEndDate, appliedReportStartDate, appliedReportEndDate, appliedStatusFilter]);
 
   // Confirmation Sheet Viewer Dialog
-  const [selectedReport, setSelectedReport] = useState<WorkReport | null>(null);
+  const [selectedReport, setSelectedReport] = useState<WorkReport>();
 
   // Status Change Dialog State
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [targetReport, setTargetReport] = useState<WorkReport | null>(null);
+  const [targetReport, setTargetReport] = useState<WorkReport>();
   const [statusFormData, setStatusFormData] = useState<{
     status: WorkReport['status'];
     fixReason: string;
@@ -410,7 +407,7 @@ export default function ManageWorkPage() {
             {filteredReports.length > 0 ? (
               filteredReports.map((report, idx) => (
                 <tr 
-                  key={report.reportId} 
+                  key={report.reportId || `${report.siteId}_${report.dong}_${report.ho}_${idx}`} 
                   className="report-table-row"
                   onClick={() => setSelectedReport(report)}
                 >
@@ -444,7 +441,7 @@ export default function ManageWorkPage() {
                 </tr>
               ))
             ) : (
-              <tr className="empty-table-row">
+              <tr key="empty-reports" className="empty-table-row">
                 <td colSpan={7} className="empty-table-cell">
                   <FileText size={36} className="empty-icon" />
                   <p>선택된 날짜 및 조건에 일치하는 작업 보고서가 없습니다.</p>
@@ -459,7 +456,7 @@ export default function ManageWorkPage() {
       <WorkReportDetailDialog
         isOpen={!!selectedReport && !isStatusModalOpen}
         report={selectedReport}
-        onClose={() => setSelectedReport(null)}
+        onClose={() => setSelectedReport(undefined)}
         isManageWorkPage={true}
         onOpenStatusModal={(rep) => handleOpenStatusModal(rep)}
         onReportUpdated={(updated) => {

@@ -14,10 +14,15 @@ declare global {
     groupTitle?: string;
     items: MenuItem[];
   }
-  // ─── Region & Address (지역 & 행정구역) ───
-  interface SigunguData {
-    name: string;
-    eupmyeondongs: string[];
+  interface SelectOption {
+    value: string;
+    label: string;
+    disabled?: boolean;
+  }
+  interface SelectedRegion {
+    sido: string;
+    sigungu: string;
+    eupmyeondong: string;
   }
   interface SidoData {
     code: string;
@@ -25,83 +30,20 @@ declare global {
     shortName: string;
     sigungus: SigunguData[];
   }
-  interface RegionValue {
-    sido: string;
-    sigungu: string;
-    eupmyeondong: string;
-  }
-  interface AssignedRegion {
-    id: string;          // e.g. '경기도_안산시'
-    sido: string;        // e.g. '경기도'
-    sigungu: string;     // e.g. '안산시'
-    assignedDate?: string; // e.g. '2026.09.02'
-  }
-
-  // ─── Site & Household & Assignment (현장, 세대, 작업자 배정) ───
-  type HouseholdTargetType = '노인(65세 이상)' | '아동(13세 미만)' | '장애인' | '일반';
-  type HouseholdInstallStatus = InstallStatus | '설치완료' | '방문예정' | '부재/보류' | '미설치';
-
-  interface Household {
-    id: string;
-    seq?: number | string;      // 세대/명부 연번 (순번)
-    dong: string;
-    ho: string;
-    headName: string;
-    targetType: HouseholdTargetType;
-    installStatus: HouseholdInstallStatus;
-    remarks?: string;
-  }
-
-  interface AssignedWorker {
-    userId: string;
-    userName: string;
-    userPhone?: string;
-  }
-
-  type SiteStatus = '진행중' | '대기' | '완료';
-
-  interface SiteInfo {
-    id: string;
+  interface SigunguData {
+    regionId?: string;
     name: string;
-    address: string;
-    region: string;
-    sido: string;               // 광역시/도 (예: '경기도')
-    sigungu: string;            // 시/군/구 (예: '연천군', '수원시')
-    eupmyeondong: string;       // 읍/면/동 (예: '연천읍', '전곡읍', '팔달구 (우만동)')
-    routeGroup: string;         // 이동동선 그룹 (예: '연천 1동선 (연천읍 권역)', '수원 2동선 (우만/팔달 B권역)')
-    dongCount: number;
-    dongList: string[];
-    totalHouseholds: number;
-    completedHouseholds: number;
-    contactPhone: string;
-    status: SiteStatus;
-    assignedWorkers?: AssignedWorker[];
-    assignedUserId?: string;      // (하위 호환) 대표 작업자 아이디
-    assignedUserName?: string;    // (하위 호환) 대표 담당자 성명
-    assignedUserPhone?: string;   // (하위 호환) 대표 연락처
-    workStartDate?: string;       // 작업 시작일자
-    workCompletedCount?: number;  // 실제 작업/설치 대수
-    households: Household[];
+    eupmyeondongs: string[];
   }
-
-  interface TargetHousehold {
-    siteId: string;
-    siteName: string;
-    sido: string;
-    sigungu: string;
-    eupmyeondong: string;
-    address: string;
-    dong: string;
-    ho: string;
-    headName: string;
-    existingReport?: WorkReport;
-  }
-
-  // ─── Common UI Models ───
-  interface SelectOption {
-    value: string;
-    label: string;
-    disabled?: boolean;
+  type DatePreset = 'all' | 'today' | 'week' | 'month' | 'custom';
+  type StatusFilterType = 'ALL' | 'COMPLETED' | 'PENDING' | 'REJECTED';
+  // Region & Address (지역 & 행정구역)
+  interface FireRegion {
+    regionId: string;
+    sidoCode: string;
+    sidoName: string;
+    name: string;
+    eupmyeondongs: string[];
   }
   type StatusVariant = 'installed' | 'needs-fix' | 'hold' | 'scheduled' | 'uninstalled';
   type WorkStatusFilter =
@@ -111,11 +53,7 @@ declare global {
     | 'pending'
     | 'revise'
     | 'completed';
-  type NotificationIconType = 'LOGO' | 'AVATAR';
   type ReportStatus = 'COMPLETED' | 'PENDING' | 'REJECTED' | 'UNSUBMITTED';
-  type InstallStatus = 'INSTALLED' | 'SCHEDULED' | 'HOLD' | 'UNINSTALLED';
-  type InquiryStatus = 'RESOLVED' | 'WAITING';
-  type ReportPhotoType = 'DOOR' | 'BEFORE1' | 'AFTER1' | 'BEFORE2' | 'AFTER2';
   interface ReportPhoto {
     title: string;
     url: string;
@@ -172,6 +110,32 @@ declare global {
     inquiryType: string;
     inquiryContents: string;
   }
+  interface AdminUserCreateReq {
+    userId: string;
+    userName: string;
+    phoneNum: string;
+    birthday?: string;
+    gender?: string;
+    postalCode?: string;
+    detailAddress?: string;
+  }
+  interface AdminUserUpdateReq {
+    userId: string;
+    userName?: string;
+    phoneNum?: string;
+    birthday?: string;
+    gender?: string;
+    postalCode?: string;
+    detailAddress?: string;
+  }
+  interface AdminInquiryAnswerReq {
+    answerContents: string;
+    processedFlg: boolean;
+  }
+  interface AdminInquiryPendingSummary {
+    pendingCount: number;
+    latestPendingInquiry?: Inquiry;
+  }
   interface LoginUserRes {
     userId: string;
     userName: string;
@@ -180,10 +144,11 @@ declare global {
     gender: string;
     token: string;
     refreshToken: string;
-    signatureImg?: string;
     mngFlg?: boolean;
   }
   // DB
+  // AppNotification
+  type NotificationIconType = 'LOGO' | 'AVATAR';
   interface AppNotification {
     appNotificationId: string;
     userId: string;
@@ -195,20 +160,8 @@ declare global {
     iconType: NotificationIconType;
     createTime: string;
   }
-  interface User {
-    userId: string;
-    userName: string;
-    phoneNum: string;
-    profileImg?: string;
-    birthday?: string;
-    gender?: string;
-    postalCode?: string;
-    detailAddress?: string;
-    lastUpdated: string;
-    createTime: string;
-    mngFlg?: boolean;
-    role?: string;
-  }
+  // Inquiry
+  type InquiryStatus = 'RESOLVED' | 'WAITING';
   interface Inquiry {
     inquiryId: string;
     userId?: string;
@@ -222,6 +175,68 @@ declare global {
     answerTime?: string;
     processedFlg: boolean;
     deleteFlg: boolean;
+  }
+  // User & AssignedRegion
+  interface User {
+    userId: string;
+    userName: string;
+    phoneNum: string;
+    profileImg?: string;
+    birthday?: string;
+    gender?: string;
+    postalCode?: string;
+    detailAddress?: string;
+    lastUpdated: string;
+    createTime: string;
+  }
+  interface UserAssignedRegion {
+    assignedRegionId: string;
+    userId: string;
+    regionId: string;
+    assignedDate?: string;
+  }
+  interface UserAssignedRegionDetail extends UserAssignedRegion {
+    sido: string;
+    sigungu: string;
+  }
+  interface RegionWorkerUser extends User {
+    assignedRegions?: UserAssignedRegionDetail[];
+  }
+  // Site & Household & Assignment (현장, 세대, 작업자 배정)
+  type HouseholdTargetType = 'ELDERLY' | 'CHILD' | 'DISABLED' | 'GENERAL';
+  type InstallStatus = 'INSTALLED' | 'SCHEDULED' | 'HOLD' | 'UNINSTALLED';
+  type SiteStatus = 'IN_PROGRESS' | 'READY' | 'COMPLETED';
+  type ReportPhotoType = 'DOOR' | 'BEFORE1' | 'AFTER1' | 'BEFORE2' | 'AFTER2';
+  interface Site {
+    siteId: string;
+    regionId?: string;
+    name: string;
+    region: string;
+    address: string;
+    sido: string;
+    sigungu: string;
+    eupmyeondong: string;
+    contactPhone?: string;
+    createTime: string;
+  }
+  interface Household {
+    householdId: string;
+    siteId: string;
+    dong: string;
+    ho: string;
+    headName: string;
+    targetType: HouseholdTargetType;
+    installStatus: InstallStatus;
+    remarks?: string;
+    createTime: string;
+  }
+  interface SiteDetail extends Site {
+    dongCount: number;
+    totalHouseholds: number;
+    completedHouseholds: number;
+    status: SiteStatus;
+    households: Household[];
+    assignedWorkers?: RegionWorkerUser[];
   }
 }
 

@@ -779,3 +779,45 @@ export function getOfficialEupmyeondongList(sidoName: string, sigunguName: strin
   const sigungu = sido.sigungus.find(sg => sg.name === sigunguName);
   return sigungu ? sigungu.eupmyeondongs : [];
 }
+
+/**
+ * 소방관할(FireRegion) 목록 전체 반환 (fire_region 매핑 형태)
+ */
+export function getAllFireRegions(): FireRegion[] {
+  const list: FireRegion[] = [];
+  KOREA_ADMIN_REGIONS.forEach((sido) => {
+    sido.sigungus.forEach((sg, idx) => {
+      const regionId = sg.regionId || `REG_${sido.code}_${String(idx + 1).padStart(2, '0')}`;
+      list.push({
+        regionId,
+        sidoCode: sido.code,
+        sidoName: sido.name,
+        name: sg.name,
+        eupmyeondongs: sg.eupmyeondongs,
+      });
+    });
+  });
+  return list;
+}
+
+export const getAllRegionMasters = getAllFireRegions;
+
+/**
+ * 시도명과 소방관할명으로 regionId 찾기
+ */
+export function findRegionId(sidoName: string, sigunguName: string): string | undefined {
+  const sido = KOREA_ADMIN_REGIONS.find(s => s.name === sidoName || s.shortName === sidoName);
+  if (!sido) return undefined;
+  const idx = sido.sigungus.findIndex(sg => sg.name === sigunguName || sg.name === sigunguName.replace(/[시군구]$/, ''));
+  if (idx === -1) return undefined;
+  return sido.sigungus[idx].regionId || `REG_${sido.code}_${String(idx + 1).padStart(2, '0')}`;
+}
+
+/**
+ * regionId로 FireRegion 찾기
+ */
+export function findRegionById(regionId: string): FireRegion | undefined {
+  return getAllFireRegions().find(r => r.regionId === regionId);
+}
+
+export { normalizeSigungu, isRegionMatch } from '@/common/utils/regionUtils';

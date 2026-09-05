@@ -4,9 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
-import { SiteInfo, Household } from '@/data/siteData';
 import {
-  AssignedRegion,
   getStoredAssignedRegions,
   subscribeToAssignedRegionsUpdate,
 } from '@/data/regionStorage';
@@ -15,7 +13,7 @@ import {
   subscribeToReportsUpdate,
 } from '@/data/reportStorage';
 
-import WorkReportDialog, { TargetHousehold } from '@/components/dialog/WorkReportDialog';
+import WorkReportDialog from '@/components/dialog/WorkReportDialog';
 import {
   MapPin,
   Building2,
@@ -31,8 +29,6 @@ import {
   Check,
 } from 'lucide-react';
 import './Work.scss';
-
-export type { WorkStatusFilter };
 
 export const normalizeReportStatus = (status?: string): ReportStatus => {
   if (!status) return 'UNSUBMITTED';
@@ -74,8 +70,8 @@ export default function PortalWorkPage() {
   const { user } = useAuth();
 
   // Storage states
-  const [allSites, setAllSites] = useState<SiteInfo[]>([]);
-  const [assignedRegions, setAssignedRegions] = useState<AssignedRegion[]>([]);
+  const [allSites, setAllSites] = useState<SiteDetail[]>([]);
+  const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [reports, setReports] = useState<WorkReport[]>([]);
 
   // Filter & Search states
@@ -132,7 +128,9 @@ export default function PortalWorkPage() {
   }, [isFilterMenuOpen]);
 
   // Report dialog target
-  const [reportTarget, setReportTarget] = useState<TargetHousehold | null>(null);
+  const [selectedSite, setSelectedSite] = useState<SiteDetail>();
+  const [selectedHousehold, setSelectedHousehold] = useState<Household>();
+  const [selectedReport, setSelectedReport] = useState<WorkReport>();
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -168,7 +166,7 @@ export default function PortalWorkPage() {
     return allSites.filter(site => {
       // 선택된 지역 탭 필터링
       if (selectedRegionId !== 'ALL') {
-        const selectedRegion = assignedRegions.find(r => r.id === selectedRegionId);
+        const selectedRegion = assignedRegions.find(r => r.assignedRegionId === selectedRegionId);
         if (!selectedRegion) return false;
         return site.sido === selectedRegion.sido && site.sigungu === selectedRegion.sigungu;
       }
@@ -195,10 +193,8 @@ export default function PortalWorkPage() {
           if (query && !matchesSiteName && !matchesAddress) {
             const dongFormatted = `${h.dong}동`;
             const hoFormatted = `${h.ho}호`;
-            const seqVal = h.seq !== undefined ? String(h.seq) : '';
 
             const matchesKeyword =
-              (seqVal && seqVal.includes(query)) ||
               h.dong.toLowerCase().includes(query) ||
               dongFormatted.toLowerCase().includes(query) ||
               h.ho.toLowerCase().includes(query) ||
@@ -216,7 +212,7 @@ export default function PortalWorkPage() {
             const statusKey = report ? getStatusKey(report.status) : 'unsubmitted';
 
             if (statusFilter === 'uncompleted') {
-              if (statusKey === 'completed') return false; // 확인 완료된 것은 제외!
+              if (statusKey === 'completed') return false;
             } else if (statusKey !== statusFilter) {
               return false;
             }
@@ -239,22 +235,11 @@ export default function PortalWorkPage() {
   };
 
   // 보고서 작성 다이얼로그 열기
-  const handleOpenReport = (site: SiteInfo, household: Household) => {
+  const handleOpenReport = (site: SiteDetail, household: Household) => {
     const key = `${site.name}_${household.dong}_${household.ho}`;
-    const existing = reportMap.get(key);
-
-    setReportTarget({
-      siteId: site.id,
-      siteName: site.name,
-      sido: site.sido,
-      sigungu: site.sigungu,
-      eupmyeondong: site.eupmyeondong || '',
-      address: site.address,
-      dong: household.dong,
-      ho: household.ho,
-      headName: household.headName,
-      existingReport: existing,
-    });
+    setSelectedSite(site);
+    setSelectedHousehold(household);
+    setSelectedReport(reportMap.get(key));
     setIsReportDialogOpen(true);
   };
 
@@ -298,10 +283,10 @@ export default function PortalWorkPage() {
 
               return (
                 <button
-                  key={reg.id}
+                  key={reg.assignedRegionId}
                   type="button"
-                  className={`region-tab-btn ${selectedRegionId === reg.id ? 'active' : ''}`}
-                  onClick={() => setSelectedRegionId(reg.id)}
+                  className={`region-tab-btn ${selectedRegionId === reg.assignedRegionId ? 'active' : ''}`}
+                  onClick={() => setSelectedRegionId(reg.assignedRegionId)}
                 >
                   <span>
                     {reg.sido} {reg.sigungu}
@@ -412,7 +397,7 @@ export default function PortalWorkPage() {
           </div>
         ) : (
           filteredSitesWithHouseholds.map(({ site, households }) => {
-            const isExpanded = expandedSiteIds[site.id] ?? false;
+            const isExpanded = expandedSiteIds[site.siteId] ?? false;
 
             // 현장 내 세대들의 보고서 통계
             const submittedCount = households.filter(h => {
@@ -429,11 +414,11 @@ export default function PortalWorkPage() {
             const progressPercent = total > 0 ? Math.round((submittedCount / total) * 100) : 0;
 
             return (
-              <div key={site.id} className={`portal-site-accordion-card ${isExpanded ? 'expanded' : 'collapsed'}`}>
+              <div key={site.siteId} className={`portal-site-accordion-card ${isExpanded ? 'expanded' : 'collapsed'}`}>
                 {/* ── SITE HEADER ── */}
                 <div
                   className="site-card-header"
-                  onClick={() => toggleSiteExpand(site.id)}
+                  onClick={() => toggleSiteExpand(site.siteId)}
                 >
                   <div className="site-header-top-row">
                     <div className="site-title-group">
@@ -478,7 +463,7 @@ export default function PortalWorkPage() {
                       const statusKey = getStatusKey(statusType);
 
                       return (
-                        <div key={household.id} className={`household-row status-${statusKey}`}>
+                        <div key={household.householdId} className={`household-row status-${statusKey}`}>
                           <div className={`status-strip ${statusKey}`} title={`상태: ${statusType}`}>
                             {statusType === 'COMPLETED' && <Check size={14} strokeWidth={3} />}
                             {statusType === 'PENDING' && <Hourglass size={13} strokeWidth={2.5} />}
@@ -524,8 +509,15 @@ export default function PortalWorkPage() {
       {/* ── WORK REPORT MODAL ── */}
       <WorkReportDialog
         isOpen={isReportDialogOpen}
-        onClose={() => setIsReportDialogOpen(false)}
-        target={reportTarget}
+        onClose={() => {
+          setIsReportDialogOpen(false);
+          setSelectedSite(undefined);
+          setSelectedHousehold(undefined);
+          setSelectedReport(undefined);
+        }}
+        site={selectedSite}
+        household={selectedHousehold}
+        existingReport={selectedReport}
         onSubmitted={() => setReports(getStoredReports())}
       />
     </div>

@@ -51,10 +51,10 @@ export const addStoredInquiry = (inquiry: Partial<Inquiry> & { inquiryContents: 
   return newInquiry;
 };
 
-export const updateStoredInquiry = (inquiryId: string, updates: Partial<Inquiry>): Inquiry | null => {
+export const updateStoredInquiry = (inquiryId: string, updates: Partial<Inquiry>): Inquiry | undefined => {
   const current = getStoredInquiries();
   const index = current.findIndex(i => i.inquiryId === inquiryId);
-  if (index === -1) return null;
+  if (index === -1) return undefined;
 
   const updatedItem: Inquiry = {
     ...current[index],

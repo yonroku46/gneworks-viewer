@@ -9,7 +9,7 @@ export const servicePrefix = '/portal';
 export const managePrefix = '/manage';
 
 interface AuthContextType {
-  user: LoginUserRes | null;
+  user?: LoginUserRes;
   login: (userId: string, password: string, stayLoggedIn?: boolean) => Promise<void>;
   logout: () => void;
   updateUser: (updatedData: Partial<LoginUserRes>) => void;
@@ -19,7 +19,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<LoginUserRes | null>(null);
+  const [user, setUser] = useState<LoginUserRes>();
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pathname]);
 
-  const getReturnUrl = (targetUser?: LoginUserRes | null): string => {
+  const getReturnUrl = (targetUser?: LoginUserRes): string => {
     const currentUser = targetUser !== undefined ? targetUser : user;
     const isManager = Boolean(currentUser?.mngFlg);
     const defaultDestination = isManager ? `${managePrefix}/dashboard` : servicePrefix;
@@ -145,13 +145,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     localStorage.removeItem('currentUser');
     sessionStorage.removeItem('currentUser');
-    setUser(null);
+    setUser(undefined);
     router.replace('/login');
   };
 
   const updateUser = (updatedData: Partial<LoginUserRes>) => {
     setUser((prev) => {
-      if (!prev) return null;
+      if (!prev) return undefined;
       const nextUser = { ...prev, ...updatedData };
       try {
         if (localStorage.getItem('currentUser')) {

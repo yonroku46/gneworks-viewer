@@ -2,8 +2,6 @@ import React, { forwardRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import './CustomSelect.scss';
 
-export type { SelectOption };
-
 export interface CustomSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   options?: SelectOption[];
   icon?: React.ReactNode;

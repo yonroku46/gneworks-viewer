@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   MessageSquare, 
   Search, 
@@ -17,9 +17,10 @@ import 'dayjs/locale/ko';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import CustomSelect from '@/components/common/CustomSelect';
 import StatusBadge from '@/components/common/StatusBadge';
+import TableLoadingRow from '@/components/common/TableLoadingRow';
+import AdminService from '@/api/service/AdminService';
 import { useAuth } from '@/providers/AuthProvider';
 import { INQUIRY_TYPE_MAP } from '@/data/inquiryData';
-import { getStoredInquiries, saveStoredInquiries, subscribeToInquiriesUpdate } from '@/data/inquiryStorage';
 import '../ManageLayout.scss';
 
 dayjs.locale('ko');
@@ -53,12 +54,27 @@ export default function ManageInquiriesPage() {
 
   // Inquiry List State
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 백엔드 API에서 문의 목록 불러오기
+  const loadInquiries = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const serverInquiries = await AdminService.getInquiryList();
+      setInquiries(serverInquiries || []);
+    } catch (error) {
+      console.error('[Admin] loadInquiries error:', error);
+      enqueueSnackbar('문의 목록을 불러오는 중 오류가 발생했습니다.', { variant: 'error' });
+      setInquiries([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [enqueueSnackbar]);
 
   useEffect(() => {
-    setInquiries(getStoredInquiries());
-    const unsub = subscribeToInquiriesUpdate(items => setInquiries(items));
-    return () => unsub();
-  }, []);
+    loadInquiries();
+  }, [loadInquiries]);
 
   // Search Query
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,8 +93,8 @@ export default function ManageInquiriesPage() {
   const [draftEndDate, setDraftEndDate] = useState('');
 
   // Detail & Answer Modal State
-  const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
-  const [cachedInquiry, setCachedInquiry] = useState<Inquiry | null>(null);
+  const [selectedInquiry, setSelectedInquiry] = useState<Inquiry>();
+  const [cachedInquiry, setCachedInquiry] = useState<Inquiry>();
 
   useEffect(() => {
     if (selectedInquiry) {
@@ -214,7 +230,7 @@ export default function ManageInquiriesPage() {
   };
 
   // Submit Answer & Status Update
-  const handleSubmitAnswer = (e: React.FormEvent) => {
+  const handleSubmitAnswer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInquiry) return;
 
@@ -223,21 +239,23 @@ export default function ManageInquiriesPage() {
       return;
     }
 
-    const now = dayjs().format('YYYY-MM-DD HH:mm');
-    const responder = user?.userName || '관리자';
-    const updated: Inquiry = {
-      ...selectedInquiry,
-      processedFlg: answerForm.processedFlg,
-      answerContents: answerForm.answerText.trim() || undefined,
-      answerTime: answerForm.answerText.trim() ? (selectedInquiry.answerTime || now) : undefined,
-      answerUserName: answerForm.answerText.trim() ? responder : undefined,
-    };
+    setIsSubmitting(true);
+    try {
+      await AdminService.answerInquiry(selectedInquiry.inquiryId, {
+        answerContents: answerForm.answerText.trim(),
+        processedFlg: answerForm.processedFlg,
+      });
 
-    const nextInquiries = inquiries.map(item => (item.inquiryId === updated.inquiryId ? updated : item));
-    setInquiries(nextInquiries);
-    saveStoredInquiries(nextInquiries);
-    setSelectedInquiry(null);
-    enqueueSnackbar(`[${updated.userName || '비회원'}] 님의 문의 처리가 저장되었습니다. (답변자: ${responder})`, { variant: 'success' });
+      const responder = user?.userName || '관리자';
+      enqueueSnackbar(`[${selectedInquiry.userName || '비회원'}] 님의 문의 처리가 저장되었습니다. (답변자: ${responder})`, { variant: 'success' });
+      setSelectedInquiry(undefined);
+      await loadInquiries();
+    } catch (error: any) {
+      console.error('[Admin] handleSubmitAnswer error:', error);
+      enqueueSnackbar(error?.message || '답변 저장 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -327,12 +345,14 @@ export default function ManageInquiriesPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredInquiries.length > 0 ? (
+            {isLoading ? (
+              <TableLoadingRow colSpan={7} message="문의 목록을 불러오는 중입니다..." />
+            ) : filteredInquiries.length > 0 ? (
               filteredInquiries.map((item, idx) => {
                 const typeInfo = INQUIRY_TYPE_MAP[item.inquiryType] || { label: item.inquiryType, badgeClass: 'type-general' };
                 return (
                   <tr 
-                    key={item.inquiryId} 
+                    key={item.inquiryId || `inquiry_${idx}`} 
                     className="inquiry-table-row"
                     onClick={() => handleOpenDetail(item)}
                   >
@@ -372,7 +392,7 @@ export default function ManageInquiriesPage() {
                 );
               })
             ) : (
-              <tr className="empty-table-row">
+              <tr key="empty-inquiries" className="empty-table-row">
                 <td colSpan={7} className="empty-table-cell">
                   <MessageSquare size={36} className="empty-icon" />
                   <p>선택된 조건에 해당하는 문의 내역이 없습니다.</p>
@@ -531,16 +551,16 @@ export default function ManageInquiriesPage() {
       {/* ── DETAIL & ANSWER MODAL ── */}
       <SlideDialog
         isOpen={!!selectedInquiry}
-        onClose={() => setSelectedInquiry(null)}
+        onClose={() => setSelectedInquiry(undefined)}
         title={activeInquiry ? `[${activeInquiry.userName || '비회원'}] 님의 문의 상세 및 답변` : '문의 상세'}
         className="manage-page inquiry-detail-dialog"
         footer={
           <div className="dialog-btn-group">
-            <button type="button" className="btn-cancel" onClick={() => setSelectedInquiry(null)}>
+            <button type="button" className="btn-cancel" onClick={() => setSelectedInquiry(undefined)}>
               닫기
             </button>
-            <button type="submit" form="inquiry-answer-form" className="btn-save">
-              <span>답변 및 상태 저장</span>
+            <button type="submit" form="inquiry-answer-form" className="btn-save" disabled={isSubmitting}>
+              <span>{isSubmitting ? '저장 중...' : '답변 및 상태 저장'}</span>
             </button>
           </div>
         }

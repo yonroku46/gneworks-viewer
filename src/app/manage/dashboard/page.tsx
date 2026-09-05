@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   AlertTriangle, 
   CheckCircle2, 
@@ -16,18 +16,19 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 import Link from 'next/link';
 
-import RegionSelector, { RegionValue } from '@/components/common/RegionSelector';
+import AdminService from '@/api/service/AdminService';
+import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
 import StatusBadge from '@/components/common/StatusBadge';
+import UserAvatar from '@/components/common/UserAvatar';
 import AccountDetailDialog from '@/components/dialog/AccountDetailDialog';
 import WorkReportDetailDialog from '@/components/dialog/WorkReportDetailDialog';
 import SiteDetailDialog from '@/components/dialog/SiteDetailDialog';
 import { getStoredReports, subscribeToReportsUpdate } from '@/data/reportStorage';
 import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
-import { getStoredInquiries, subscribeToInquiriesUpdate } from '@/data/inquiryStorage';
 import { getStoredUsers, subscribeToUsersUpdate } from '@/data/userStorage';
 import { INQUIRY_TYPE_MAP } from '@/data/inquiryData';
-import { getSiteWorkers } from '@/data/siteData';
+import { getRegionWorkers } from '@/data/regionStorage';
 import { INITIAL_USERS_DATA } from '@/data/userData';
 import '../ManageLayout.scss';
 
@@ -77,31 +78,45 @@ export default function ManageDashboard() {
   const { enqueueSnackbar } = useSnackbar();
 
   const [reports, setReports] = useState<WorkReport[]>([]);
-  const [sites, setSites] = useState<SiteInfo[]>([]);
-  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
-  const [selectedReport, setSelectedReport] = useState<WorkReport | null>(null);
+  const [sites, setSites] = useState<SiteDetail[]>([]);
+  const [pendingInquirySummary, setPendingInquirySummary] = useState<{
+    pendingCount: number;
+    latestPendingInquiry?: Inquiry;
+  }>({ pendingCount: 0 });
+  const [selectedReport, setSelectedReport] = useState<WorkReport>();
 
   // 계정 상세 정보 다이얼로그 상태 (담당 작업자 클릭 시 작업이력 탭 열람)
-  const [selectedWorkerUser, setSelectedWorkerUser] = useState<User | null>(null);
-  const previousWorkerUserRef = React.useRef<User | null>(null);
+  const [selectedWorkerUser, setSelectedWorkerUser] = useState<User>();
+  const previousWorkerUserRef = React.useRef<User | undefined>(undefined);
 
   // 현장 상세 정보 다이얼로그 상태 (아파트 클릭 시 현장 세대/지역담당자 관리 열람)
-  const [selectedDetailSite, setSelectedDetailSite] = useState<SiteInfo | null>(null);
+  const [selectedDetailSite, setSelectedDetailSite] = useState<SiteDetail>();
 
-  // 1. Initial Load & Real-time Subscription
+  // 1. 백엔드 API에서 답변 대기 문의 요약 경량 조회 (건수 + 최신 1건 미리보기)
+  const loadPendingInquirySummary = useCallback(async () => {
+    try {
+      const summary = await AdminService.getPendingInquirySummary();
+      setPendingInquirySummary(summary);
+    } catch (error) {
+      console.error('[Dashboard] loadPendingInquirySummary error:', error);
+      setPendingInquirySummary({ pendingCount: 0 });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPendingInquirySummary();
+  }, [loadPendingInquirySummary]);
+
+  // 2. Initial Load & Real-time Subscription (보고서 및 현장)
   useEffect(() => {
     setReports(getStoredReports());
     setSites(getStoredSites());
-    setInquiries(getStoredInquiries());
 
     const unsubReports = subscribeToReportsUpdate(newReports => {
       setReports(newReports);
     });
     const unsubSites = subscribeToSitesUpdate(newSites => {
       setSites(newSites);
-    });
-    const unsubInquiries = subscribeToInquiriesUpdate(newInquiries => {
-      setInquiries(newInquiries);
     });
     const unsubUsers = subscribeToUsersUpdate(() => {
       // 사용자 정보 변경 시 필요 시 갱신
@@ -110,17 +125,9 @@ export default function ManageDashboard() {
     return () => {
       unsubReports();
       unsubSites();
-      unsubInquiries();
       unsubUsers();
     };
   }, []);
-
-  // 답변 대기 중인 문의 필터링 (최신순 정렬)
-  const pendingInquiries = useMemo(() => {
-    return inquiries
-      .filter(i => !i.processedFlg && !i.deleteFlg)
-      .sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
-  }, [inquiries]);
 
   // 2. Filter Sites by Region
   const filteredSites = useMemo(() => {
@@ -148,8 +155,8 @@ export default function ManageDashboard() {
     let completedTarget = 0;
 
     filteredSites.forEach(s => {
-      totalTarget += s.totalHouseholds || s.households.length;
-      completedTarget += s.completedHouseholds || s.households.filter(h => h.installStatus === '설치완료').length;
+      totalTarget += s.totalHouseholds ?? s.households?.length ?? 0;
+      completedTarget += s.completedHouseholds || s.households?.filter(h => h.installStatus === 'INSTALLED' || (h.installStatus as any) === '설치완료').length || 0;
     });
 
     const progressRate = totalTarget > 0 ? Math.round((completedTarget / totalTarget) * 100) : 0;
@@ -202,21 +209,23 @@ export default function ManageDashboard() {
 
     // 1) 현재 선택된 권역의 사이트에 배정된 작업자 우선 등록
     filteredSites.forEach(site => {
-      const workers = getSiteWorkers(site);
+      const workers = getRegionWorkers(site.sido, site.sigungu);
       workers.forEach(w => {
-        const key = w.userName || w.userId || '미지정';
+        const workerName = w.userName || '미지정';
+        const key = workerName;
+        const phone = w.phoneNum;
         const existing = map.get(key) || {
-          name: w.userName || '미지정',
-          phone: w.userPhone,
-          profileImg: (w.userName && userProfileMap.get(w.userName)) || (w.userId && userProfileMap.get(w.userId)),
+          name: workerName,
+          phone,
+          profileImg: (workerName && userProfileMap.get(workerName)) || (w.userId && userProfileMap.get(w.userId)),
           total: 0,
           completed: 0,
           pending: 0,
           rejected: 0,
         };
-        if (!existing.phone && w.userPhone) existing.phone = w.userPhone;
+        if (!existing.phone && phone) existing.phone = phone;
         if (!existing.profileImg) {
-          existing.profileImg = (w.userName && userProfileMap.get(w.userName)) || (w.userId && userProfileMap.get(w.userId));
+          existing.profileImg = (workerName && userProfileMap.get(workerName)) || (w.userId && userProfileMap.get(w.userId));
         }
         map.set(key, existing);
       });
@@ -279,16 +288,10 @@ export default function ManageDashboard() {
   // 8. 선택된 작업자의 전체 보고서 및 필터링된 보고서 (계정 상세 다이얼로그용)
   const handleOpenWorkerHistory = (workerName: string, workerPhone?: string) => {
     const allUsers = getStoredUsers();
-    let user = allUsers.find(u => u.userName === workerName || (workerPhone && u.phoneNum === workerPhone));
+    const user = allUsers.find(u => u.userName === workerName || (workerPhone && u.phoneNum === workerPhone));
     if (!user) {
-      user = {
-        userId: `worker_${workerName}`,
-        userName: workerName,
-        phoneNum: workerPhone || '연락처 미등록',
-        profileImg: undefined,
-        lastUpdated: dayjs().toISOString(),
-        createTime: dayjs().toISOString(),
-      };
+      enqueueSnackbar(`[${workerName}] 사용자의 계정 정보를 찾을 수 없습니다.`, { variant: 'warning' });
+      return;
     }
     setSelectedWorkerUser(user);
   };
@@ -304,7 +307,7 @@ export default function ManageDashboard() {
       </div>
 
       {/* ── 1-1. ACTION BANNER FOR PENDING INQUIRIES (답변 대기 문의 스마트 알림 배너) ── */}
-      {pendingInquiries.length > 0 && (
+      {pendingInquirySummary.pendingCount > 0 && (
         <div className="dash-inquiry-alert-banner">
           <div className="banner-left-cluster">
             <div className="alert-icon-wrap">
@@ -312,11 +315,11 @@ export default function ManageDashboard() {
             </div>
             <div className="banner-text-group">
               <span className="banner-title">
-                답변 대기 중인 1:1 문의가 <strong>{pendingInquiries.length}건</strong> 있습니다.
+                답변 대기 중인 1:1 문의가 <strong>{pendingInquirySummary.pendingCount}건</strong> 있습니다.
               </span>
-              {pendingInquiries[0] && (
+              {pendingInquirySummary.latestPendingInquiry && (
                 <span className="banner-sub-preview">
-                  최근: [{INQUIRY_TYPE_MAP[pendingInquiries[0].inquiryType]?.label || '문의'}] &ldquo;{pendingInquiries[0].inquiryContents.slice(0, 44)}...&rdquo;
+                  최근: [{INQUIRY_TYPE_MAP[pendingInquirySummary.latestPendingInquiry.inquiryType]?.label || '문의'}] &ldquo;{pendingInquirySummary.latestPendingInquiry.inquiryContents.slice(0, 44)}...&rdquo;
                 </span>
               )}
             </div>
@@ -430,19 +433,19 @@ export default function ManageDashboard() {
 
             <div className="site-progress-list">
               {filteredSites.length === 0 ? (
-                <div className="dash-empty-state">
+                <div key="empty-sites" className="dash-empty-state">
                   <p>선택된 지역에 등록된 사업지가 없습니다.</p>
                 </div>
               ) : (
-                filteredSites.slice(0, 6).map(site => {
-                  const total = site.totalHouseholds || site.households.length;
-                  const completed = site.completedHouseholds || site.households.filter(h => h.installStatus === '설치완료').length;
+                filteredSites.slice(0, 6).map((site, idx) => {
+                  const total = site.totalHouseholds ?? site.households?.length ?? 0;
+                  const completed = site.completedHouseholds || site.households?.filter(h => h.installStatus === 'INSTALLED' || (h.installStatus as any) === '설치완료').length || 0;
                   const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
                   const isDone = rate >= 100;
 
                   return (
                     <div 
-                      key={site.id} 
+                      key={site.siteId || `site_${idx}`} 
                       className="site-progress-item clickable"
                       onClick={() => setSelectedDetailSite(site)}
                       role="button"
@@ -491,26 +494,24 @@ export default function ManageDashboard() {
 
             <div className="worker-stats-list">
               {workerStats.length === 0 ? (
-                <div className="dash-empty-state">
+                <div key="empty-workers" className="dash-empty-state">
                   <p>해당 지역에 배정된 작업자 또는 등록된 실적이 없습니다.</p>
                 </div>
               ) : (
-                workerStats.map(w => (
+                workerStats.map((w, idx) => (
                   <div 
-                    key={w.name} 
+                    key={w.name || `worker_${idx}`} 
                     className="worker-stat-item"
                     onClick={() => handleOpenWorkerHistory(w.name, w.phone)}
                     role="button"
                     tabIndex={0}
                     title={`${w.name} 작업자의 작업 실적 및 이력 확인`}
                   >
-                    <div className="worker-avatar-badge">
-                      {w.profileImg ? (
-                        <img src={w.profileImg} alt={w.name} className="worker-avatar-img" />
-                      ) : (
-                        <span className="avatar-initial">{w.name.slice(0, 1)}</span>
-                      )}
-                    </div>
+                    <UserAvatar 
+                      src={w.profileImg} 
+                      name={w.name} 
+                      size="md" 
+                    />
 
                     <div className="worker-info-col">
                       <span className="worker-name">{w.name}</span>
@@ -601,7 +602,7 @@ export default function ManageDashboard() {
               return (
                 <div className="report-feed-list issue-feed-list">
                   {issueReports.length === 0 ? (
-                    <div className="dash-empty-state clean">
+                    <div key="empty-issues" className="dash-empty-state clean">
                       <CheckCircle2 size={32} className="clean-icon" />
                       <p>현재 접수된 특이사항 확인서가 없습니다.</p>
                     </div>
@@ -627,7 +628,7 @@ export default function ManageDashboard() {
 
             <div className="report-feed-list recent-feed-list">
               {recentReports.length === 0 ? (
-                <div className="dash-empty-state">
+                <div key="empty-recent" className="dash-empty-state">
                   <p>최근 등록된 작업 보고서가 없습니다.</p>
                 </div>
               ) : (
@@ -689,10 +690,10 @@ export default function ManageDashboard() {
         isOpen={!!selectedReport}
         report={selectedReport}
         onClose={() => {
-          setSelectedReport(null);
+          setSelectedReport(undefined);
           if (previousWorkerUserRef.current) {
             setSelectedWorkerUser(previousWorkerUserRef.current);
-            previousWorkerUserRef.current = null;
+            previousWorkerUserRef.current = undefined;
           }
         }}
         onReportUpdated={(updated) => {
@@ -705,8 +706,8 @@ export default function ManageDashboard() {
       <AccountDetailDialog
         isOpen={!!selectedWorkerUser}
         onClose={() => {
-          setSelectedWorkerUser(null);
-          previousWorkerUserRef.current = null;
+          setSelectedWorkerUser(undefined);
+          previousWorkerUserRef.current = undefined;
         }}
         user={selectedWorkerUser}
         reports={reports}
@@ -718,7 +719,7 @@ export default function ManageDashboard() {
         }}
         onReportClick={(rep) => {
           previousWorkerUserRef.current = selectedWorkerUser;
-          setSelectedWorkerUser(null);
+          setSelectedWorkerUser(undefined);
           setSelectedReport(rep);
         }}
       />
@@ -726,12 +727,12 @@ export default function ManageDashboard() {
       {/* ── 6. SITE DETAIL POPUP MODAL (공통 컴포넌트) ── */}
       <SiteDetailDialog
         isOpen={!!selectedDetailSite}
-        onClose={() => setSelectedDetailSite(null)}
+        onClose={() => setSelectedDetailSite(undefined)}
         site={selectedDetailSite}
         showDeleteButton={false}
         onSiteUpdated={(updated) => {
           setSelectedDetailSite(updated);
-          setSites(prev => prev.map(s => s.id === updated.id ? updated : s));
+          setSites(prev => prev.map(s => s.siteId === updated.siteId ? updated : s));
         }}
       />
     </div>

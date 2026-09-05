@@ -200,14 +200,14 @@
             font-size: 0.6875rem;
             font-weight: 700;
             &.available {
-              background: var(--slate-100);
-              color: var(--slate-700);
-              border: 1px solid var(--border);
+              background: var(--success-surface);
+              color: var(--success);
+              border: 1px solid var(--success-border);
             }
             &.already {
-              background: var(--slate-200);
-              color: var(--slate-800);
-              border: 1px solid var(--slate-300);
+              background: var(--manage-primary-light);
+              color: var(--manage-primary);
+              border: 1px solid var(--manage-primary-border);
             }
           }
         }
@@ -232,9 +232,10 @@
               color: var(--table-th-color);
               border-bottom: 1px solid var(--border);
               white-space: nowrap;
-              &.col-name { width: 38%; }
+              &.col-num { width: 44px; text-align: center; }
+              &.col-name { width: 36%; }
               &.col-addr { width: 40%; }
-              &.col-scale { width: 22%; text-align: right; }
+              &.col-scale { width: 24%; text-align: right; }
             }
           }
           tbody {
@@ -247,32 +248,22 @@
               td {
                 padding: 0.625rem 0.75rem;
                 vertical-align: middle;
+                &.col-num {
+                  width: 44px;
+                  text-align: center;
+                  .row-index {
+                    font-size: 0.75rem;
+                    color: var(--slate-400);
+                  }
+                }
                 &.col-name {
-                  .name-wrapper {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.375rem;
-                    .site-num {
-                      display: inline-flex;
-                      align-items: center;
-                      justify-content: center;
-                      width: 1.125rem;
-                      height: 1.125rem;
-                      border-radius: 50%;
-                      background: var(--slate-100);
-                      color: var(--slate-500);
-                      font-size: 0.625rem;
-                      font-weight: 700;
-                      flex-shrink: 0;
-                    }
-                    .site-name-text {
-                      font-size: 0.8125rem;
-                      font-weight: 700;
-                      color: var(--slate-900);
-                      white-space: nowrap;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                    }
+                  .site-name-text {
+                    font-size: 0.8125rem;
+                    font-weight: 700;
+                    color: var(--slate-900);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                   }
                 }
                 &.col-addr {

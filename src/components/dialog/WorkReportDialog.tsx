@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 import SignatureDialog from './SignatureDialog';
@@ -12,12 +12,12 @@ import { upsertReport } from '@/data/reportStorage';
 import { Plus, X, Check, AlertCircle, Building2, MapPin, Calendar, User } from 'lucide-react';
 import './WorkReportDialog.scss';
 
-export type { TargetHousehold };
-
 interface WorkReportDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  target: TargetHousehold | null;
+  site?: Site;
+  household?: Household;
+  existingReport?: WorkReport;
   onSubmitted?: () => void;
 }
 
@@ -33,14 +33,33 @@ const REPORT_PHOTO_SLOTS: { type: ReportPhoto['type']; title: string; defaultUrl
 export default function WorkReportDialog({
   isOpen,
   onClose,
-  target,
+  site,
+  household,
+  existingReport,
   onSubmitted,
 }: WorkReportDialogProps) {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
 
+  // 대상 정보 조립 (site + household 또는 existingReport 기준)
+  const target = useMemo(() => {
+    if (!site && !household && !existingReport) return null;
+    return {
+      siteId: site?.siteId || existingReport?.siteId || '',
+      siteName: site?.name || existingReport?.siteName || '',
+      sido: site?.sido || existingReport?.sido || '',
+      sigungu: site?.sigungu || existingReport?.sigungu || '',
+      eupmyeondong: site?.eupmyeondong || existingReport?.eupmyeondong || '',
+      address: site?.address || existingReport?.address || '',
+      dong: household?.dong || existingReport?.dong || '',
+      ho: household?.ho || existingReport?.ho || '',
+      headName: household?.headName || existingReport?.headName || '',
+      existingReport: existingReport || undefined,
+    };
+  }, [site, household, existingReport]);
+
   // 확인 완료 상태인 경우 수정 불가 (읽기 전용)
-  const isReadOnly = target?.existingReport?.status === 'COMPLETED';
+  const isReadOnly = existingReport?.status === 'COMPLETED';
 
   const [installDate, setInstallDate] = useState('');
   const [reporterName, setReporterName] = useState('');
@@ -53,7 +72,7 @@ export default function WorkReportDialog({
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
 
   // 이미지 크롭 모달 상태 (4:3 비율 및 WebP 압축)
-  const [cropTarget, setCropTarget] = useState<{ type: string; rawSrc: string; title: string } | null>(null);
+  const [cropTarget, setCropTarget] = useState<{ type: string; rawSrc: string; title: string }>();
 
   // 3-Step 마법사 진행 상태 (1: 세대·일자 확인, 2: 시공 사진 등록, 3: 서명 및 최종 제출)
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -66,7 +85,7 @@ export default function WorkReportDialog({
     remarks: string;
     confirmerSignature: string;
     photos: { [key: string]: string };
-  } | null>(null);
+  } | undefined>(undefined);
 
   useEffect(() => {
     if (target && isOpen) {
@@ -82,7 +101,7 @@ export default function WorkReportDialog({
       // 사진 초기화
       const photoMap: { [key: string]: string } = {};
       if (target.existingReport?.photos && target.existingReport.photos.length > 0) {
-        target.existingReport.photos.forEach(p => {
+        target.existingReport.photos.forEach((p: ReportPhoto) => {
           photoMap[p.type] = p.url;
         });
       }
@@ -231,6 +250,11 @@ export default function WorkReportDialog({
       return;
     }
 
+    if (!user?.userId) {
+      enqueueSnackbar('작업자 로그인 정보가 확인되지 않습니다.', { variant: 'error' });
+      return;
+    }
+
     upsertReport({
       siteId: target.siteId,
       siteName: target.siteName,
@@ -243,7 +267,7 @@ export default function WorkReportDialog({
       headName: target.headName,
       installDate,
       reporterName,
-      installerId: user?.userId || 'worker_current',
+      installerId: user.userId,
       visitorName: reporterName,
       confirmerName: confirmerName.trim() || target.headName,
       confirmerSignature,
@@ -958,10 +982,10 @@ export default function WorkReportDialog({
           imageSrc={cropTarget.rawSrc}
           title={cropTarget.title}
           aspect={4 / 3}
-          onClose={() => setCropTarget(null)}
+          onClose={() => setCropTarget(undefined)}
           onCropComplete={(croppedWebPUrl) => {
             setPhotos(prev => ({ ...prev, [cropTarget.type]: croppedWebPUrl }));
-            setCropTarget(null);
+            setCropTarget(undefined);
             enqueueSnackbar('4:3 비율로 사진이 최적화되었습니다.', { variant: 'success' });
           }}
           disableBackdropClick={true}

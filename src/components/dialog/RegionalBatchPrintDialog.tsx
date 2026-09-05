@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo } from 'react';
 import SlideDialog from './SlideDialog';
-import { RegionValue } from '@/components/common/RegionSelector';
 import dayjs from 'dayjs';
+import { TARGET_TYPE_LABEL_MAP } from '@/components/common/StatusBadge';
 import { 
   Printer, 
   MapPin, 
@@ -19,9 +19,9 @@ import './RegionalBatchPrintDialog.scss';
 export interface RegionalBatchPrintDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  region: RegionValue;
+  region: SelectedRegion;
   reports: WorkReport[];
-  sites?: SiteInfo[];
+  sites?: SiteDetail[];
 }
 
 export default function RegionalBatchPrintDialog({
@@ -148,7 +148,7 @@ export default function RegionalBatchPrintDialog({
 
   // Helper to find household info from sites
   const getHouseholdInfo = (report: WorkReport) => {
-    const site = sites.find(s => s.id === report.siteId || s.name === report.siteName);
+    const site = sites.find(s => s.siteId === report.siteId || s.name === report.siteName);
     if (!site) return null;
     return site.households?.find(h => h.dong === report.dong && h.ho === report.ho);
   };
@@ -377,7 +377,8 @@ export default function RegionalBatchPrintDialog({
                     {filteredReports.map((rep, idx) => {
                       const isChecked = selectedIds.has(rep.reportId);
                       const hh = getHouseholdInfo(rep);
-                      const targetType = hh?.targetType || '일반';
+                      const targetType = hh?.targetType || 'GENERAL';
+                      const targetLabel = TARGET_TYPE_LABEL_MAP[targetType] || targetType;
 
                       return (
                         <tr
@@ -401,11 +402,11 @@ export default function RegionalBatchPrintDialog({
                           <td>{rep.headName}</td>
                           <td>
                             <span className={`type-tag ${
-                              targetType.includes('노인') ? 'elder' : 
-                              targetType.includes('아동') ? 'child' : 
-                              targetType.includes('장애인') ? 'disabled' : ''
+                              targetType === 'ELDERLY' ? 'elder' : 
+                              targetType === 'CHILD' ? 'child' : 
+                              targetType === 'DISABLED' ? 'disabled' : ''
                             }`}>
-                              {targetType}
+                              {targetLabel}
                             </span>
                           </td>
                           <td>{rep.installDate || rep.installDateFormatted || '—'}</td>
@@ -502,7 +503,8 @@ export default function RegionalBatchPrintDialog({
                         {exportReports.length > 0 ? (
                           exportReports.map((rep, idx) => {
                             const hh = getHouseholdInfo(rep);
-                            const targetType = hh?.targetType || '일반';
+                            const targetType = hh?.targetType || 'GENERAL';
+                            const targetLabel = TARGET_TYPE_LABEL_MAP[targetType] || targetType;
                             const fullAddr = rep.address 
                               ? `${rep.address} ${rep.dong}동 ${rep.ho}호`
                               : `${rep.siteName} ${rep.dong}동 ${rep.ho}호`;
@@ -510,7 +512,7 @@ export default function RegionalBatchPrintDialog({
                             return (
                               <tr key={rep.reportId || idx}>
                                 <td className="center">{idx + 1}</td>
-                                <td className="center">{targetType}</td>
+                                <td className="center">{targetLabel}</td>
                                 <td className="center">{rep.headName}</td>
                                 <td className="addr" title={fullAddr}>{fullAddr}</td>
                                 <td className="center">010-****-****</td>

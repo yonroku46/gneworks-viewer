@@ -1,9 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { RegionValue } from '@/components/common/RegionSelector';
 
-export const DEFAULT_MANAGE_REGION: RegionValue = {
+export const DEFAULT_MANAGE_REGION: SelectedRegion = {
   sido: 'ALL',
   sigungu: 'ALL',
   eupmyeondong: 'ALL',
@@ -13,8 +12,8 @@ const MANAGE_REGION_STORAGE_KEY = 'gneworks_manage_selected_region';
 const MANAGE_REGION_CHANGE_EVENT = 'gneworks_manage_region_changed';
 
 interface ManageRegionContextType {
-  region: RegionValue;
-  setRegion: (value: RegionValue | ((prev: RegionValue) => RegionValue)) => void;
+  region: SelectedRegion;
+  setRegion: (value: SelectedRegion | ((prev: SelectedRegion) => SelectedRegion)) => void;
   resetRegion: () => void;
 }
 
@@ -25,7 +24,7 @@ const ManageRegionContext = createContext<ManageRegionContextType>({
 });
 
 export function ManageRegionProvider({ children }: { children: React.ReactNode }) {
-  const [region, setRegionState] = useState<RegionValue>(DEFAULT_MANAGE_REGION);
+  const [region, setRegionState] = useState<SelectedRegion>(DEFAULT_MANAGE_REGION);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // 1. Initial Load from LocalStorage
@@ -52,7 +51,7 @@ export function ManageRegionProvider({ children }: { children: React.ReactNode }
   // 2. Sync across components or tabs
   useEffect(() => {
     const handleRegionUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent<RegionValue>;
+      const customEvent = event as CustomEvent<SelectedRegion>;
       if (customEvent.detail) {
         setRegionState(customEvent.detail);
       }
@@ -65,7 +64,7 @@ export function ManageRegionProvider({ children }: { children: React.ReactNode }
   }, []);
 
   // 3. Setter with LocalStorage persistence & broadcast
-  const setRegion = useCallback((value: RegionValue | ((prev: RegionValue) => RegionValue)) => {
+  const setRegion = useCallback((value: SelectedRegion | ((prev: SelectedRegion) => SelectedRegion)) => {
     setRegionState(prev => {
       const next = typeof value === 'function' ? value(prev) : value;
       try {

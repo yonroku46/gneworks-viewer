@@ -3,14 +3,31 @@
 import React from 'react';
 import './StatusBadge.scss';
 
-export type { StatusVariant };
-
 export interface StatusBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   status: string;
   variant?: StatusVariant;
   size?: 'sm' | 'md';
   className?: string;
 }
+
+/**
+ * 보급대상 유형 영문 코드(API)에 대응하는 한글 표시 레이블 맵
+ */
+export const TARGET_TYPE_LABEL_MAP: Record<HouseholdTargetType, string> = {
+  ELDERLY: '노인(65세 이상)',
+  CHILD: '아동(13세 미만)',
+  DISABLED: '장애인',
+  GENERAL: '일반',
+};
+
+/**
+ * 현장 상태 영문 코드(API)에 대응하는 한글 표시 레이블 맵
+ */
+export const SITE_STATUS_LABEL_MAP: Record<SiteStatus, string> = {
+  IN_PROGRESS: '진행중',
+  READY: '대기',
+  COMPLETED: '완료',
+};
 
 /**
  * 영문 상태 코드(API)에 대응하는 한글 표시 레이블 맵
@@ -35,9 +52,10 @@ export const STATUS_LABEL_MAP: Record<string, string> = {
   ANSWERED: '답변완료',
   WAITING: '답변대기',
 
-  // 일반 진행 상태
+  // 현장 상태 (SiteStatus)
+  IN_PROGRESS: '진행중',
+  READY: '대기',
   DONE: '완료',
-  IN_PROGRESS: '처리중',
 };
 
 /**

@@ -6,8 +6,7 @@ import SlideDialog from './SlideDialog';
 import RegionAssignDialog from './RegionAssignDialog';
 import StatusBadge from '@/components/common/StatusBadge';
 import CustomSelect from '@/components/common/CustomSelect';
-import { AssignedRegion, getUserAssignedRegions, saveUserAssignedRegions } from '@/data/regionStorage';
-import { updateStoredUser } from '@/data/userStorage';
+import UserAvatar from '@/components/common/UserAvatar';
 import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
 import {
@@ -21,19 +20,22 @@ import {
   Plus,
   X,
 } from 'lucide-react';
+import AdminService from '@/api/service/AdminService';
+import { isRegionMatch } from '@/common/utils/regionUtils';
 import './AccountDetailDialog.scss';
 
 export interface AccountDetailDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  user: User | null;
+  user?: User;
   reports?: WorkReport[];
-  sites?: SiteInfo[];
+  sites?: SiteDetail[];
   initialTab?: 'profile' | 'regions' | 'performance';
   showEditButton?: boolean;
   showDeleteButton?: boolean;
   onEditUser?: (user: User) => void;
   onUserUpdated?: (user: User) => void;
+  onRegionsUpdated?: () => void;
   onDeleteUser?: (user: User) => void;
   onResetPassword?: (user: User) => void;
   onReportClick?: (report: WorkReport) => void;
@@ -50,6 +52,7 @@ export default function AccountDetailDialog({
   showDeleteButton = true,
   onEditUser,
   onUserUpdated,
+  onRegionsUpdated,
   onDeleteUser,
   onResetPassword,
   onReportClick,
@@ -58,7 +61,7 @@ export default function AccountDetailDialog({
   const { enqueueSnackbar } = useSnackbar();
 
   // Current user state (실시간 수정 반영)
-  const [currentUser, setCurrentUser] = useState<User | null>(initialUser);
+  const [currentUser, setCurrentUser] = useState<User | undefined>(initialUser);
   useEffect(() => {
     setCurrentUser(initialUser);
   }, [initialUser]);
@@ -100,7 +103,7 @@ export default function AccountDetailDialog({
     setIsInternalEditOpen(false);
   };
 
-  const handleSubmitInternalEdit = (e: React.FormEvent) => {
+  const handleSubmitInternalEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     if (!editFormData.userName.trim()) {
@@ -123,7 +126,21 @@ export default function AccountDetailDialog({
       lastUpdated: dayjs().toISOString(),
     };
 
-    updateStoredUser(updatedUser);
+    try {
+      await AdminService.updateUser({
+        userId: updatedUser.userId,
+        userName: updatedUser.userName,
+        phoneNum: updatedUser.phoneNum,
+        birthday: updatedUser.birthday,
+        gender: updatedUser.gender,
+        postalCode: updatedUser.postalCode,
+        detailAddress: updatedUser.detailAddress,
+      });
+    } catch (err: any) {
+      enqueueSnackbar('계정 정보 수정에 실패했습니다. 다시 시도해 주세요.', { variant: 'error' });
+      return;
+    }
+
     setCurrentUser(updatedUser);
     if (onUserUpdated) {
       onUserUpdated(updatedUser);
@@ -135,15 +152,29 @@ export default function AccountDetailDialog({
   // Tab State
   const [detailTab, setDetailTab] = useState<'profile' | 'regions' | 'performance'>(initialTab);
 
-  // Region State (로컬 스토리지 연동 및 작업자별 담당 지역 관리)
-  const [userAssignedRegions, setUserAssignedRegions] = useState<AssignedRegion[]>(() => {
-    return getUserAssignedRegions(initialUser?.userId);
-  });
+  // Region State (API 연동 – 서버에서 담당 관할 목록 조회)
+  const [userAssignedRegions, setUserAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [isRegionAssignOpen, setIsRegionAssignOpen] = useState(false);
+  const [isRegionLoading, setIsRegionLoading] = useState(false);
+
+  const fetchAssignedRegions = async (userId: string) => {
+    setIsRegionLoading(true);
+    try {
+      const regions = await AdminService.getUserAssignedRegions(userId);
+      setUserAssignedRegions(regions || []);
+    } catch (err) {
+      console.error('[AccountDetailDialog] fetchAssignedRegions', err);
+      setUserAssignedRegions([]);
+    } finally {
+      setIsRegionLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (user?.userId) {
-      setUserAssignedRegions(getUserAssignedRegions(user.userId));
+    if (isOpen && user?.userId) {
+      fetchAssignedRegions(user.userId);
+    } else if (!isOpen) {
+      setUserAssignedRegions([]);
     }
   }, [user?.userId, isOpen]);
 
@@ -258,27 +289,44 @@ export default function AccountDetailDialog({
     }));
   }, [userAssignedRegions, userReports]);
 
-  // Region Assign & Unassign handlers
-  const handleAssignRegion = (sido: string, sigungu: string) => {
-    const id = `${sido}_${sigungu}`;
-    if (userAssignedRegions.some(r => r.id === id)) return;
-    const dateStr = dayjs().format('YYYY.MM.DD');
-    const nextRegions = [...userAssignedRegions, { id, sido, sigungu, assignedDate: dateStr }];
-    setUserAssignedRegions(nextRegions);
-    saveUserAssignedRegions(user?.userId, nextRegions);
-    const targetName = user?.userName ? `${user.userName}님` : '해당 작업자';
-    enqueueSnackbar(`${targetName}에게 [${sido} ${sigungu}] 담당 지역이 부여되었습니다.`, { variant: 'success' });
+  // Region Assign & Unassign handlers (API 연동)
+  const handleAssignRegion = async (sido: string, sigungu: string) => {
+    if (!user?.userId) {
+      enqueueSnackbar('작업자 정보를 찾을 수 없습니다.', { variant: 'error' });
+      return;
+    }
+    if (userAssignedRegions.some(r => isRegionMatch(r.sido, r.sigungu, sido, sigungu))) {
+      enqueueSnackbar('이미 배정된 지역입니다.', { variant: 'warning' });
+      return;
+    }
+    try {
+      await AdminService.assignRegion(user.userId, sido, sigungu);
+      await fetchAssignedRegions(user.userId);
+      onRegionsUpdated?.();
+      const targetName = user.userName ? `${user.userName}님` : '해당 작업자';
+      enqueueSnackbar(`${targetName}에게 [${sido} ${sigungu}] 담당 지역이 배정되었습니다.`, { variant: 'success' });
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || '담당 지역 배정에 실패했습니다.', { variant: 'error' });
+    }
   };
 
-  const handleUnassignRegion = (region: AssignedRegion) => {
+  const handleUnassignRegion = async (region: UserAssignedRegionDetail) => {
     const targetName = user?.userName ? `${user.userName}님` : '해당 작업자';
     if (!confirm(`[${region.sido} ${region.sigungu}] 지역을 ${targetName}의 담당 목록에서 정말 해제하시겠습니까?`)) {
       return;
     }
-    const nextRegions = userAssignedRegions.filter(r => r.id !== region.id);
-    setUserAssignedRegions(nextRegions);
-    saveUserAssignedRegions(user?.userId, nextRegions);
-    enqueueSnackbar(`${targetName}의 [${region.sido} ${region.sigungu}] 담당 지역 배정이 해제되었습니다.`, { variant: 'info' });
+    if (!region.regionId) {
+      enqueueSnackbar('지역 정보가 올바르지 않습니다.', { variant: 'error' });
+      return;
+    }
+    try {
+      await AdminService.unassignRegion(user!.userId, region.regionId);
+      await fetchAssignedRegions(user!.userId);
+      onRegionsUpdated?.();
+      enqueueSnackbar(`${targetName}의 [${region.sido} ${region.sigungu}] 담당 지역이 해제되었습니다.`, { variant: 'info' });
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || '담당 지역 해제에 실패했습니다.', { variant: 'error' });
+    }
   };
 
   const isPerfFiltered = perfPreset !== 'all' || perfStatusFilter !== 'ALL' || !!perfSearchQuery.trim() || perfSortOrder !== 'desc' || userPerfRegionFilter !== 'all';
@@ -377,13 +425,11 @@ export default function AccountDetailDialog({
         <div className="account-detail-modal">
           {/* Header Profile */}
           <div className="account-profile-header">
-            <div className="avatar-huge">
-              {user.profileImg ? (
-                <img src={user.profileImg} alt={user.userName} className="avatar-huge-img" />
-              ) : (
-                user.userName.charAt(0)
-              )}
-            </div>
+            <UserAvatar 
+              src={user.profileImg} 
+              name={user.userName} 
+              size="huge" 
+            />
             <div className="profile-texts">
               <h3>{user.userName}</h3>
               <span className="id-tag">아이디: {user.userId}</span>
@@ -465,7 +511,7 @@ export default function AccountDetailDialog({
                 <div className="pw-reset-alert-box">
                   <div className="pw-reset-desc">
                     <strong>비밀번호 초기화</strong>
-                    <p>비밀번호 분실 시 해당 유저의 <strong>전화번호({user.phoneNum})</strong>로 즉시 초기화됩니다.</p>
+                    <p>비밀번호 분실 시 해당 유저의 <strong>하이픈 없는 전화번호({user.phoneNum.replace(/[^0-9]/g, '')})</strong>로 즉시 초기화됩니다.</p>
                   </div>
                   <button
                     type="button"
@@ -505,14 +551,14 @@ export default function AccountDetailDialog({
                   <div className="assigned-sites-list">
                     {userAssignedRegions.map((region, rIdx) => {
                       const sitesInRegion = sites.filter(
-                        s => s.sido === region.sido && s.sigungu === region.sigungu
+                        s => isRegionMatch(s.sido, s.sigungu, region.sido, region.sigungu)
                       );
                       const totalHouseholds = sitesInRegion.reduce(
-                        (sum, s) => sum + (s.totalHouseholds || s.households.length),
+                        (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),
                         0
                       );
                       return (
-                        <div key={region.id || `reg_${region.sido}_${region.sigungu}_${rIdx}`} className="assigned-site-card">
+                        <div key={region.assignedRegionId || `reg_${region.sido}_${region.sigungu}_${rIdx}`} className="assigned-site-card">
                           <div className="site-info-col">
                             <div className="site-name-row">
                               <span className="site-title">{region.sido} {region.sigungu}</span>
@@ -789,6 +835,7 @@ export default function AccountDetailDialog({
         isOpen={isRegionAssignOpen}
         onClose={() => setIsRegionAssignOpen(false)}
         assignedRegions={userAssignedRegions}
+        sites={sites}
         onAssignRegion={handleAssignRegion}
         onUnassignRegion={handleUnassignRegion}
       />

@@ -6,11 +6,9 @@ import { KOREA_ADMIN_REGIONS, getSigunguList } from '@/data/koreaRegions';
 import CustomSelect from './CustomSelect';
 import './RegionSelector.scss';
 
-export type { RegionValue };
-
 interface RegionSelectorProps {
-  value: RegionValue;
-  onChange: (newValue: RegionValue) => void;
+  value: SelectedRegion;
+  onChange: (newValue: SelectedRegion) => void;
   className?: string;
   showActiveBadge?: boolean;
 }

@@ -1,66 +1,92 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import AccountDetailDialog from '@/components/dialog/AccountDetailDialog';
+import UserAvatar from '@/components/common/UserAvatar';
 import CustomSelect from '@/components/common/CustomSelect';
 import SearchInput from '@/components/common/SearchInput';
-import StatusBadge from '@/components/common/StatusBadge';
 import { getStoredReports } from '@/data/reportStorage';
-import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
 import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
 import {
   Plus,
-  Search,
   User as UserIcon,
-  KeyRound,
-  Trash2,
-  Edit3,
   Info,
-  Calendar,
   MapPin,
-  Phone,
   FileText,
-  RotateCcw,
-  ArrowUpDown,
-  X,
-  Settings,
 } from 'lucide-react';
-import { INITIAL_USERS_DATA } from '@/data/userData';
-import { getStoredUsers, saveStoredUsers, subscribeToUsersUpdate } from '@/data/userStorage';
-import { getUserAssignedRegions, subscribeToAssignedRegionsUpdate } from '@/data/regionStorage';
+import TableLoadingRow from '@/components/common/TableLoadingRow';
+import AdminService from '@/api/service/AdminService';
 import '../ManageLayout.scss';
 
 export default function AccountManagementPage() {
   const { enqueueSnackbar } = useSnackbar();
 
-  // 실제 등록된 사용자 데이터 (고품질 profileImg 포함, 로컬 스토리지 연동)
-  const [users, setUsers] = useState<User[]>(() => {
-    if (typeof window !== 'undefined') return getStoredUsers();
-    return INITIAL_USERS_DATA;
-  });
-  const [sites, setSites] = useState<SiteInfo[]>([]);
-  const [, setRegionsVersion] = useState(0);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sites, setSites] = useState<SiteDetail[]>([]);
+  const [userRegionCounts, setUserRegionCounts] = useState<Record<string, number>>({});
+
+  // 백엔드 API에서 현장 목록 불러오기
+  const loadSites = async () => {
+    try {
+      const siteList = await AdminService.getSiteList();
+      setSites(siteList || []);
+    } catch (err) {
+      console.error('[Admin] loadSites error:', err);
+    }
+  };
+
+  // 백엔드 API에서 유저 목록 및 담당 지역 개수 불러오기
+  const loadUsers = async () => {
+    setIsLoading(true);
+    try {
+      const serverUsers = await AdminService.getUserList();
+      setUsers(serverUsers || []);
+      // 각 유저의 실제 배정 관할도 서버 API로부터 비동기 로드하여 즉각 상태 반영
+      if (serverUsers && serverUsers.length > 0) {
+        const counts: Record<string, number> = {};
+        await Promise.all(
+          serverUsers.map(async (u) => {
+            try {
+              const uRegions = await AdminService.getUserAssignedRegions(u.userId);
+              counts[u.userId] = uRegions ? uRegions.length : 0;
+            } catch {
+              counts[u.userId] = 0;
+            }
+          })
+        );
+        setUserRegionCounts(counts);
+      }
+    } catch (error: any) {
+      console.error('[Admin] loadUsers error:', error);
+      enqueueSnackbar('계정 목록을 불러오는 중 오류가 발생했습니다.', { variant: 'error' });
+      setUsers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 특정 작업자의 담당 지역 변경 시 즉시 카운트 갱신 및 전체 목록 리프레시
+  const handleRegionsUpdated = async () => {
+    if (selectedUser?.userId) {
+      try {
+        const uRegions = await AdminService.getUserAssignedRegions(selectedUser.userId);
+        setUserRegionCounts(prev => ({
+          ...prev,
+          [selectedUser.userId]: uRegions ? uRegions.length : 0,
+        }));
+      } catch (err) {
+        console.error('[Admin] handleRegionsUpdated error:', err);
+      }
+    }
+    loadUsers();
+  };
 
   useEffect(() => {
-    setUsers(getStoredUsers());
-    const unsubUsers = subscribeToUsersUpdate(newUsers => {
-      setUsers(newUsers);
-    });
-    setSites(getStoredSites());
-    const unsubSites = subscribeToSitesUpdate(newSites => {
-      setSites(newSites);
-    });
-    const unsubRegions = subscribeToAssignedRegionsUpdate(() => {
-      setRegionsVersion(v => v + 1);
-    });
-    return () => {
-      unsubUsers();
-      unsubSites();
-      unsubRegions();
-    };
+    loadUsers();
+    loadSites();
   }, []);
 
   // Search & Filter States
@@ -68,9 +94,9 @@ export default function AccountManagementPage() {
 
   // Dialog Controls
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User>();
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User>();
 
   // Master Reports Data for Work Performance Tab
   const [allReports, setAllReports] = useState<WorkReport[]>(() => {
@@ -98,9 +124,9 @@ export default function AccountManagementPage() {
     ).length;
   };
 
-  // Helper to count assigned regions for any user
+  // Helper to count assigned regions for any user (API 기반 실시간 state)
   const getUserRegionCount = (userId: string) => {
-    return getUserAssignedRegions(userId).length;
+    return userRegionCounts[userId] ?? 0;
   };
 
   // Form State (strictly based on User)
@@ -124,7 +150,7 @@ export default function AccountManagementPage() {
 
   // Open Create Dialog
   const handleOpenAdd = () => {
-    setEditingUser(null);
+    setEditingUser(undefined);
     setFormData({
       userId: '',
       userName: '',
@@ -157,7 +183,7 @@ export default function AccountManagementPage() {
   // Close Form Dialog (상세 다이얼로그에서 진입했으면 복귀)
   const handleCloseForm = () => {
     setIsFormOpen(false);
-    setEditingUser(null);
+    setEditingUser(undefined);
     if (selectedUser) {
       setIsDetailOpen(true);
     }
@@ -165,7 +191,7 @@ export default function AccountManagementPage() {
 
 
   // Submit Handler (Create or Update)
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.userId.trim()) {
@@ -189,12 +215,28 @@ export default function AccountManagementPage() {
         ...formData,
         lastUpdated: now,
       };
+
+      try {
+        await AdminService.updateUser({
+          userId: updatedUser.userId,
+          userName: updatedUser.userName,
+          phoneNum: updatedUser.phoneNum,
+          birthday: updatedUser.birthday,
+          gender: updatedUser.gender,
+          postalCode: updatedUser.postalCode,
+          detailAddress: updatedUser.detailAddress,
+        });
+      } catch (err: any) {
+        enqueueSnackbar('계정 수정에 실패했습니다. 다시 시도해 주세요.', { variant: 'error' });
+        return;
+      }
+
       const nextUsers = users.map(u => (u.userId === editingUser.userId ? updatedUser : u));
       setUsers(nextUsers);
-      saveStoredUsers(nextUsers);
       setSelectedUser(updatedUser);
       setIsDetailOpen(true);
       enqueueSnackbar(`[${formData.userName}] 계정 정보가 수정되었습니다.`, { variant: 'success' });
+      loadUsers();
     } else {
       // Check duplicate ID
       if (users.some(u => u.userId === formData.userId.trim())) {
@@ -202,7 +244,6 @@ export default function AccountManagementPage() {
         return;
       }
 
-      // Create
       const newUser: User = {
         userId: formData.userId.trim(),
         userName: formData.userName.trim(),
@@ -215,41 +256,68 @@ export default function AccountManagementPage() {
         createTime: now,
       };
 
-      const nextUsers = [newUser, ...users];
-      setUsers(nextUsers);
-      saveStoredUsers(nextUsers);
+      try {
+        await AdminService.createUser({
+          userId: newUser.userId,
+          userName: newUser.userName,
+          phoneNum: newUser.phoneNum,
+          birthday: newUser.birthday,
+          gender: newUser.gender,
+          postalCode: newUser.postalCode,
+          detailAddress: newUser.detailAddress,
+        });
+      } catch (err: any) {
+        enqueueSnackbar('계정 발급에 실패했습니다. 입력값을 확인해 주세요.', { variant: 'error' });
+        return;
+      }
+
+      const cleanPhone = newUser.phoneNum.replace(/[^0-9]/g, '');
+      setUsers(prev => [newUser, ...prev]);
       enqueueSnackbar(
-        `[${newUser.userName}] 계정이 발급되었습니다. 초기 비밀번호는 전화번호(${newUser.phoneNum})입니다.`,
+        `[${newUser.userName}] 계정이 발급되었습니다. 초기 비밀번호는 하이픈 없는 전화번호(${cleanPhone})입니다.`,
         { variant: 'success', autoHideDuration: 4000 }
       );
+      loadUsers();
     }
 
     setIsFormOpen(false);
-    setEditingUser(null);
+    setEditingUser(undefined);
   };
 
   // Reset Password Handler
-  const handleResetPassword = (user: User) => {
+  const handleResetPassword = async (user: User) => {
+    const cleanPhone = user.phoneNum.replace(/[^0-9]/g, '');
     if (
       confirm(
-        `[${user.userName}] 님의 비밀번호를 초기화하시겠습니까?\n\n초기화 시 비밀번호는 등록된 전화번호(${user.phoneNum})로 변경됩니다.`
+        `[${user.userName}] 님의 비밀번호를 초기화하시겠습니까?\n\n초기화 시 비밀번호는 하이픈을 뺀 전화번호(${cleanPhone})로 변경됩니다.`
       )
     ) {
-      enqueueSnackbar(
-        `[${user.userName}] 님의 비밀번호가 전화번호(${user.phoneNum})로 초기화되었습니다.`,
-        { variant: 'success', autoHideDuration: 5000 }
-      );
+      try {
+        await AdminService.resetPassword(user.userId);
+        enqueueSnackbar(
+          `[${user.userName}] 님의 비밀번호가 하이픈 없는 전화번호(${cleanPhone})로 초기화되었습니다.`,
+          { variant: 'success', autoHideDuration: 5000 }
+        );
+      } catch (err: any) {
+        enqueueSnackbar('비밀번호 초기화에 실패했습니다. 다시 시도해 주세요.', { variant: 'error' });
+      }
     }
   };
 
   // Delete User Handler
-  const handleDeleteUser = (user: User) => {
-    const nextUsers = users.filter(u => u.userId !== user.userId);
-    setUsers(nextUsers);
-    saveStoredUsers(nextUsers);
+  const handleDeleteUser = async (user: User) => {
+    try {
+      await AdminService.deleteUser(user.userId);
+    } catch (err: any) {
+      enqueueSnackbar('계정 삭제에 실패했습니다. 다시 시도해 주세요.', { variant: 'error' });
+      return;
+    }
+
+    setUsers(prev => prev.filter(u => u.userId !== user.userId));
     setIsDetailOpen(false);
     setIsFormOpen(false);
     enqueueSnackbar(`[${user.userName}] 계정이 삭제되었습니다.`, { variant: 'success' });
+    loadUsers();
   };
 
   // Filtered List
@@ -301,10 +369,12 @@ export default function AccountManagementPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.length > 0 ? (
+            {isLoading ? (
+              <TableLoadingRow colSpan={8} message="계정 목록을 불러오는 중입니다..." />
+            ) : filteredUsers.length > 0 ? (
               filteredUsers.map((user, idx) => (
                 <tr 
-                  key={user.userId} 
+                  key={user.userId || `user_${idx}`} 
                   className="account-table-row"
                   onClick={() => handleOpenDetail(user, 'profile')}
                 >
@@ -313,13 +383,11 @@ export default function AccountManagementPage() {
                   </td>
                   <td className="col-user">
                     <div className="user-cell">
-                      <div className="user-avatar-mini">
-                        {user.profileImg ? (
-                          <img src={user.profileImg} alt={user.userName} className="user-avatar-mini-img" />
-                        ) : (
-                          user.userName.charAt(0)
-                        )}
-                      </div>
+                      <UserAvatar 
+                        src={user.profileImg} 
+                        name={user.userName} 
+                        size="md" 
+                      />
                       <span className="user-name-text">{user.userName}</span>
                     </div>
                   </td>
@@ -376,7 +444,7 @@ export default function AccountManagementPage() {
                 </tr>
               ))
             ) : (
-              <tr>
+              <tr key="empty-users">
                 <td colSpan={8} className="empty-table-cell">
                   <UserIcon size={36} className="empty-icon" />
                   <p>일치하는 계정 정보가 존재하지 않습니다.</p>
@@ -420,7 +488,7 @@ export default function AccountManagementPage() {
               <Info size={18} className="alert-icon" />
               <div className="alert-content">
                 <strong>초기 비밀번호 안내</strong>
-                <p>계정 생성 시 입력한 <strong>전화번호</strong>가 초기 비밀번호로 자동 설정됩니다.</p>
+                <p>계정 생성 시 입력한 전화번호에서 <strong>하이픈(-)을 뺀 숫자</strong>가 초기 비밀번호로 자동 설정됩니다.</p>
               </div>
             </div>
           )}
@@ -510,7 +578,7 @@ export default function AccountManagementPage() {
         isOpen={isDetailOpen && !!selectedUser}
         onClose={() => {
           setIsDetailOpen(false);
-          setSelectedUser(null);
+          setSelectedUser(undefined);
         }}
         user={selectedUser}
         reports={allReports}
@@ -521,6 +589,7 @@ export default function AccountManagementPage() {
         onEditUser={(u) => handleOpenEdit(u)}
         onDeleteUser={(u) => handleDeleteUser(u)}
         onResetPassword={(u) => handleResetPassword(u)}
+        onRegionsUpdated={handleRegionsUpdated}
       />
     </div>
   );

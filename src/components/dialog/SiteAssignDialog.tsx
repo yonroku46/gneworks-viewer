@@ -2,18 +2,18 @@
 
 import React, { useState, useMemo } from 'react';
 import SlideDialog from './SlideDialog';
-import RegionSelector, { RegionValue } from '@/components/common/RegionSelector';
+import RegionSelector from '@/components/common/RegionSelector';
 import SearchInput from '@/components/common/SearchInput';
-import { SiteInfo, getSiteWorkers } from '@/data/siteData';
+import { getRegionWorkers } from '@/data/regionStorage';
 import { Building2, Plus, MapPin, CheckCircle2, Users, Search } from 'lucide-react';
 import './SiteAssignDialog.scss';
 
 interface SiteAssignDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  sites: SiteInfo[];
+  sites: SiteDetail[];
   currentUserId?: string;
-  onAssign: (site: SiteInfo) => void;
+  onAssign: (site: SiteDetail) => void;
 }
 
 export default function SiteAssignDialog({
@@ -23,7 +23,7 @@ export default function SiteAssignDialog({
   currentUserId,
   onAssign,
 }: SiteAssignDialogProps) {
-  const [region, setRegion] = useState<RegionValue>({
+  const [region, setRegion] = useState<SelectedRegion>({
     sido: '경기도',
     sigungu: '연천군',
     eupmyeondong: 'ALL',
@@ -86,14 +86,14 @@ export default function SiteAssignDialog({
 
           <div className="assign-sites-list">
             {filteredSites.length > 0 ? (
-              filteredSites.map(site => {
-                const workers = getSiteWorkers(site);
+              filteredSites.map((site, idx) => {
+                const workers = getRegionWorkers(site.sido, site.sigungu);
                 const isAssignedToMe = workers.some(w => w.userId === currentUserId);
                 const otherWorkers = workers.filter(w => w.userId !== currentUserId);
 
                 return (
                   <div
-                    key={site.id}
+                    key={site.siteId || `site_${idx}`}
                     className={`assign-site-card ${isAssignedToMe ? 'is-me' : ''}`}
                   >
                     <div className="card-top-info">
@@ -148,7 +148,7 @@ export default function SiteAssignDialog({
                 );
               })
             ) : (
-              <div className="assign-empty-state">
+              <div key="empty-assign-sites" className="assign-empty-state">
                 <Search size={32} />
                 <p>선택하신 지역 또는 검색어에 일치하는 현장이 없습니다.</p>
               </div>

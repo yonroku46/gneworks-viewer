@@ -1,31 +1,16 @@
-import { INITIAL_SITES_DATA, SiteInfo, AssignedWorker, getSiteWorkers } from '@/data/siteData';
+import { INITIAL_SITES_DATA } from '@/data/siteData';
 
 const SITES_STORAGE_KEY = 'gneworks_sites_data_v4';
 const SITES_UPDATE_EVENT = 'gneworks_sites_updated';
 
-export const getStoredSites = (): SiteInfo[] => {
+export const getStoredSites = (): SiteDetail[] => {
   if (typeof window === 'undefined') {
     return INITIAL_SITES_DATA;
   }
   try {
     const raw = localStorage.getItem(SITES_STORAGE_KEY);
-    let sites: SiteInfo[] = raw ? JSON.parse(raw) : INITIAL_SITES_DATA;
-
-    let modified = false;
-    sites = sites.map(site => {
-      const householdsWithSeq = site.households.map((h, idx) => {
-        if (h.seq !== undefined && h.seq !== null && h.seq !== '') {
-          return h;
-        }
-        modified = true;
-        const match = h.id.match(/_(\d+)$/);
-        const seqVal = match ? parseInt(match[1], 10) : idx + 1;
-        return { ...h, seq: seqVal };
-      });
-      return { ...site, households: householdsWithSeq };
-    });
-
-    if (!raw || modified) {
+    const sites: SiteDetail[] = raw ? JSON.parse(raw) : INITIAL_SITES_DATA;
+    if (!raw) {
       localStorage.setItem(SITES_STORAGE_KEY, JSON.stringify(sites));
     }
     return sites;
@@ -35,7 +20,7 @@ export const getStoredSites = (): SiteInfo[] => {
   }
 };
 
-export const saveStoredSites = (sites: SiteInfo[]): void => {
+export const saveStoredSites = (sites: SiteDetail[]): void => {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(SITES_STORAGE_KEY, JSON.stringify(sites));
@@ -45,67 +30,11 @@ export const saveStoredSites = (sites: SiteInfo[]): void => {
   }
 };
 
-export const assignSiteToWorker = (
-  siteId: string,
-  worker: { userId: string; userName: string; phoneNum?: string }
-): SiteInfo[] => {
-  const currentSites = getStoredSites();
-  const updated = currentSites.map(s => {
-    if (s.id === siteId) {
-      const currentWorkers = getSiteWorkers(s);
-      const exists = currentWorkers.some(w => w.userId === worker.userId);
-      if (exists) {
-        return s;
-      }
-      const updatedWorkers: AssignedWorker[] = [
-        ...currentWorkers,
-        {
-          userId: worker.userId,
-          userName: worker.userName,
-          userPhone: worker.phoneNum || '연락처 미등록',
-        },
-      ];
-      return {
-        ...s,
-        assignedWorkers: updatedWorkers,
-        assignedUserId: updatedWorkers[0]?.userId,
-        assignedUserName: updatedWorkers[0]?.userName,
-        assignedUserPhone: updatedWorkers[0]?.userPhone,
-      };
-    }
-    return s;
-  });
-  saveStoredSites(updated);
-  return updated;
-};
-
-export const unassignSite = (siteId: string, targetUserId?: string): SiteInfo[] => {
-  const currentSites = getStoredSites();
-  const updated = currentSites.map(s => {
-    if (s.id === siteId) {
-      const currentWorkers = getSiteWorkers(s);
-      const updatedWorkers = targetUserId
-        ? currentWorkers.filter(w => w.userId !== targetUserId)
-        : [];
-      return {
-        ...s,
-        assignedWorkers: updatedWorkers,
-        assignedUserId: updatedWorkers[0]?.userId,
-        assignedUserName: updatedWorkers[0]?.userName,
-        assignedUserPhone: updatedWorkers[0]?.userPhone,
-      };
-    }
-    return s;
-  });
-  saveStoredSites(updated);
-  return updated;
-};
-
-export const subscribeToSitesUpdate = (callback: (sites: SiteInfo[]) => void): (() => void) => {
+export const subscribeToSitesUpdate = (callback: (sites: SiteDetail[]) => void): (() => void) => {
   if (typeof window === 'undefined') return () => {};
 
   const handleCustomEvent = (e: Event) => {
-    const customEvent = e as CustomEvent<SiteInfo[]>;
+    const customEvent = e as CustomEvent<SiteDetail[]>;
     if (customEvent.detail) {
       callback(customEvent.detail);
     } else {

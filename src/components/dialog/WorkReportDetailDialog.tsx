@@ -20,7 +20,7 @@ import './WorkReportDetailDialog.scss';
 
 export interface WorkReportDetailDialogProps {
   isOpen: boolean;
-  report: WorkReport | null;
+  report?: WorkReport;
   onClose: () => void;
   onReportUpdated?: (updated: WorkReport) => void;
   onOpenStatusModal?: (report: WorkReport) => void;

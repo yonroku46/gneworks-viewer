@@ -5,10 +5,8 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useSnackbar } from 'notistack';
 import ProfileEditDialog from '@/components/dialog/ProfileEditDialog';
 import RegionAssignDialog from '@/components/dialog/RegionAssignDialog';
-import { SiteInfo } from '@/data/siteData';
 import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
 import {
-  AssignedRegion,
   getStoredAssignedRegions,
   addAssignedRegion,
   removeAssignedRegion,
@@ -25,6 +23,7 @@ import {
   Plus, 
   MapPin,
 } from 'lucide-react';
+import UserAvatar from '@/components/common/UserAvatar';
 import './Profile.scss';
 
 export default function ProfilePage() {
@@ -35,8 +34,8 @@ export default function ProfilePage() {
   const [isRegionAssignOpen, setIsRegionAssignOpen] = useState(false);
 
   // Sites, Regions & Reports state synchronized with storage
-  const [allSites, setAllSites] = useState<SiteInfo[]>([]);
-  const [assignedRegions, setAssignedRegions] = useState<AssignedRegion[]>([]);
+  const [allSites, setAllSites] = useState<SiteDetail[]>([]);
+  const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [reports, setReports] = useState<WorkReport[]>([]);
 
   useEffect(() => {
@@ -67,13 +66,14 @@ export default function ProfilePage() {
   };
 
   const handleAssignRegion = (sido: string, sigungu: string) => {
-    const updated = addAssignedRegion(sido, sigungu);
+    if (!user?.userId) return;
+    const updated = addAssignedRegion(sido, sigungu, undefined, user.userId);
     setAssignedRegions(updated);
     enqueueSnackbar(`${sido} ${sigungu}이(가) 담당 지역으로 등록되었습니다.`, { variant: 'success' });
   };
 
-  const handleRemoveRegion = (region: AssignedRegion) => {
-    const updated = removeAssignedRegion(region.id);
+  const handleRemoveRegion = (region: UserAssignedRegionDetail) => {
+    const updated = removeAssignedRegion(region.assignedRegionId);
     setAssignedRegions(updated);
     enqueueSnackbar(`${region.sido} ${region.sigungu} 배정이 해제되었습니다.`, { variant: 'info' });
   };
@@ -95,13 +95,12 @@ export default function ProfilePage() {
         </div>
 
         {/* 아바타 */}
-        <div className="avatar-wrapper">
-          {user?.profileImg ? (
-            <img src={user.profileImg} alt={displayName} className="avatar-img" />
-          ) : (
-            displayName.charAt(0)
-          )}
-        </div>
+        <UserAvatar 
+          src={user?.profileImg} 
+          name={displayName} 
+          size="huge" 
+          className="profile-card-avatar"
+        />
 
         <h2 className="profile-name">{displayName}</h2>
 
@@ -167,12 +166,12 @@ export default function ProfilePage() {
                   s => s.sido === region.sido && s.sigungu === region.sigungu
                 );
                 const totalHouseholds = sitesInRegion.reduce(
-                  (sum, s) => sum + (s.totalHouseholds || s.households.length),
+                  (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),
                   0
                 );
 
                 return (
-                  <div key={region.id} className="assigned-site-item">
+                  <div key={region.assignedRegionId} className="assigned-site-item">
                     <div className="item-main-info">
                       <strong className="site-name">
                         {region.sido} {region.sigungu}

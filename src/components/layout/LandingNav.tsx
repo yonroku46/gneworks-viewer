@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import AppImage from '@/components/contents/AppImage';
+import UserAvatar from '@/components/common/UserAvatar';
 import { useAuth } from '@/providers/AuthProvider';
 import { Menu, X, ChevronDown, LayoutDashboard, LogOut } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -66,19 +66,11 @@ export default function LandingNav() {
                     aria-haspopup="true"
                     aria-expanded={isDropdownOpen}
                   >
-                    <div className="profile-avatar">
-                      {user.profileImg ? (
-                        <AppImage 
-                          src={user.profileImg} 
-                          alt={user.userName} 
-                          width={32} 
-                          height={32} 
-                          className="profile-avatar-img"
-                        />
-                      ) : (
-                        <span className="profile-initial">{user.userName.charAt(0)}</span>
-                      )}
-                    </div>
+                    <UserAvatar 
+                      src={user.profileImg} 
+                      name={user.userName} 
+                      size="md" 
+                    />
                     <span className="profile-name">{user.userName}님</span>
                     <ChevronDown size={14} className={`profile-chevron ${isDropdownOpen ? 'open' : ''}`} />
                   </button>
@@ -165,19 +157,11 @@ export default function LandingNav() {
             ) : user ? (
               <div className="landing-nav-mobile-user-card">
                 <div className="mobile-user-info">
-                  <div className="profile-avatar">
-                    {user.profileImg ? (
-                      <AppImage 
-                        src={user.profileImg} 
-                        alt={user.userName} 
-                        width={40} 
-                        height={40} 
-                        className="profile-avatar-img"
-                      />
-                    ) : (
-                      <span className="profile-initial">{user.userName.charAt(0)}</span>
-                    )}
-                  </div>
+                  <UserAvatar 
+                    src={user.profileImg} 
+                    name={user.userName} 
+                    size={40} 
+                  />
                   <div className="profile-meta">
                     <span className="profile-name">{user.userName}님</span>
                     <span className="profile-name-sub">{user.userId}</span>

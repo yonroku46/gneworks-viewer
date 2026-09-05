@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { getImageUrl } from '@/common/utils/imageUtils';
 
 interface AppImageProps extends Omit<ImageProps, 'src'> {
-  src?: string | null;
+  src?: string;
   fallback?: React.ReactNode;
 }
 
@@ -13,12 +13,12 @@ interface AppImageProps extends Omit<ImageProps, 'src'> {
  * S3 프리픽스 처리 및 에러 핸들링이 포함된 이미지 컴포넌트
  */
 export default function AppImage({ src, fallback, ...props }: AppImageProps) {
-  const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [imgSrc, setImgSrc] = useState<string>();
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     if (!src) {
-      setImgSrc(null);
+      setImgSrc(undefined);
       setHasError(true);
     } else {
       if (src.startsWith('data:')) {

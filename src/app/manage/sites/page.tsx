@@ -1,70 +1,44 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import dayjs from 'dayjs';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import SiteDetailDialog from '@/components/dialog/SiteDetailDialog';
+import TableLoadingRow from '@/components/common/TableLoadingRow';
+import AdminService from '@/api/service/AdminService';
 import { useSnackbar } from 'notistack';
 import { 
   Building2, 
-  Search, 
   Plus, 
-  Edit3, 
-  Trash2, 
-  Phone,
   Users,
-  X,
-  Info,
+  Search,
 } from 'lucide-react';
-import { INITIAL_SITES_DATA, SiteInfo, Household } from '@/data/siteData';
-import { getStoredSites, saveStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
-import { getRegionWorkers, RegionWorker } from '@/data/regionStorage';
-import CustomSelect from '@/components/common/CustomSelect';
 import RegionSelector from '@/components/common/RegionSelector';
+import CustomSelect from '@/components/common/CustomSelect';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
 import SearchInput from '@/components/common/SearchInput';
-import StatusBadge from '@/components/common/StatusBadge';
+import { useDaumPostcodePopup, Address } from 'react-daum-postcode';
+import { normalizeSidoName, cleanRegionName } from '@/utils/addressUtils';
+import { isRegionMatch } from '@/data/koreaRegions';
 import '../ManageLayout.scss';
-
-const formatDong = (dong: string) => {
-  if (!dong) return '';
-  return dong.endsWith('동') ? dong : `${dong}동`;
-};
-
-const formatHo = (ho: string) => {
-  if (!ho) return '';
-  return ho.endsWith('호') ? ho : `${ho}호`;
-};
 
 export default function ManageCustomers() {
   const { enqueueSnackbar } = useSnackbar();
 
-  // State for site data with persistence
-  const [sites, setSites] = useState<SiteInfo[]>(() => {
-    if (typeof window !== 'undefined') {
-      return getStoredSites();
-    }
-    return INITIAL_SITES_DATA;
-  });
-
-  useEffect(() => {
-    setSites(getStoredSites());
-    const unsubscribe = subscribeToSitesUpdate(updatedSites => {
-      setSites(updatedSites);
-    });
-    return () => unsubscribe();
-  }, []);
+  // State for site data from backend API
+  const [sites, setSites] = useState<SiteDetail[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [regionWorkersMap, setRegionWorkersMap] = useState<Record<string, RegionWorkerUser[]>>({});
+  const [fireRegions, setFireRegions] = useState<FireRegion[]>([]);
 
   // Region State for Common RegionSelector (Global Shared State)
   const { region, setRegion } = useManageRegion();
-
   const [searchQuery, setSearchQuery] = useState('');
 
   // Dialog Controls
   const [isSiteFormOpen, setIsSiteFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedSite, setSelectedSite] = useState<SiteInfo | null>(null);
-  const [editingSite, setEditingSite] = useState<SiteInfo | null>(null);
+  const [selectedSite, setSelectedSite] = useState<SiteDetail>();
+  const [editingSite, setEditingSite] = useState<SiteDetail>();
 
   // Detail Modal Tab: 'households' | 'workers'
   const [siteDetailTab, setSiteDetailTab] = useState<'households' | 'workers'>('households');
@@ -73,52 +47,177 @@ export default function ManageCustomers() {
   const [siteFormData, setSiteFormData] = useState<{
     name: string;
     address: string;
+    sido: string;
+    sigungu: string;
+    eupmyeondong: string;
+    regionId: string;
+    region: string;
     contactPhone: string;
   }>({
     name: '',
     address: '',
+    sido: '',
+    sigungu: '',
+    eupmyeondong: '',
+    regionId: '',
+    region: '',
     contactPhone: '',
   });
 
-  // Filtered Sites (by Region & Search query)
-  const filteredSites = useMemo(() => {
-    return sites.filter(site => {
-      const matchSido = region.sido === 'ALL' || site.sido === region.sido;
-      const matchSigungu = region.sigungu === 'ALL' || site.sigungu === region.sigungu;
-      const matchEup = region.eupmyeondong === 'ALL' || (site.eupmyeondong && site.eupmyeondong.includes(region.eupmyeondong));
-      const matchSearch =
-        site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        site.address.toLowerCase().includes(searchQuery.toLowerCase());
+  // Daum Postcode Popup hook
+  const openPostcode = useDaumPostcodePopup();
 
-      return matchSido && matchSigungu && matchEup && matchSearch;
-    });
-  }, [sites, region, searchQuery]);
+  // Load Fire Regions on mount
+  useEffect(() => {
+    AdminService.getFireRegions()
+      .then(list => setFireRegions(list))
+      .catch(err => console.error('Failed to load fire regions:', err));
+  }, []);
+
+  // Load Sites from Backend
+  const loadSites = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const siteList = await AdminService.getSiteList({
+        sido: region.sido !== 'ALL' ? region.sido : undefined,
+        sigungu: region.sigungu !== 'ALL' ? region.sigungu : undefined,
+        eupmyeondong: region.eupmyeondong !== 'ALL' ? region.eupmyeondong : undefined,
+      });
+      setSites(siteList);
+
+      // 현장들의 고유 regionId 수집 및 작업자 목록 로드
+      const regionIdSet = new Set<string>();
+      siteList.forEach(s => {
+        if (s.regionId) regionIdSet.add(s.regionId);
+      });
+
+      const workersMap: Record<string, RegionWorkerUser[]> = {};
+      await Promise.all(
+        Array.from(regionIdSet).map(async (regionId) => {
+          try {
+            const workers = await AdminService.getRegionWorkers({ regionId });
+            workersMap[regionId] = workers;
+          } catch {
+            workersMap[regionId] = [];
+          }
+        })
+      );
+      setRegionWorkersMap(workersMap);
+    } catch (error: any) {
+      console.error('Failed to load sites:', error);
+      enqueueSnackbar('현장 목록을 불러오는데 실패했습니다.', { variant: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [region, enqueueSnackbar]);
+
+  useEffect(() => {
+    loadSites();
+  }, [loadSites]);
+
+  // 특정 현장의 담당 작업자 목록 조회 (regionId 릴레이션십 기준)
+  const getWorkersForSite = useCallback((site: SiteDetail): RegionWorkerUser[] => {
+    if (!site.regionId) return [];
+    return regionWorkersMap[site.regionId] || [];
+  }, [regionWorkersMap]);
+
+  // Filtered Sites (by Search query)
+  const filteredSites = useMemo(() => {
+    if (!searchQuery.trim()) return sites;
+    const q = searchQuery.toLowerCase();
+    return sites.filter(site =>
+      site.name.toLowerCase().includes(q) ||
+      site.address.toLowerCase().includes(q)
+    );
+  }, [sites, searchQuery]);
 
   // Summary Metrics (Sites, Households, Regional Worker count)
   const metrics = useMemo(() => {
     const totalSites = filteredSites.length;
-    const totalHouseholds = filteredSites.reduce((sum, s) => sum + s.totalHouseholds, 0);
-    const totalDongs = filteredSites.reduce((sum, s) => sum + s.dongCount, 0);
+    const totalHouseholds = filteredSites.reduce((sum, s) => sum + (s.totalHouseholds || 0), 0);
+    const totalDongs = filteredSites.reduce((sum, s) => sum + (s.dongCount || 0), 0);
 
-    // 현재 조회된 지역들의 고유 담당 작업자 수 집계
     const uniqueWorkerIds = new Set<string>();
     filteredSites.forEach(s => {
-      const workers = getRegionWorkers(s.sido, s.sigungu);
+      const workers = getWorkersForSite(s);
       workers.forEach(w => uniqueWorkerIds.add(w.userId));
     });
     const totalWorkers = uniqueWorkerIds.size;
 
     return { totalSites, totalHouseholds, totalDongs, totalWorkers };
-  }, [filteredSites]);
+  }, [filteredSites, getWorkersForSite]);
+
+  // Handle Daum Postcode Complete
+  const handleCompletePostcode = (data: Address) => {
+    let fullAddress = data.roadAddress || data.address;
+    let extraAddress = '';
+
+    if (data.addressType === 'R') {
+      if (data.bname !== '') {
+        extraAddress += data.bname;
+      }
+      if (data.buildingName !== '') {
+        extraAddress += extraAddress !== '' ? `, ${data.buildingName}` : data.buildingName;
+      }
+      fullAddress += extraAddress !== '' ? ` (${extraAddress})` : '';
+    }
+
+    const normalizedSido = normalizeSidoName(data.sido);
+    const sigungu = data.sigungu || '';
+    const eupmyeondong = data.bname || '';
+
+    // Match fire regions from loaded fireRegions
+    const matched = fireRegions.filter(fr => {
+      const sidoMatch = fr.sidoName === normalizedSido || fr.sidoName.includes(normalizedSido) || normalizedSido.includes(fr.sidoName);
+      if (!sidoMatch) return false;
+      const cleanSg = cleanRegionName(sigungu);
+      const cleanFr = cleanRegionName(fr.name);
+      return cleanSg && cleanFr && (cleanSg.includes(cleanFr) || cleanFr.includes(cleanSg));
+    });
+
+    const matchedRegionId = matched.length > 0 ? matched[0].regionId : '';
+    const matchedRegionName = matched.length > 0 ? matched[0].name : sigungu;
+
+    setSiteFormData(prev => ({
+      ...prev,
+      address: fullAddress,
+      sido: normalizedSido,
+      sigungu: sigungu,
+      eupmyeondong: eupmyeondong,
+      regionId: matchedRegionId,
+      region: matchedRegionName,
+      name: prev.name.trim() ? prev.name : (data.buildingName ? data.buildingName : prev.name),
+    }));
+  };
+
+  const handleSearchAddress = () => {
+    openPostcode({ onComplete: handleCompletePostcode });
+  };
+
+  // Available fire regions for currently selected/parsed sido
+  const availableFireRegions = useMemo(() => {
+    if (!siteFormData.sido) return [];
+    return fireRegions.filter(fr => {
+      return (
+        fr.sidoName === siteFormData.sido ||
+        fr.sidoName.includes(siteFormData.sido) ||
+        siteFormData.sido.includes(fr.sidoName)
+      );
+    });
+  }, [fireRegions, siteFormData.sido]);
 
   // Open Add Site Dialog
-  // Open Add Site Dialog
   const handleOpenAddSite = () => {
-    setEditingSite(null);
-    setSelectedSite(null);
+    setEditingSite(undefined);
+    setSelectedSite(undefined);
     setSiteFormData({
       name: '',
       address: '',
+      sido: '',
+      sigungu: '',
+      eupmyeondong: '',
+      regionId: '',
+      region: '',
       contactPhone: '',
     });
     setIsDetailOpen(false);
@@ -126,12 +225,17 @@ export default function ManageCustomers() {
   };
 
   // Open Edit Site Dialog (상세 다이얼로그에서 진입 시 상세는 닫고 수정 폼 오픈)
-  const handleOpenEditSite = (site: SiteInfo) => {
+  const handleOpenEditSite = (site: SiteDetail) => {
     setEditingSite(site);
     setSelectedSite(site);
     setSiteFormData({
       name: site.name,
       address: site.address,
+      sido: site.sido || '',
+      sigungu: site.sigungu || '',
+      eupmyeondong: site.eupmyeondong || '',
+      regionId: site.regionId || '',
+      region: site.region || site.sigungu || '',
       contactPhone: site.contactPhone || '',
     });
     setIsDetailOpen(false);
@@ -141,94 +245,111 @@ export default function ManageCustomers() {
   // Close Site Form Dialog (상세에서 진입했으면 상세 다이얼로그로 복귀)
   const handleCloseSiteForm = () => {
     setIsSiteFormOpen(false);
-    setEditingSite(null);
+    setEditingSite(undefined);
     if (selectedSite) {
       setIsDetailOpen(true);
     }
   };
 
   // Open Detail Dialog
-  const handleOpenDetail = (site: SiteInfo, defaultTab: 'households' | 'workers' = 'households') => {
-    setSelectedSite(site);
+  const handleOpenDetail = async (site: SiteDetail, defaultTab: 'households' | 'workers' = 'households') => {
+    try {
+      // 최신 상세 데이터 로드 (세대 목록 및 배정 담당자 포함)
+      const detail = await AdminService.getSiteDetail(site.siteId);
+      if (!detail.assignedWorkers || detail.assignedWorkers.length === 0) {
+        const fallbackWorkers = getWorkersForSite(site);
+        if (fallbackWorkers.length > 0) {
+          detail.assignedWorkers = fallbackWorkers;
+        }
+      }
+      setSelectedSite(detail);
+    } catch {
+      setSelectedSite({ ...site, assignedWorkers: getWorkersForSite(site) });
+    }
     setSiteDetailTab(defaultTab);
     setIsDetailOpen(true);
   };
 
   // Submit Site Create / Edit
-  const handleSubmitSite = (e: React.FormEvent) => {
+  const handleSubmitSite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!siteFormData.name.trim()) {
       enqueueSnackbar('현장(아파트)명을 입력해 주세요.', { variant: 'error' });
       return;
     }
     if (!siteFormData.address.trim()) {
-      enqueueSnackbar('도로명 주소를 입력해 주세요.', { variant: 'error' });
+      enqueueSnackbar('도로명 주소를 검색하여 입력해 주세요.', { variant: 'error' });
       return;
     }
 
-    // 1. Edit Existing Site
-    if (editingSite) {
-      const updatedName = siteFormData.name.trim();
-      const updatedAddress = siteFormData.address.trim();
-      const updatedPhone = siteFormData.contactPhone.trim() || editingSite.contactPhone;
+    const fullAddress = siteFormData.address.trim();
 
-      const updatedSite: SiteInfo = {
-        ...editingSite,
-        name: updatedName,
-        address: updatedAddress,
-        contactPhone: updatedPhone,
-      };
+    try {
+      if (editingSite) {
+        // 1. Edit Existing Site
+        await AdminService.updateSite(editingSite.siteId, {
+          name: siteFormData.name.trim(),
+          address: fullAddress,
+          sido: siteFormData.sido || editingSite.sido,
+          sigungu: siteFormData.sigungu || editingSite.sigungu,
+          eupmyeondong: siteFormData.eupmyeondong || editingSite.eupmyeondong,
+          region: siteFormData.region || editingSite.region || siteFormData.sigungu,
+          regionId: siteFormData.regionId || editingSite.regionId,
+          contactPhone: siteFormData.contactPhone.trim() || undefined,
+        });
 
-      const updated = sites.map(s => (s.id === editingSite.id ? updatedSite : s));
+        enqueueSnackbar(`[${siteFormData.name.trim()}] 현장 정보가 수정되었습니다.`, { variant: 'success' });
+        setIsSiteFormOpen(false);
+        setEditingSite(undefined);
+        await loadSites();
+        if (selectedSite) {
+          const updated = await AdminService.getSiteDetail(selectedSite.siteId);
+          setSelectedSite(updated);
+          setIsDetailOpen(true);
+        }
+      } else {
+        // 2. Create New Site
+        const sidoVal = siteFormData.sido || (region.sido !== 'ALL' ? region.sido : '경기도');
+        const sigunguVal = siteFormData.sigungu || (region.sigungu !== 'ALL' ? region.sigungu : '연천군');
+        const eupVal = siteFormData.eupmyeondong || (region.eupmyeondong !== 'ALL' ? region.eupmyeondong : '연천읍');
+        const regionName = siteFormData.region || sigunguVal;
 
-      setSites(updated);
-      saveStoredSites(updated);
-      setSelectedSite(updatedSite);
+        await AdminService.createSite({
+          name: siteFormData.name.trim(),
+          address: fullAddress,
+          sido: sidoVal,
+          sigungu: sigunguVal,
+          eupmyeondong: eupVal,
+          region: regionName,
+          regionId: siteFormData.regionId || undefined,
+          contactPhone: siteFormData.contactPhone.trim() || undefined,
+        });
 
-      setIsSiteFormOpen(false);
-      setEditingSite(null);
-      setIsDetailOpen(true);
-
-      enqueueSnackbar(`[${updatedName}] 현장 정보가 수정되었습니다.`, { variant: 'success' });
-      return;
+        enqueueSnackbar(`신규 현장 [${siteFormData.name.trim()}]이 등록되었습니다.`, { variant: 'success' });
+        setIsSiteFormOpen(false);
+        await loadSites();
+      }
+    } catch (error: any) {
+      console.error('Failed to submit site:', error);
+      enqueueSnackbar('현장 정보를 저장하는데 실패했습니다.', { variant: 'error' });
     }
-
-    // 2. Create New Site
-    const newSite: SiteInfo = {
-      id: `site_${dayjs().valueOf()}`,
-      name: siteFormData.name.trim(),
-      address: siteFormData.address.trim(),
-      region: region.sigungu !== 'ALL' ? region.sigungu : '연천군',
-      sido: region.sido !== 'ALL' ? region.sido : '경기도',
-      sigungu: region.sigungu !== 'ALL' ? region.sigungu : '연천군',
-      eupmyeondong: region.eupmyeondong !== 'ALL' ? region.eupmyeondong : '연천읍',
-      routeGroup: `${region.sigungu !== 'ALL' ? region.sigungu : '연천군'} 권역`,
-      dongCount: 1,
-      dongList: ['101'],
-      totalHouseholds: 0,
-      completedHouseholds: 0,
-      contactPhone: siteFormData.contactPhone.trim() || '031-839-2119',
-      status: '대기',
-      workCompletedCount: 0,
-      households: [],
-    };
-    const updated = [newSite, ...sites];
-    setSites(updated);
-    saveStoredSites(updated);
-    enqueueSnackbar(`신규 현장 [${newSite.name}]이 등록되었습니다.`, { variant: 'success' });
-    setIsSiteFormOpen(false);
   };
 
   // Delete Site
-  const handleDeleteSite = (site: SiteInfo) => {
-    if (confirm(`[${site.name}] 현장과 등록된 모든 세대 데이터를 삭제하시겠습니까?`)) {
-      const updated = sites.filter(s => s.id !== site.id);
-      setSites(updated);
-      saveStoredSites(updated);
-      setIsDetailOpen(false);
-      setSelectedSite(null);
-      setEditingSite(null);
+  const handleDeleteSite = async (site: SiteDetail) => {
+    if (!confirm(`[${site.name}] 현장과 등록된 모든 세대 데이터를 정말 삭제하시겠습니까?`)) {
+      return;
+    }
+    try {
+      await AdminService.deleteSite(site.siteId);
       enqueueSnackbar(`[${site.name}] 현장이 삭제되었습니다.`, { variant: 'success' });
+      setIsDetailOpen(false);
+      setSelectedSite(undefined);
+      setEditingSite(undefined);
+      await loadSites();
+    } catch (error: any) {
+      console.error('Failed to delete site:', error);
+      enqueueSnackbar('현장 삭제에 실패했습니다.', { variant: 'error' });
     }
   };
 
@@ -306,11 +427,14 @@ export default function ManageCustomers() {
             </tr>
           </thead>
           <tbody>
-            {filteredSites.length > 0 ? (
+            {isLoading ? (
+              <TableLoadingRow colSpan={7} message="현장 목록을 불러오는 중입니다..." />
+            ) : filteredSites.length > 0 ? (
               filteredSites.map((site, idx) => {
+                const workers = getWorkersForSite(site);
                 return (
                   <tr
-                    key={site.id}
+                    key={site.siteId || `site_${idx}`}
                     className="site-table-row"
                     onClick={() => handleOpenDetail(site, 'households')}
                   >
@@ -338,42 +462,36 @@ export default function ManageCustomers() {
                       <span className="households-text">{site.totalHouseholds}세대</span>
                     </td>
                     <td className="col-worker">
-                      {(() => {
-                        const workers = getRegionWorkers(site.sido, site.sigungu);
-                        if (workers.length === 0) {
-                          return (
-                            <span 
-                              className="unassigned-badge clickable" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenDetail(site, 'workers');
-                              }}
-                              title="해당 지역에 배정된 담당자가 없습니다. 클릭 시 지역 담당자 현황으로 이동"
-                            >
-                              지역 미배정
-                            </span>
-                          );
-                        }
-                        return (
-                          <span
-                            className="worker-count-pill"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenDetail(site, 'workers');
-                            }}
-                            title={`${site.sigungu} 지역 담당자 ${workers.length}명 (${workers.map(w => w.userName).join(', ')})`}
-                          >
-                            <Users size={13} />
-                            <span>{workers.length > 1 ? `${workers[0].userName} 외 ${workers.length - 1}명` : workers[0].userName}</span>
-                          </span>
-                        );
-                      })()}
+                      {workers.length === 0 ? (
+                        <span 
+                          className="unassigned-badge clickable" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDetail(site, 'workers');
+                          }}
+                          title="해당 지역에 배정된 담당자가 없습니다. 클릭 시 지역 담당자 현황으로 이동"
+                        >
+                          미배정
+                        </span>
+                      ) : (
+                        <span
+                          className="worker-count-pill"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDetail(site, 'workers');
+                          }}
+                          title={`${site.sigungu} 지역 담당자 ${workers.length}명 (${workers.map(w => w.userName).join(', ')})`}
+                        >
+                          <Users size={13} />
+                          <span>{workers.length > 1 ? `${workers[0].userName} 외 ${workers.length - 1}명` : workers[0].userName}</span>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
               })
             ) : (
-              <tr>
+              <tr key="empty-sites">
                 <td colSpan={7} className="empty-table-cell">
                   <Building2 size={36} className="empty-icon" />
                   <p>선택된 지역 및 조건에 일치하는 현장 정보가 없습니다.</p>
@@ -406,6 +524,82 @@ export default function ManageCustomers() {
         }
       >
         <form id="create-site-form" className="site-dialog-form" onSubmit={handleSubmitSite}>
+          {/* 주소 검색 필드 */}
+          <div className="form-field">
+            <label>도로명 주소 <span className="req">*</span></label>
+            <div className="address-input-group">
+              <input
+                type="text"
+                placeholder="주소 검색 버튼을 눌러 도로명 주소를 입력하세요"
+                required
+                readOnly
+                value={siteFormData.address}
+                onClick={handleSearchAddress}
+              />
+              <button
+                type="button"
+                className="btn-search-address"
+                onClick={handleSearchAddress}
+              >
+                <Search size={15} />
+                <span>주소 검색</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 주소 검색 후 파싱된 행정구역 & 소방관할 영역 */}
+          {siteFormData.sido ? (
+            <div className="parsed-region-card">
+              <div className="region-tags-row">
+                <span className="region-tag">
+                  <span className="tag-label">시·도</span>
+                  <strong>{siteFormData.sido}</strong>
+                </span>
+                <span className="region-tag">
+                  <span className="tag-label">시·군·구</span>
+                  <strong>{siteFormData.sigungu || '전체'}</strong>
+                </span>
+                {siteFormData.eupmyeondong && (
+                  <span className="region-tag">
+                    <span className="tag-label">읍·면·동</span>
+                    <strong>{siteFormData.eupmyeondong}</strong>
+                  </span>
+                )}
+              </div>
+
+              {availableFireRegions.length > 0 && (
+                <div className="region-fire-select-row">
+                  <label>관할 소방서</label>
+                  <CustomSelect
+                    sizeVariant="md"
+                    fullWidth
+                    value={siteFormData.regionId}
+                    onChange={e => {
+                      const selected = availableFireRegions.find(fr => fr.regionId === e.target.value);
+                      setSiteFormData(prev => ({
+                        ...prev,
+                        regionId: e.target.value,
+                        region: selected ? selected.name : prev.region,
+                      }));
+                    }}
+                  >
+                    <option value="">소방관할서 선택 (미선택 시 시군구명 적용)</option>
+                    {availableFireRegions.map(fr => (
+                      <option key={fr.regionId} value={fr.regionId}>
+                        {fr.name}소방서 (관할: {fr.name})
+                      </option>
+                    ))}
+                  </CustomSelect>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="address-help-tip">
+              * [주소 검색] 버튼을 누르시면 시도/시군구 및 관할 소방서가 자동으로 설정됩니다.
+            </p>
+          )}
+
+
           <div className="form-field">
             <label>현장(아파트)명 <span className="req">*</span></label>
             <input
@@ -414,17 +608,6 @@ export default function ManageCustomers() {
               required
               value={siteFormData.name}
               onChange={e => setSiteFormData(prev => ({ ...prev, name: e.target.value }))}
-            />
-          </div>
-
-          <div className="form-field">
-            <label>도로명 주소 <span className="req">*</span></label>
-            <input
-              type="text"
-              placeholder="예: 경기도 연천군 연천읍 차옥로 81"
-              required
-              value={siteFormData.address}
-              onChange={e => setSiteFormData(prev => ({ ...prev, address: e.target.value }))}
             />
           </div>
 
@@ -445,7 +628,7 @@ export default function ManageCustomers() {
         isOpen={isDetailOpen && !!selectedSite}
         onClose={() => {
           setIsDetailOpen(false);
-          setSelectedSite(null);
+          setSelectedSite(undefined);
         }}
         site={selectedSite}
         initialTab={siteDetailTab}
@@ -455,7 +638,7 @@ export default function ManageCustomers() {
         onDeleteSite={handleDeleteSite}
         onSiteUpdated={(updated) => {
           setSelectedSite(updated);
-          setSites(prev => prev.map(s => s.id === updated.id ? updated : s));
+          setSites(prev => prev.map(s => s.siteId === updated.siteId ? updated : s));
         }}
       />
     </div>

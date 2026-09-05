@@ -6,7 +6,6 @@ import SlideDialog from './SlideDialog';
 
 import { getStoredReports, subscribeToReportsUpdate } from '@/data/reportStorage';
 import {
-  AssignedRegion,
   getStoredAssignedRegions,
   subscribeToAssignedRegionsUpdate,
 } from '@/data/regionStorage';
@@ -20,9 +19,6 @@ import {
 import WorkHistoryCard from '@/components/common/WorkHistoryCard';
 import './WorkHistoryDialog.scss';
 
-export type DatePreset = 'all' | 'today' | 'week' | 'month' | 'custom';
-export type StatusFilterType = 'all' | 'COMPLETED' | 'PENDING' | 'REJECTED';
-
 interface WorkHistoryDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -35,15 +31,15 @@ export default function WorkHistoryDialog({
   onSelectReport,
 }: WorkHistoryDialogProps) {
   const [reports, setReports] = useState<WorkReport[]>([]);
-  const [assignedRegions, setAssignedRegions] = useState<AssignedRegion[]>([]);
+  const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRegionKey, setSelectedRegionKey] = useState<string>('all'); // 'all' or 'sido_sigungu'
+  const [selectedRegionKey, setSelectedRegionKey] = useState<string>('all');
   const [datePreset, setDatePreset] = useState<DatePreset>('all');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilterType>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilterType>('ALL');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
@@ -140,7 +136,7 @@ export default function WorkHistoryDialog({
   const filteredReports = useMemo(() => {
     return baseReports
       .filter(r => {
-        if (statusFilter !== 'all' && r.status !== statusFilter) {
+        if (statusFilter !== 'ALL' && r.status !== statusFilter) {
           return false;
         }
         return true;
@@ -176,7 +172,7 @@ export default function WorkHistoryDialog({
     setDatePreset('all');
     setCustomStartDate('');
     setCustomEndDate('');
-    setStatusFilter('all');
+    setStatusFilter('ALL');
     setSortOrder('desc');
   };
 
@@ -186,7 +182,7 @@ export default function WorkHistoryDialog({
     datePreset !== 'all' ||
     customStartDate !== '' ||
     customEndDate !== '' ||
-    statusFilter !== 'all' ||
+    statusFilter !== 'ALL' ||
     sortOrder !== 'desc';
 
   return (
@@ -342,8 +338,8 @@ export default function WorkHistoryDialog({
             <div className="pill-group">
               <button
                 type="button"
-                className={`pill-btn ${statusFilter === 'all' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('all')}
+                className={`pill-btn ${statusFilter === 'ALL' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('ALL')}
               >
                 <span>전체 ({statusCounts.all})</span>
               </button>
