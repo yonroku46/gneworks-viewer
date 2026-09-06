@@ -35,8 +35,12 @@ const nextConfig = {
         destination: `https://${process.env.NEXT_PUBLIC_S3_PREFIX}/dev/:path*`
       },
       {
-        source: '/prod/:path*',
-        destination: `https://${process.env.NEXT_PUBLIC_S3_PREFIX}/prod/:path*`
+        source: '/report/:path*',
+        destination: `https://${process.env.NEXT_PUBLIC_S3_PREFIX}/report/:path*`
+      },
+      {
+        source: '/user/:path*',
+        destination: `https://${process.env.NEXT_PUBLIC_S3_PREFIX}/user/:path*`
       },
     ];
   },

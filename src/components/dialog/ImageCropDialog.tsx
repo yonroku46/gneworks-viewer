@@ -75,22 +75,31 @@ const getCroppedImgWebP = async (
     targetHeight
   );
 
-  // 고효율 WebP 압축 (품질 0.85)
-  const mimeType = 'image/webp';
-  const quality = 0.85;
-
+  // 고효율 WebP 압축 (품질 0.85), 모바일 브라우저 WebP 미지원 시 고압축 JPEG 폴백
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
-      if (blob) {
+      // 브라우저 캔버스가 WebP를 미지원하여 image/png로 fallback된 경우
+      // 대용량 PNG 방지를 위해 호환성 높은 고압축 image/jpeg로 재변환
+      if (blob && blob.type === 'image/webp') {
         const reader = new FileReader();
         reader.onloadend = () => {
           resolve(reader.result as string);
         };
         reader.readAsDataURL(blob);
       } else {
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        canvas.toBlob((jpegBlob) => {
+          if (jpegBlob) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              resolve(reader.result as string);
+            };
+            reader.readAsDataURL(jpegBlob);
+          } else {
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          }
+        }, 'image/jpeg', 0.85);
       }
-    }, mimeType, quality);
+    }, 'image/webp', 0.85);
   });
 };
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User as UserIcon } from 'lucide-react';
+import { getImageUrl } from '@/common/utils/imageUtils';
 import './UserAvatar.scss';
 
 export type UserAvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'huge' | number;
@@ -27,6 +28,7 @@ export default function UserAvatar({
     setHasError(false);
   }, [src]);
 
+  const resolvedSrc = getImageUrl(src || '');
   const displayName = name.trim();
   const initialChar = displayName ? displayName.charAt(0) : '';
   const altText = alt || displayName || '프로필';
@@ -43,11 +45,12 @@ export default function UserAvatar({
       style={sizeStyle}
       aria-label={altText}
     >
-      {src && !hasError ? (
+      {resolvedSrc && !hasError ? (
         <img
-          src={src}
+          src={resolvedSrc}
           alt={altText}
           className="user-avatar-img"
+          decoding="async"
           onError={() => setHasError(true)}
         />
       ) : initialChar ? (

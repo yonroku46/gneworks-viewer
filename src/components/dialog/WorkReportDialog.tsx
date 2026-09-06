@@ -8,6 +8,7 @@ import ImageCropDialog from './ImageCropDialog';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
 import PortalService from '@/api/service/PortalService';
+import { getImageUrl } from '@/common/utils/imageUtils';
 import { Plus, X, Check, AlertCircle, Building2 } from 'lucide-react';
 import './WorkReportDialog.scss';
 
@@ -180,7 +181,7 @@ export default function WorkReportDialog({
       const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
       setCropTarget({
         key,
-        rawSrc: photos[key]!,
+        rawSrc: getImageUrl(photos[key]!),
         title: slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)',
       });
     }
@@ -516,7 +517,7 @@ export default function WorkReportDialog({
                       <span className="photo-label">1. 신주소 대문</span>
                       {photos.photoDoor ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos.photoDoor} alt="신주소 대문" className="preview-img" />
+                          <img src={getImageUrl(photos.photoDoor)} alt="신주소 대문" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -529,7 +530,7 @@ export default function WorkReportDialog({
                       <span className="photo-label">2. 보급 전 ①</span>
                       {photos.photoBefore1 ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos.photoBefore1} alt="보급 전 ①" className="preview-img" />
+                          <img src={getImageUrl(photos.photoBefore1)} alt="보급 전 ①" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -539,7 +540,7 @@ export default function WorkReportDialog({
                       <span className="photo-label">3. 보급 후 ①</span>
                       {photos.photoAfter1 ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos.photoAfter1} alt="보급 후 ①" className="preview-img" />
+                          <img src={getImageUrl(photos.photoAfter1)} alt="보급 후 ①" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -549,7 +550,7 @@ export default function WorkReportDialog({
                       <span className="photo-label">4. 보급 전 ②</span>
                       {photos.photoBefore2 ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos.photoBefore2} alt="보급 전 ②" className="preview-img" />
+                          <img src={getImageUrl(photos.photoBefore2)} alt="보급 전 ②" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -559,7 +560,7 @@ export default function WorkReportDialog({
                       <span className="photo-label">5. 보급 후 ②</span>
                       {photos.photoAfter2 ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos.photoAfter2} alt="보급 후 ②" className="preview-img" />
+                          <img src={getImageUrl(photos.photoAfter2)} alt="보급 후 ②" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -588,7 +589,7 @@ export default function WorkReportDialog({
                 {confirmerSignature ? (
                   <div className="signature-display-box readonly">
                     <div className="signature-canvas-view">
-                      <img src={confirmerSignature} alt="확인자 서명" className="signature-result-img" />
+                      <img src={getImageUrl(confirmerSignature)} alt="확인자 서명" className="signature-result-img" />
                     </div>
                   </div>
                 ) : (
@@ -697,7 +698,7 @@ export default function WorkReportDialog({
                             onClick={() => handleReCrop('photoDoor')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos.photoDoor} alt="신주소 보이는 대문 등" className="preview-img" />
+                            <img src={getImageUrl(photos.photoDoor)} alt="신주소 보이는 대문 등" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
@@ -735,7 +736,7 @@ export default function WorkReportDialog({
                             onClick={() => handleReCrop('photoBefore1')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos.photoBefore1} alt="보급 전 ①" className="preview-img" />
+                            <img src={getImageUrl(photos.photoBefore1)} alt="보급 전 ①" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
@@ -770,7 +771,7 @@ export default function WorkReportDialog({
                             onClick={() => handleReCrop('photoAfter1')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos.photoAfter1} alt="보급 후 ①" className="preview-img" />
+                            <img src={getImageUrl(photos.photoAfter1)} alt="보급 후 ①" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
@@ -805,7 +806,7 @@ export default function WorkReportDialog({
                             onClick={() => handleReCrop('photoBefore2')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos.photoBefore2} alt="보급 전 ②" className="preview-img" />
+                            <img src={getImageUrl(photos.photoBefore2)} alt="보급 전 ②" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
@@ -840,7 +841,7 @@ export default function WorkReportDialog({
                             onClick={() => handleReCrop('photoAfter2')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos.photoAfter2} alt="보급 후 ②" className="preview-img" />
+                            <img src={getImageUrl(photos.photoAfter2)} alt="보급 후 ②" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
@@ -919,7 +920,7 @@ export default function WorkReportDialog({
                         onClick={() => setIsSignatureModalOpen(true)}
                       >
                         <div className="signature-canvas-view">
-                          <img src={confirmerSignature} alt="확인자 서명" className="signature-result-img" />
+                          <img src={getImageUrl(confirmerSignature)} alt="확인자 서명" className="signature-result-img" />
                         </div>
                         <div className="signature-overlay-actions" onClick={e => e.stopPropagation()}>
                           <button

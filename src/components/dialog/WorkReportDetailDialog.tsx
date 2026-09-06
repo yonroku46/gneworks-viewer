@@ -15,6 +15,7 @@ import AdminService from '@/api/service/AdminService';
 import StatusBadge from '@/components/common/StatusBadge';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import CustomSelect from '@/components/common/CustomSelect';
+import { getImageUrl } from '@/common/utils/imageUtils';
 import './WorkReportDetailDialog.scss';
 
 export interface WorkReportDetailDialogProps {
@@ -306,11 +307,11 @@ export default function WorkReportDetailDialog({
   };
 
   const getPhoto = (type: string): { url?: string; title?: string } | undefined => {
-    if (type === 'DOOR' && report.photoDoor) return { url: report.photoDoor, title: '대문' };
-    if (type === 'BEFORE1' && report.photoBefore1) return { url: report.photoBefore1, title: '설치 전 ①' };
-    if (type === 'AFTER1' && report.photoAfter1) return { url: report.photoAfter1, title: '설치 후 ①' };
-    if (type === 'BEFORE2' && report.photoBefore2) return { url: report.photoBefore2, title: '설치 전 ②' };
-    if (type === 'AFTER2' && report.photoAfter2) return { url: report.photoAfter2, title: '설치 후 ②' };
+    if (type === 'DOOR' && report.photoDoor) return { url: getImageUrl(report.photoDoor), title: '대문' };
+    if (type === 'BEFORE1' && report.photoBefore1) return { url: getImageUrl(report.photoBefore1), title: '설치 전 ①' };
+    if (type === 'AFTER1' && report.photoAfter1) return { url: getImageUrl(report.photoAfter1), title: '설치 후 ①' };
+    if (type === 'BEFORE2' && report.photoBefore2) return { url: getImageUrl(report.photoBefore2), title: '설치 전 ②' };
+    if (type === 'AFTER2' && report.photoAfter2) return { url: getImageUrl(report.photoAfter2), title: '설치 후 ②' };
     return undefined;
   };
 
@@ -338,6 +339,7 @@ export default function WorkReportDetailDialog({
               src={photo!.url} 
               alt={label} 
               className="preview-img" 
+              decoding="async"
               onError={(e) => {
                 e.currentTarget.src = '/assets/img/photo_placeholder.webp';
               }}
@@ -630,9 +632,10 @@ export default function WorkReportDetailDialog({
                 <div className="confirmer-sign-col">
                   <div className="signature-preview-frame">
                     <img 
-                      src={report.confirmerSignature || '/assets/img/sample_signature.svg'} 
+                      src={getImageUrl(report.confirmerSignature) || '/assets/img/sample_signature.svg'} 
                       alt="확인자 서명" 
                       className="confirmer-signature-img" 
+                      decoding="async"
                     />
                   </div>
                 </div>
@@ -708,9 +711,10 @@ export default function WorkReportDetailDialog({
                     <td className="stamp-cell stamp-sign-cell">
                       <div className="stamp-signature-frame">
                         <img
-                          src={docFormData.confirmerSignature || report.confirmerSignature || '/assets/img/sample_signature.svg'}
+                          src={getImageUrl(docFormData.confirmerSignature || report.confirmerSignature) || '/assets/img/sample_signature.svg'}
                           alt="확인자 서명"
                           className="stamp-signature-img"
+                          decoding="async"
                         />
                       </div>
                     </td>
@@ -855,6 +859,7 @@ export default function WorkReportDetailDialog({
                       src={doorPhoto.url} 
                       alt="신주소 보이는 대문 등" 
                       className="doc-preview-img" 
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src = '/assets/img/photo_placeholder.webp';
                       }}
@@ -874,6 +879,7 @@ export default function WorkReportDetailDialog({
                       src={before1Photo.url} 
                       alt="감지기 1 설치 전" 
                       className="doc-preview-img" 
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src = '/assets/img/photo_placeholder.webp';
                       }}
@@ -893,6 +899,7 @@ export default function WorkReportDetailDialog({
                       src={after1Photo.url} 
                       alt="감지기 1 설치 후" 
                       className="doc-preview-img" 
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src = '/assets/img/photo_placeholder.webp';
                       }}
@@ -912,6 +919,7 @@ export default function WorkReportDetailDialog({
                       src={before2Photo.url} 
                       alt="감지기 2 설치 전" 
                       className="doc-preview-img" 
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src = '/assets/img/photo_placeholder.webp';
                       }}
@@ -931,6 +939,7 @@ export default function WorkReportDetailDialog({
                       src={after2Photo.url} 
                       alt="감지기 2 설치 후" 
                       className="doc-preview-img" 
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src = '/assets/img/photo_placeholder.webp';
                       }}
