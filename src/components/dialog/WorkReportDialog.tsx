@@ -9,7 +9,7 @@ import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
 import PortalService from '@/api/service/PortalService';
 import { getImageUrl } from '@/common/utils/imageUtils';
-import { Plus, X, Check, AlertCircle, Building2 } from 'lucide-react';
+import { Plus, X, Check, AlertCircle, Building2, Loader2 } from 'lucide-react';
 import './WorkReportDialog.scss';
 
 interface WorkReportDialogProps {
@@ -198,6 +198,7 @@ export default function WorkReportDialog({
 
   // 닫기 전 변경사항 보호 (실제 수정 내역이 발생했을 때만 확인 모달 오픈)
   const handleSafeClose = () => {
+    if (isSubmitting) return;
     if (isReadOnly) {
       onClose();
       return;
@@ -440,7 +441,8 @@ export default function WorkReportDialog({
                     <button
                       type="button"
                       className="btn-wizard-prev"
-                      onClick={() => setStep(2)}
+                      disabled={isSubmitting}
+                      onClick={() => !isSubmitting && setStep(2)}
                     >
                       <span>이전</span>
                     </button>
@@ -448,11 +450,11 @@ export default function WorkReportDialog({
                       type="button"
                       className="btn-submit"
                       disabled={isSubmitting}
-                      onClick={() => handleSubmit()}
+                      onClick={() => !isSubmitting && handleSubmit()}
                     >
+                      {isSubmitting && <Loader2 size={16} className="btn-spinner" />}
                       <span>{isSubmitting ? '제출 중...' : '보고서 제출'}</span>
                     </button>
-
                   </>
                 )}
               </div>
@@ -998,7 +1000,6 @@ export default function WorkReportDialog({
           onCropComplete={(croppedWebPUrl) => {
             setPhotos(prev => ({ ...prev, [cropTarget.key]: croppedWebPUrl }));
             setCropTarget(undefined);
-            enqueueSnackbar('4:3 비율로 사진이 최적화되었습니다.', { variant: 'success' });
           }}
           disableBackdropClick={true}
         />
