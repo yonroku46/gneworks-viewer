@@ -6,7 +6,7 @@ import { useSnackbar } from 'notistack';
 import ProfileEditDialog from '@/components/dialog/ProfileEditDialog';
 import RegionAssignDialog from '@/components/dialog/RegionAssignDialog';
 import PortalService from '@/api/service/PortalService';
-import { isRegionMatch } from '@/data/koreaRegions';
+import { isRegionMatch } from '@/common/utils/regionUtils';
 import { 
   LogOut, 
   Settings,

@@ -7,9 +7,8 @@ import SignatureDialog from './SignatureDialog';
 import ImageCropDialog from './ImageCropDialog';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
-import { upsertReport } from '@/data/reportStorage';
-
-import { Plus, X, Check, AlertCircle, Building2, MapPin, Calendar, User } from 'lucide-react';
+import PortalService from '@/api/service/PortalService';
+import { Plus, X, Check, AlertCircle, Building2 } from 'lucide-react';
 import './WorkReportDialog.scss';
 
 interface WorkReportDialogProps {
@@ -58,8 +57,15 @@ export default function WorkReportDialog({
     };
   }, [site, household, existingReport]);
 
-  // 확인 완료 상태인 경우 수정 불가 (읽기 전용)
-  const isReadOnly = existingReport?.status === 'COMPLETED';
+  // 본인 작성 여부 확인
+  const isMyReport = useMemo(() => {
+    if (!existingReport) return true;
+    const authorId = existingReport.installerId || (existingReport as any).userId;
+    return !authorId || authorId === user?.userId;
+  }, [existingReport, user?.userId]);
+
+  // 확인 완료 상태이거나 다른 작업자가 작성한 보고서인 경우 수정 불가 (읽기 전용)
+  const isReadOnly = existingReport?.status === 'COMPLETED' || !isMyReport;
 
   const [installDate, setInstallDate] = useState('');
   const [reporterName, setReporterName] = useState('');
@@ -76,6 +82,7 @@ export default function WorkReportDialog({
 
   // 3-Step 마법사 진행 상태 (1: 세대·일자 확인, 2: 시공 사진 등록, 3: 서명 및 최종 제출)
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 다이얼로그 열릴 때의 원본 스냅샷 (실제 변경 사항이 있을 때만 닫기 확인 모달 띄우기 위함)
   const initialSnapshotRef = useRef<{
@@ -225,9 +232,9 @@ export default function WorkReportDialog({
   };
 
   // 보고서 제출
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (isReadOnly) return;
+    if (isReadOnly || isSubmitting) return;
 
     const missingSlots = REPORT_PHOTO_SLOTS.filter(slot => !photos[slot.key]);
     if (missingSlots.length > 0) {
@@ -250,40 +257,42 @@ export default function WorkReportDialog({
       return;
     }
 
-    upsertReport({
-      householdId: target.householdId,
-      siteId: target.siteId,
-      siteName: target.siteName,
-      sido: target.sido,
-      sigungu: target.sigungu,
-      eupmyeondong: target.eupmyeondong,
-      address: target.address,
-      dong: target.dong,
-      ho: target.ho,
-      headName: target.headName,
-      installDate,
-      reporterName,
-      installerId: user.userId,
-      visitorName: reporterName,
-      confirmerName: confirmerName.trim() || target.headName,
-      confirmerSignature,
-      photoDoor: photos.photoDoor || '',
-      photoBefore1: photos.photoBefore1 || '',
-      photoAfter1: photos.photoAfter1 || '',
-      photoBefore2: photos.photoBefore2 || '',
-      photoAfter2: photos.photoAfter2 || '',
-      remarks,
-    });
+    try {
+      setIsSubmitting(true);
+      await PortalService.submitReport({
+        householdId: target.householdId,
+        siteId: target.siteId,
+        dong: target.dong,
+        ho: target.ho,
+        headName: target.headName,
+        installDate,
+        reporterName,
+        confirmerName: confirmerName.trim() || target.headName,
+        confirmerSignature,
+        photoDoor: photos.photoDoor || '',
+        photoBefore1: photos.photoBefore1 || '',
+        photoAfter1: photos.photoAfter1 || '',
+        photoBefore2: photos.photoBefore2 || '',
+        photoAfter2: photos.photoAfter2 || '',
+        remarks,
+      });
 
-    enqueueSnackbar(`[${target.dong}동 ${target.ho}호] 작업 보고서가 성공적으로 등록되었습니다.`, {
-      variant: 'success',
-    });
+      enqueueSnackbar(`[${target.dong}동 ${target.ho}호] 작업 보고서가 성공적으로 등록되었습니다.`, {
+        variant: 'success',
+      });
 
-    if (onSubmitted) {
-      onSubmitted();
+      if (onSubmitted) {
+        onSubmitted();
+      }
+      onClose();
+    } catch (err: any) {
+      console.error('[WorkReportDialog] submitReport error:', err);
+      enqueueSnackbar(err?.message || '작업 보고서 제출 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
-    onClose();
   };
+
 
   return (
     <>
@@ -437,10 +446,12 @@ export default function WorkReportDialog({
                     <button
                       type="button"
                       className="btn-submit"
+                      disabled={isSubmitting}
                       onClick={() => handleSubmit()}
                     >
-                      <span>보고서 제출</span>
+                      <span>{isSubmitting ? '제출 중...' : '보고서 제출'}</span>
                     </button>
+
                   </>
                 )}
               </div>

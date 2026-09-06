@@ -9,7 +9,7 @@ import CustomSelect from '@/components/common/CustomSelect';
 import AdminService from '@/api/service/AdminService';
 import { useDaumPostcodePopup, Address } from 'react-daum-postcode';
 import { normalizeSidoName } from '@/utils/addressUtils';
-import { isRegionMatch } from '@/data/koreaRegions';
+import { isRegionMatch } from '@/common/utils/regionUtils';
 import UserAvatar from '@/components/common/UserAvatar';
 
 export interface SiteDetailDialogProps {

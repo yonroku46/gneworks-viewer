@@ -2,7 +2,8 @@
 
 import React, { useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { KOREA_ADMIN_REGIONS, getSigunguList } from '@/data/koreaRegions';
+import { KOREA_ADMIN_REGIONS } from '@/constants/regions';
+import { getSigunguList } from '@/common/utils/regionUtils';
 import CustomSelect from './CustomSelect';
 import './RegionSelector.scss';
 

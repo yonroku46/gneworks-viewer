@@ -24,12 +24,7 @@ import UserAvatar from '@/components/common/UserAvatar';
 import AccountDetailDialog from '@/components/dialog/AccountDetailDialog';
 import WorkReportDetailDialog from '@/components/dialog/WorkReportDetailDialog';
 import SiteDetailDialog from '@/components/dialog/SiteDetailDialog';
-import { getStoredReports, subscribeToReportsUpdate } from '@/data/reportStorage';
-import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
-import { getStoredUsers, subscribeToUsersUpdate } from '@/data/userStorage';
-import { INQUIRY_TYPE_MAP } from '@/data/inquiryData';
-import { getRegionWorkers } from '@/data/regionStorage';
-import { INITIAL_USERS_DATA } from '@/data/userData';
+import { INQUIRY_TYPE_MAP } from '@/constants/inquiry';
 import '../ManageLayout.scss';
 
 dayjs.locale('ko');
@@ -79,6 +74,7 @@ export default function ManageDashboard() {
 
   const [reports, setReports] = useState<WorkReport[]>([]);
   const [sites, setSites] = useState<SiteDetail[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [pendingInquirySummary, setPendingInquirySummary] = useState<{
     pendingCount: number;
     latestPendingInquiry?: Inquiry;
@@ -107,27 +103,35 @@ export default function ManageDashboard() {
     loadPendingInquirySummary();
   }, [loadPendingInquirySummary]);
 
-  // 2. Initial Load & Real-time Subscription (보고서 및 현장)
-  useEffect(() => {
-    setReports(getStoredReports());
-    setSites(getStoredSites());
-
-    const unsubReports = subscribeToReportsUpdate(newReports => {
-      setReports(newReports);
-    });
-    const unsubSites = subscribeToSitesUpdate(newSites => {
-      setSites(newSites);
-    });
-    const unsubUsers = subscribeToUsersUpdate(() => {
-      // 사용자 정보 변경 시 필요 시 갱신
-    });
-
-    return () => {
-      unsubReports();
-      unsubSites();
-      unsubUsers();
-    };
+  // 2. Initial Load from Backend API
+  const loadDashboardData = useCallback(async () => {
+    try {
+      const [reportList, siteList, userList] = await Promise.all([
+        AdminService.getReportList().catch(err => {
+          console.error('[Dashboard] getReportList error', err);
+          return [];
+        }),
+        AdminService.getSiteList().catch(err => {
+          console.error('[Dashboard] getSiteList error', err);
+          return [];
+        }),
+        AdminService.getUserList().catch(err => {
+          console.error('[Dashboard] getUserList error', err);
+          return [];
+        }),
+      ]);
+      setReports(reportList || []);
+      setSites(siteList || []);
+      setUsers(userList || []);
+    } catch (e) {
+      console.error('[Dashboard] loadDashboardData error', e);
+    }
   }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
 
   // 2. Filter Sites by Region
   const filteredSites = useMemo(() => {
@@ -190,7 +194,7 @@ export default function ManageDashboard() {
   const workerStats = useMemo(() => {
     // 실제 유저 프로필 사진 맵 구성
     const userProfileMap = new Map<string, string>();
-    INITIAL_USERS_DATA.forEach(u => {
+    users.forEach(u => {
       if (u.profileImg) {
         userProfileMap.set(u.userName, u.profileImg);
         userProfileMap.set(u.userId, u.profileImg);
@@ -209,7 +213,7 @@ export default function ManageDashboard() {
 
     // 1) 현재 선택된 권역의 사이트에 배정된 작업자 우선 등록
     filteredSites.forEach(site => {
-      const workers = getRegionWorkers(site.sido, site.sigungu);
+      const workers = site.assignedWorkers || [];
       workers.forEach(w => {
         const workerName = w.userName || '미지정';
         const key = workerName;
@@ -253,7 +257,7 @@ export default function ManageDashboard() {
     });
 
     return Array.from(map.values()).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
-  }, [filteredSites, filteredReports]);
+  }, [filteredSites, filteredReports, users]);
 
   // 6. Recent Reports Feed (Sorted by submission time descending)
   const recentReports = useMemo(() => {
@@ -287,8 +291,7 @@ export default function ManageDashboard() {
 
   // 8. 선택된 작업자의 전체 보고서 및 필터링된 보고서 (계정 상세 다이얼로그용)
   const handleOpenWorkerHistory = (workerName: string, workerPhone?: string) => {
-    const allUsers = getStoredUsers();
-    const user = allUsers.find(u => u.userName === workerName || (workerPhone && u.phoneNum === workerPhone));
+    const user = users.find(u => u.userName === workerName || (workerPhone && u.phoneNum === workerPhone));
     if (!user) {
       enqueueSnackbar(`[${workerName}] 사용자의 계정 정보를 찾을 수 없습니다.`, { variant: 'warning' });
       return;
@@ -697,6 +700,7 @@ export default function ManageDashboard() {
         onReportUpdated={(updated) => {
           setSelectedReport(updated);
           setReports(prev => prev.map(r => r.reportId === updated.reportId ? updated : r));
+          loadDashboardData();
         }}
       />
 

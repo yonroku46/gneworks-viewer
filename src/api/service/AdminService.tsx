@@ -432,6 +432,63 @@ class AdminService {
       throw error;
     }
   }
+
+  // ── [5. 시공 보고서 관리] ──────────────────────────────────────────
+
+  /**
+   * 시공 보고서 목록 조회
+   * GET /admin/report/list
+   */
+  async getReportList(params?: AdminReportSearchReq): Promise<WorkReport[]> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_REPORT_LIST, { params });
+      if (response && !response.hasErrors) {
+        const data = response.responseData as ListRes<WorkReport>;
+        return data?.list || [];
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch report list');
+    } catch (error) {
+      console.error('[AdminService] getReportList', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 시공 보고서 단건 상세 조회
+   * GET /admin/report/{reportId}
+   */
+  async getReportDetail(reportId: string): Promise<WorkReport> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_REPORT_DETAIL(reportId));
+      if (response && !response.hasErrors) {
+        return response.responseData as WorkReport;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch report detail');
+    } catch (error) {
+      console.error('[AdminService] getReportDetail', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 시공 보고서 상태 변경 (승인 / 반려 / 대기)
+   * PUT /admin/report/{reportId}/status
+   */
+  async updateReportStatus(
+    reportId: string,
+    data: { status: ReportStatus; fixReason?: string }
+  ): Promise<ActionRes> {
+    try {
+      const response: ApiResponse = await ApiInstance.put(ApiRoutes.ADMIN_REPORT_STATUS(reportId), data);
+      if (response && !response.hasErrors) {
+        return response.responseData as ActionRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to update report status');
+    } catch (error) {
+      console.error('[AdminService] updateReportStatus', error);
+      throw error;
+    }
+  }
 }
 
 export default AdminService.getInstance();

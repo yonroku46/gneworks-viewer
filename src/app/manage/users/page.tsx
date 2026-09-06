@@ -6,7 +6,6 @@ import AccountDetailDialog from '@/components/dialog/AccountDetailDialog';
 import UserAvatar from '@/components/common/UserAvatar';
 import CustomSelect from '@/components/common/CustomSelect';
 import SearchInput from '@/components/common/SearchInput';
-import { getStoredReports } from '@/data/reportStorage';
 import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
 import {
@@ -87,6 +86,7 @@ export default function AccountManagementPage() {
   useEffect(() => {
     loadUsers();
     loadSites();
+    loadReports();
   }, []);
 
   // Search & Filter States
@@ -99,10 +99,16 @@ export default function AccountManagementPage() {
   const [selectedUser, setSelectedUser] = useState<User>();
 
   // Master Reports Data for Work Performance Tab
-  const [allReports, setAllReports] = useState<WorkReport[]>(() => {
-    if (typeof window !== 'undefined') return getStoredReports();
-    return [];
-  });
+  const [allReports, setAllReports] = useState<WorkReport[]>([]);
+
+  const loadReports = async () => {
+    try {
+      const reportList = await AdminService.getReportList();
+      setAllReports(reportList || []);
+    } catch (err) {
+      console.error('[Admin] loadReports error:', err);
+    }
+  };
 
   // User Detail Initial Tab State
   const [detailInitialTab, setDetailInitialTab] = useState<'profile' | 'regions' | 'performance'>('performance');
@@ -111,9 +117,10 @@ export default function AccountManagementPage() {
   const handleOpenDetail = (user: User, initialTab: 'profile' | 'regions' | 'performance' = 'performance') => {
     setSelectedUser(user);
     setDetailInitialTab(initialTab);
-    setAllReports(getStoredReports());
+    loadReports();
     setIsDetailOpen(true);
   };
+
 
   // Helper to count reports for any user
   const getUserReportCount = (userId: string, userName: string) => {

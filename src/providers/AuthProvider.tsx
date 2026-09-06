@@ -147,6 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.removeItem('currentUser');
     setUser(undefined);
     router.replace('/login');
+    enqueueSnackbar('로그아웃 되었습니다.', {
+      variant: 'success',
+      preventDuplicate: true,
+    });
   };
 
   const updateUser = (updatedData: Partial<LoginUserRes>) => {

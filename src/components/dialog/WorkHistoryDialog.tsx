@@ -3,19 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
-
-import { getStoredReports, subscribeToReportsUpdate } from '@/data/reportStorage';
-import {
-  getStoredAssignedRegions,
-  subscribeToAssignedRegionsUpdate,
-} from '@/data/regionStorage';
-import {
-  Search,
-  ClipboardList,
-  RotateCcw,
-  ArrowUpDown,
-  X,
-} from 'lucide-react';
+import PortalService from '@/api/service/PortalService';
+import { Search, ClipboardList, RotateCcw, ArrowUpDown, X } from 'lucide-react';
 import WorkHistoryCard from '@/components/common/WorkHistoryCard';
 import './WorkHistoryDialog.scss';
 
@@ -43,17 +32,22 @@ export default function WorkHistoryDialog({
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
-    setReports(getStoredReports());
-    setAssignedRegions(getStoredAssignedRegions());
+    if (!isOpen) return;
 
-    const unsubReports = subscribeToReportsUpdate(reps => setReports(reps));
-    const unsubRegions = subscribeToAssignedRegionsUpdate(regs => setAssignedRegions(regs));
+    PortalService.getReports()
+      .then(res => setReports(res || []))
+      .catch(err => {
+        console.error('[WorkHistoryDialog] getReports error:', err);
+        setReports([]);
+      });
 
-    return () => {
-      unsubReports();
-      unsubRegions();
-    };
-  }, []);
+    PortalService.getAssignedRegions()
+      .then(regs => setAssignedRegions(regs || []))
+      .catch(err => {
+        console.error('[WorkHistoryDialog] getAssignedRegions error:', err);
+        setAssignedRegions([]);
+      });
+  }, [isOpen]);
 
   // Available unique regions with report counts
   const availableRegions = useMemo(() => {

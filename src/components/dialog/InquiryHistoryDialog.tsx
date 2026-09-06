@@ -4,8 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 import StatusBadge from '@/components/common/StatusBadge';
-import { getStoredInquiries, subscribeToInquiriesUpdate } from '@/data/inquiryStorage';
-import { INQUIRY_TYPE_MAP } from '@/data/inquiryData';
+import PortalService from '@/api/service/PortalService';
+import { INQUIRY_TYPE_MAP } from '@/constants/inquiry';
 import {
   Search,
   X,
@@ -29,15 +29,30 @@ export default function InquiryHistoryDialog({
   onOpenCreate,
 }: InquiryHistoryDialogProps) {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<InquiryStatusFilter>('all');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
-    setInquiries(getStoredInquiries());
-    const unsub = subscribeToInquiriesUpdate(items => setInquiries(items));
-    return () => unsub();
-  }, []);
+    if (!isOpen) return;
+    let isMounted = true;
+    setLoading(true);
+    PortalService.getMyInquiries()
+      .then(items => {
+        if (isMounted) setInquiries(items);
+      })
+      .catch(err => {
+        console.error('[InquiryHistoryDialog] fetch error', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
 
   const filteredInquiries = useMemo(() => {
     let result = [...inquiries];
@@ -161,7 +176,11 @@ export default function InquiryHistoryDialog({
       }
     >
       <div className="inquiry-list-body">
-        {filteredInquiries.length === 0 ? (
+        {loading ? (
+          <div className="inquiry-empty-state">
+            <p className="empty-title">문의 내역을 불러오는 중입니다...</p>
+          </div>
+        ) : filteredInquiries.length === 0 ? (
           <div className="inquiry-empty-state">
             <MessageCircle size={36} />
             <p className="empty-title">
@@ -177,14 +196,20 @@ export default function InquiryHistoryDialog({
               label: '일반 문의',
               badgeClass: 'type-general',
             };
-            const statusType: InquiryStatus = inq.processedFlg ? 'RESOLVED' : 'WAITING';
+            const statusType: InquiryStatus = (inq.processedFlg || inq.answerContents) ? 'RESOLVED' : 'WAITING';
+            const formattedCreateTime = inq.createTime && dayjs(inq.createTime).isValid()
+              ? dayjs(inq.createTime).format('YYYY-MM-DD HH:mm')
+              : (inq.createTime || '');
+            const formattedAnswerTime = inq.answerTime && dayjs(inq.answerTime).isValid()
+              ? dayjs(inq.answerTime).format('YYYY-MM-DD HH:mm')
+              : (inq.answerTime || '');
 
             return (
               <div key={inq.inquiryId} className="inquiry-item-card">
                 <div className="item-header">
                   <div className="header-meta-left">
                     <span className="type-tag">{typeInfo.label}</span>
-                    <span className="create-date">{inq.createTime}</span>
+                    {formattedCreateTime && <span className="create-date">{formattedCreateTime}</span>}
                   </div>
                   <StatusBadge status={statusType} size="sm" />
                 </div>
@@ -193,14 +218,14 @@ export default function InquiryHistoryDialog({
                   <p className="q-text">{inq.inquiryContents}</p>
                 </div>
 
-                {inq.processedFlg && (
+                {(inq.processedFlg || !!inq.answerContents) && (
                   <div className="item-answer-box">
                     <div className="answer-meta">
                       <div className="answerer-info">
                         <MessageCircle size={14} />
                         <span>관리자 답변 ({inq.answerUserName || '관리자'})</span>
                       </div>
-                      {inq.answerTime && <span className="answer-time">{inq.answerTime}</span>}
+                      {formattedAnswerTime && <span className="answer-time">{formattedAnswerTime}</span>}
                     </div>
                     <p className="answer-content">{inq.answerContents}</p>
                   </div>

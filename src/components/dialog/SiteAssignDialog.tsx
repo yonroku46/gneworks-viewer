@@ -4,7 +4,6 @@ import React, { useState, useMemo } from 'react';
 import SlideDialog from './SlideDialog';
 import RegionSelector from '@/components/common/RegionSelector';
 import SearchInput from '@/components/common/SearchInput';
-import { getRegionWorkers } from '@/data/regionStorage';
 import { Building2, Plus, MapPin, CheckCircle2, Users, Search } from 'lucide-react';
 import './SiteAssignDialog.scss';
 
@@ -87,7 +86,7 @@ export default function SiteAssignDialog({
           <div className="assign-sites-list">
             {filteredSites.length > 0 ? (
               filteredSites.map((site, idx) => {
-                const workers = getRegionWorkers(site.sido, site.sigungu);
+                const workers = site.assignedWorkers || [];
                 const isAssignedToMe = workers.some(w => w.userId === currentUserId);
                 const otherWorkers = workers.filter(w => w.userId !== currentUserId);
 

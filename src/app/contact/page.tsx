@@ -8,18 +8,8 @@ import { Clock, CheckCircle, Loader2, ShieldCheck } from 'lucide-react';
 import LandingNav from '@/components/layout/LandingNav';
 import LandingFooter from '@/components/layout/LandingFooter';
 import ContactService from '@/api/service/ContactService';
-import { addStoredInquiry } from '@/data/inquiryStorage';
+import { INQUIRY_TYPES } from '@/constants/inquiry';
 import './Contact.scss';
-
-const INQUIRY_TYPES = [
-  { value: '', label: '문의 유형을 선택해 주세요' },
-  { value: 'password_reset', label: '비밀번호 분실 / 재발급 요청' },
-  { value: 'account', label: '계정 신규 발급 / 권한 변경' },
-  { value: 'task_report', label: '작업 배정 및 현장 보고 문의' },
-  { value: 'bug', label: '시스템 오류 / 버그 신고' },
-  { value: 'feature', label: '기능 개선 및 추가 제안' },
-  { value: 'general', label: '기타 업무 및 시스템 문의' },
-];
 
 interface FormState {
   userName: string;
@@ -66,19 +56,7 @@ function ContactFormContent() {
     setSending(true);
 
     try {
-      try {
-        await ContactService.submitInquiry({
-          userName: form.userName,
-          userId: form.userId.trim() || undefined,
-          phoneNum: form.phoneNum,
-          inquiryType: form.inquiryType,
-          inquiryContents: form.inquiryContents,
-        });
-      } catch (err) {
-        // Mock fallback allowed
-      }
-
-      addStoredInquiry({
+      await ContactService.submitInquiry({
         userName: form.userName,
         userId: form.userId.trim() || undefined,
         phoneNum: form.phoneNum,

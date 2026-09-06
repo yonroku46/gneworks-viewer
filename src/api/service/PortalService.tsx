@@ -160,6 +160,78 @@ class PortalService {
       throw error;
     }
   }
+
+  // ── [3. 시공 보고서 관리] ──────────────────────────────────────────
+
+  /**
+   * 시공 보고서 등록 및 수정 (UPSERT)
+   * POST /portal/report
+   */
+  async submitReport(data: WorkReportReq): Promise<WorkReport> {
+    try {
+      const response: ApiResponse = await ApiInstance.post(ApiRoutes.PORTAL_REPORT_SUBMIT, data);
+      if (response && !response.hasErrors) {
+        return response.responseData as WorkReport;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to submit report');
+    } catch (error) {
+      console.error('[PortalService] submitReport', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 세대별 시공 보고서 조회
+   * GET /portal/report/{householdId}
+   */
+  async getReportByHouseholdId(householdId: string): Promise<WorkReport | null> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_REPORT_BY_HOUSEHOLD(householdId));
+      if (response && !response.hasErrors) {
+        return response.responseData as WorkReport;
+      }
+      return null;
+    } catch (error) {
+      console.error('[PortalService] getReportByHouseholdId', error);
+      return null;
+    }
+  }
+
+  /**
+   * 시공 보고서 목록 조회 (담당 현장 또는 본인 작성)
+   * GET /portal/reports
+   */
+  async getReports(params?: { siteId?: string }): Promise<WorkReport[]> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_REPORTS, { params });
+      if (response && !response.hasErrors) {
+        const data = response.responseData as ListRes<WorkReport>;
+        return data?.list || [];
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch reports');
+    } catch (error) {
+      console.error('[PortalService] getReports', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 본인의 문의 및 답변 내역 목록 조회
+   * GET /portal/inquiries
+   */
+  async getMyInquiries(): Promise<Inquiry[]> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_INQUIRIES);
+      if (response && !response.hasErrors) {
+        const data = response.responseData as ListRes<Inquiry>;
+        return data?.list || [];
+      }
+      return [];
+    } catch (error) {
+      console.error('[PortalService] getMyInquiries', error);
+      return [];
+    }
+  }
 }
 
 export default PortalService.getInstance();

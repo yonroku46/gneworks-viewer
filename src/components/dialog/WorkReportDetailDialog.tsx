@@ -11,8 +11,7 @@ import {
 import { useSnackbar } from 'notistack';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-
-import { saveStoredReports, getStoredReports } from '@/data/reportStorage';
+import AdminService from '@/api/service/AdminService';
 import StatusBadge from '@/components/common/StatusBadge';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import CustomSelect from '@/components/common/CustomSelect';
@@ -24,7 +23,6 @@ export interface WorkReportDetailDialogProps {
   onClose: () => void;
   onReportUpdated?: (updated: WorkReport) => void;
   onOpenStatusModal?: (report: WorkReport) => void;
-  isManageWorkPage?: boolean;
 }
 
 export default function WorkReportDetailDialog({
@@ -33,7 +31,6 @@ export default function WorkReportDetailDialog({
   onClose,
   onReportUpdated,
   onOpenStatusModal,
-  isManageWorkPage = false,
 }: WorkReportDetailDialogProps) {
   const { enqueueSnackbar } = useSnackbar();
 
@@ -112,25 +109,36 @@ export default function WorkReportDetailDialog({
     }
   };
 
-  const handleSubmitInternalStatus = (e: React.FormEvent) => {
+  const handleSubmitInternalStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!report) return;
 
-    const updated: WorkReport = {
-      ...report,
-      status: statusFormData.status,
-      fixReason: statusFormData.status === 'REJECTED' ? statusFormData.fixReason : '',
-    };
-
-    const allReports = getStoredReports();
-    const nextReports = allReports.map(r => r.reportId === updated.reportId ? updated : r);
-    saveStoredReports(nextReports);
-
-    if (onReportUpdated) {
-      onReportUpdated(updated);
+    if (statusFormData.status === 'REJECTED' && !statusFormData.fixReason.trim()) {
+      enqueueSnackbar('작업자가 확인할 수 있도록 반려 사유를 작성해 주세요.', { variant: 'warning' });
+      return;
     }
-    setIsInternalStatusModalOpen(false);
-    enqueueSnackbar('작업 보고서 상태가 성공적으로 변경되었습니다.', { variant: 'success' });
+
+    try {
+      await AdminService.updateReportStatus(report.reportId, {
+        status: statusFormData.status,
+        fixReason: statusFormData.status === 'REJECTED' ? statusFormData.fixReason.trim() : '',
+      });
+
+      const updated: WorkReport = {
+        ...report,
+        status: statusFormData.status,
+        fixReason: statusFormData.status === 'REJECTED' ? statusFormData.fixReason.trim() : '',
+      };
+
+      if (onReportUpdated) {
+        onReportUpdated(updated);
+      }
+      setIsInternalStatusModalOpen(false);
+      enqueueSnackbar('작업 보고서 상태가 성공적으로 변경되었습니다.', { variant: 'success' });
+    } catch (err: any) {
+      console.error('[WorkReportDetailDialog] updateReportStatus error:', err);
+      enqueueSnackbar(err?.message || '상태 변경 중 오류가 발생했습니다.', { variant: 'error' });
+    }
   };
 
   const handleSaveReviewForm = () => {
@@ -150,10 +158,6 @@ export default function WorkReportDetailDialog({
       confirmerName: docFormData.confirmerName,
       remarks: docFormData.remarks,
     };
-
-    const allReports = getStoredReports();
-    const nextReports = allReports.map(r => r.reportId === updated.reportId ? updated : r);
-    saveStoredReports(nextReports);
 
     if (onReportUpdated) {
       onReportUpdated(updated);
@@ -213,15 +217,11 @@ export default function WorkReportDetailDialog({
       remarks: docFormData.remarks,
     };
 
-    // 로컬 스토리지에 영구 저장
-    const allReports = getStoredReports();
-    const nextReports = allReports.map(r => r.reportId === updated.reportId ? updated : r);
-    saveStoredReports(nextReports);
-
     if (onReportUpdated) {
       onReportUpdated(updated);
     }
     setIsDocEditing(false);
+
     enqueueSnackbar('보급지원확인서 내용이 저장되었습니다.', { variant: 'success' });
   };
 

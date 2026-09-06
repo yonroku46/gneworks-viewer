@@ -3777,12 +3777,7 @@
   }
   .settings-layout-grid {
     display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: 1.5rem;
-  }
-  .settings-right-column {
-    display: flex;
-    flex-direction: column;
+    grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
   }
   .settings-card {

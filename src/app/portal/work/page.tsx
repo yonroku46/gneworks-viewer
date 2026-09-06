@@ -3,13 +3,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
+import { useSnackbar } from 'notistack';
 import PortalService from '@/api/service/PortalService';
-import { isRegionMatch } from '@/data/koreaRegions';
-import {
-  getStoredReports,
-  subscribeToReportsUpdate,
-} from '@/data/reportStorage';
-
+import { isRegionMatch } from '@/common/utils/regionUtils';
 import WorkReportDialog from '@/components/dialog/WorkReportDialog';
 import Skeleton from '@/components/contents/Skeleton';
 import {
@@ -31,28 +27,16 @@ import './Work.scss';
 export const normalizeReportStatus = (status?: string): ReportStatus => {
   if (!status) return 'UNSUBMITTED';
   const s = String(status).toUpperCase();
-  if (s === 'COMPLETED' || s === '확인완료' || s === '설치완료' || s === '완료') return 'COMPLETED';
-  if (s === 'PENDING' || s === '검토대기' || s === '대기' || s === '처리중') return 'PENDING';
-  if (s === 'REJECTED' || s === '수정필요' || s === '반려') return 'REJECTED';
+  if (s === 'COMPLETED' || s === 'PENDING' || s === 'REJECTED') return s as ReportStatus;
   return 'UNSUBMITTED';
 };
 
-const STATUS_KEY_MAP: Record<string, string> = {
-  COMPLETED: 'completed',
-  PENDING: 'pending',
-  REJECTED: 'revise',
-  UNSUBMITTED: 'unsubmitted',
-  확인완료: 'completed',
-  검토대기: 'pending',
-  수정필요: 'revise',
-  미제출: 'unsubmitted',
-  설치완료: 'completed',
-};
-
-const getStatusKey = (status?: string): string => {
-  if (!status) return 'unsubmitted';
+const getStatusKey = (status?: ReportStatus | string): WorkStatusFilter => {
   const normalized = normalizeReportStatus(status);
-  return STATUS_KEY_MAP[normalized] || 'unsubmitted';
+  if (normalized === 'COMPLETED') return 'completed';
+  if (normalized === 'PENDING') return 'pending';
+  if (normalized === 'REJECTED') return 'revise';
+  return 'unsubmitted';
 };
 
 const FILTER_OPTIONS: { value: WorkStatusFilter; label: string; shortLabel: string; dotClass?: string }[] = [
@@ -66,11 +50,11 @@ const FILTER_OPTIONS: { value: WorkStatusFilter; label: string; shortLabel: stri
 
 export default function PortalWorkPage() {
   const { user } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
 
   // Storage states
   const [allSites, setAllSites] = useState<SiteDetail[]>([]);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
-  const [reports, setReports] = useState<WorkReport[]>([]);
 
   // Filter & Search states
   const [selectedRegionId, setSelectedRegionId] = useState<string>('ALL');
@@ -125,9 +109,8 @@ export default function PortalWorkPage() {
     };
   }, [isFilterMenuOpen]);
 
-  // Report dialog target
   const [selectedSite, setSelectedSite] = useState<SiteDetail>();
-  const [selectedHousehold, setSelectedHousehold] = useState<Household>();
+  const [selectedHousehold, setSelectedHousehold] = useState<HouseholdRes>();
   const [selectedReport, setSelectedReport] = useState<WorkReport>();
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,22 +138,7 @@ export default function PortalWorkPage() {
 
   useEffect(() => {
     loadInitialData();
-    setReports(getStoredReports());
-
-    const unsubReports = subscribeToReportsUpdate(reps => setReports(reps));
-    return () => {
-      unsubReports();
-    };
   }, [loadInitialData]);
-
-  // 보고서 매핑 맵: `siteName_dong_ho` => WorkReport
-  const reportMap = useMemo(() => {
-    const map = new Map<string, WorkReport>();
-    reports.forEach(r => {
-      map.set(`${r.siteName}_${r.dong}_${r.ho}`, r);
-    });
-    return map;
-  }, [reports]);
 
   // 1. 담당 지역에 속하는 현장들만 필터링 (isRegionMatch 유연 매칭)
   const assignedSites = useMemo(() => {
@@ -221,9 +189,7 @@ export default function PortalWorkPage() {
 
           // 2. 작업 상태 필터링
           if (statusFilter !== 'all') {
-            const reportKey = `${site.name}_${h.dong}_${h.ho}`;
-            const report = reportMap.get(reportKey);
-            const statusKey = report ? getStatusKey(report.status) : 'unsubmitted';
+            const statusKey = h.reportStatus ? getStatusKey(h.reportStatus) : 'unsubmitted';
 
             if (statusFilter === 'uncompleted') {
               if (statusKey === 'completed') return false;
@@ -241,7 +207,7 @@ export default function PortalWorkPage() {
         };
       })
       .filter(item => item.households.length > 0);
-  }, [assignedSites, searchQuery, statusFilter, reportMap]);
+  }, [assignedSites, searchQuery, statusFilter]);
 
   // 현장 접기/펼치기 토글
   const toggleSiteExpand = (siteId: string) => {
@@ -249,11 +215,30 @@ export default function PortalWorkPage() {
   };
 
   // 보고서 작성 다이얼로그 열기
-  const handleOpenReport = (site: SiteDetail, household: Household) => {
-    const key = `${site.name}_${household.dong}_${household.ho}`;
+  const handleOpenReport = async (site: SiteDetail, household: HouseholdRes) => {
+    // 다른 작업자가 이미 제출한 세대인 경우 알림 띄우고 조회/수정 차단
+    if (household.reportId) {
+      const isMyReport = Boolean(household.reportUserId && household.reportUserId === user?.userId);
+      if (!isMyReport) {
+        enqueueSnackbar('다른 작업자가 이미 완료한 보고서입니다.', { variant: 'warning' });
+        return;
+      }
+    }
+
+    // 기존 보고서 상세 로드 (수정 또는 조회용)
+    let report: WorkReport | undefined = undefined;
+    if (household.reportId) {
+      try {
+        const fetched = await PortalService.getReportByHouseholdId(household.householdId);
+        if (fetched) report = fetched;
+      } catch (err) {
+        console.error('[PortalWorkPage] getReportByHouseholdId error', err);
+      }
+    }
+
     setSelectedSite(site);
     setSelectedHousehold(household);
-    setSelectedReport(reportMap.get(key));
+    setSelectedReport(report);
     setIsReportDialogOpen(true);
   };
 
@@ -446,15 +431,8 @@ export default function PortalWorkPage() {
             const isExpanded = expandedSiteIds[site.siteId] ?? false;
 
             // 현장 내 세대들의 보고서 통계
-            const submittedCount = households.filter(h => {
-              const r = reportMap.get(`${site.name}_${h.dong}_${h.ho}`);
-              return r && r.status === 'COMPLETED';
-            }).length;
-
-            const pendingCount = households.filter(h => {
-              const r = reportMap.get(`${site.name}_${h.dong}_${h.ho}`);
-              return r && r.status === 'PENDING';
-            }).length;
+            const submittedCount = households.filter(h => h.reportStatus === 'COMPLETED').length;
+            const pendingCount = households.filter(h => h.reportStatus === 'PENDING').length;
 
             const total = households.length;
             const progressPercent = total > 0 ? Math.round((submittedCount / total) * 100) : 0;
@@ -502,11 +480,13 @@ export default function PortalWorkPage() {
                 {isExpanded && (
                   <div className="households-list">
                     {households.map(household => {
-                      const reportKey = `${site.name}_${household.dong}_${household.ho}`;
-                      const report = reportMap.get(reportKey);
-
-                      const statusType: ReportStatus = report ? normalizeReportStatus(report.status) : 'UNSUBMITTED';
+                      const statusType: ReportStatus = household.reportStatus
+                        ? normalizeReportStatus(household.reportStatus)
+                        : 'UNSUBMITTED';
                       const statusKey = getStatusKey(statusType);
+                      const isOtherWorker = Boolean(
+                        household.reportUserId && household.reportUserId !== user?.userId
+                      );
 
                       return (
                         <div key={household.householdId} className={`household-row status-${statusKey}`}>
@@ -528,15 +508,18 @@ export default function PortalWorkPage() {
                             <div className="household-actions">
                               <button
                                 type="button"
-                                className={`btn-report-action ${statusType === 'UNSUBMITTED' ? 'primary' : 'secondary'}`}
+                                className={`btn-report-action ${statusType === 'UNSUBMITTED' ? 'primary' : 'secondary'} ${isOtherWorker ? 'other-worker' : ''}`}
                                 onClick={() => handleOpenReport(site, household)}
+                                title={isOtherWorker ? '다른 작업자가 완료한 세대입니다.' : undefined}
                               >
                                 <span>
-                                  {statusType === 'COMPLETED'
-                                    ? '보고서 조회'
-                                    : statusType === 'UNSUBMITTED'
-                                      ? '보고서 작성'
-                                      : '보고서 수정'}
+                                  {isOtherWorker
+                                    ? '제출 완료'
+                                    : statusType === 'COMPLETED'
+                                      ? '보고서 조회'
+                                      : statusType === 'UNSUBMITTED'
+                                        ? '보고서 작성'
+                                        : '보고서 수정'}
                                 </span>
                               </button>
                             </div>
@@ -564,8 +547,9 @@ export default function PortalWorkPage() {
         site={selectedSite}
         household={selectedHousehold}
         existingReport={selectedReport}
-        onSubmitted={() => setReports(getStoredReports())}
+        onSubmitted={loadInitialData}
       />
+
     </div>
   );
 }

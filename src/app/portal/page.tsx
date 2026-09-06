@@ -17,23 +17,23 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import PortalService from '@/api/service/PortalService';
-import { isRegionMatch } from '@/data/koreaRegions';
-import {
-  getStoredReports,
-  subscribeToReportsUpdate,
-} from '@/data/reportStorage';
+import { isRegionMatch } from '@/common/utils/regionUtils';
 
 import WorkReportDialog from '@/components/dialog/WorkReportDialog';
 import WorkHistoryDialog from '@/components/dialog/WorkHistoryDialog';
 import InquiryHistoryDialog from '@/components/dialog/InquiryHistoryDialog';
 import WorkHistoryCard from '@/components/common/WorkHistoryCard';
+import Skeleton from '@/components/contents/Skeleton';
+import { useSnackbar } from 'notistack';
 import './Portal.scss';
 
 export default function PortalPage() {
   const { user } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   const displayName = user?.userName || '현장 작업자';
 
-  // API states
+  // Loading & API states
+  const [loading, setLoading] = useState(true);
   const [allSites, setAllSites] = useState<SiteDetail[]>([]);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [reports, setReports] = useState<WorkReport[]>([]);
@@ -44,21 +44,35 @@ export default function PortalPage() {
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isInquiryHistoryOpen, setIsInquiryHistoryOpen] = useState(false);
 
-  useEffect(() => {
-    PortalService.getAssignedRegions()
-      .then(regions => setAssignedRegions(regions || []))
-      .catch(err => console.error('[PortalPage] getAssignedRegions error', err));
+  const loadPortalData = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const [regions, sites, reps] = await Promise.all([
+        PortalService.getAssignedRegions().catch(err => {
+          console.error('[PortalPage] getAssignedRegions error', err);
+          return [];
+        }),
+        PortalService.getSites({ includeHouseholds: true }).catch(err => {
+          console.error('[PortalPage] getSites error', err);
+          return [];
+        }),
+        PortalService.getReports().catch(err => {
+          console.error('[PortalPage] getReports error', err);
+          return [];
+        }),
+      ]);
 
-    PortalService.getSites({ includeHouseholds: true })
-      .then(sites => setAllSites(sites || []))
-      .catch(err => console.error('[PortalPage] getSites error', err));
-
-    setReports(getStoredReports());
-    const unsubReports = subscribeToReportsUpdate(reps => setReports(reps));
-    return () => {
-      unsubReports();
-    };
+      setAssignedRegions(regions || []);
+      setAllSites(sites || []);
+      setReports(reps || []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadPortalData();
+  }, [loadPortalData]);
 
   // 담당 지역의 현장들 (isRegionMatch 유연 매칭)
   const assignedSites = useMemo(() => {
@@ -120,6 +134,14 @@ export default function PortalPage() {
 
   // 이력 항목 클릭 시 보고서 다이얼로그 열기
   const handleOpenReportFromHistory = (report: WorkReport) => {
+    const isMyReport = Boolean(
+      (report.installerId && report.installerId === user?.userId) ||
+      ((report as any).userId && (report as any).userId === user?.userId)
+    );
+    if (!isMyReport) {
+      enqueueSnackbar('다른 작업자가 이미 완료한 보고서입니다.', { variant: 'warning' });
+      return;
+    }
     setSelectedReport(report);
     setIsReportDialogOpen(true);
   };
@@ -146,7 +168,11 @@ export default function PortalPage() {
             </div>
           </div>
           <div className="stat-main">
-            <h3 className="stat-value">{stats.completed}<span>건</span></h3>
+            {loading ? (
+              <Skeleton variant="rect" className="skeleton-stat-num" />
+            ) : (
+              <h3 className="stat-value">{stats.completed}<span>건</span></h3>
+            )}
           </div>
           <div className="stat-footer">
             <span className="sub-note">승인 완료된 보고서</span>
@@ -161,7 +187,11 @@ export default function PortalPage() {
             </div>
           </div>
           <div className="stat-main">
-            <h3 className="stat-value">{stats.pending}<span>건</span></h3>
+            {loading ? (
+              <Skeleton variant="rect" className="skeleton-stat-num" />
+            ) : (
+              <h3 className="stat-value">{stats.pending}<span>건</span></h3>
+            )}
           </div>
           <div className="stat-footer">
             <span className="sub-note">관리자 심사 대기</span>
@@ -176,7 +206,11 @@ export default function PortalPage() {
             </div>
           </div>
           <div className="stat-main">
-            <h3 className="stat-value">{stats.revise}<span>건</span></h3>
+            {loading ? (
+              <Skeleton variant="rect" className="skeleton-stat-num" />
+            ) : (
+              <h3 className="stat-value">{stats.revise}<span>건</span></h3>
+            )}
           </div>
           <div className="stat-footer">
             <span className={`sub-note ${stats.revise > 0 ? 'danger-note' : ''}`}>
@@ -193,7 +227,11 @@ export default function PortalPage() {
             </div>
           </div>
           <div className="stat-main">
-            <h3 className="stat-value">{stats.todayCount}<span>건</span></h3>
+            {loading ? (
+              <Skeleton variant="rect" className="skeleton-stat-num" />
+            ) : (
+              <h3 className="stat-value">{stats.todayCount}<span>건</span></h3>
+            )}
           </div>
           <div className="stat-footer">
             <span className="sub-note">금일 신규 등록</span>
@@ -215,12 +253,27 @@ export default function PortalPage() {
           </button>
         </div>
 
-        {recentReports.length === 0 ? (
+        {loading ? (
+          <div className="recent-works-skeleton-list">
+            {[1, 2, 3].map(idx => (
+              <div key={idx} className="work-history-card-skeleton">
+                <Skeleton variant="rect" className="skeleton-avatar" />
+                <div className="skeleton-body">
+                  <Skeleton variant="text" className="skeleton-site" />
+                  <Skeleton variant="text" className="skeleton-unit" />
+                  <Skeleton variant="text" className="skeleton-sub" />
+                </div>
+                <Skeleton variant="rect" className="skeleton-arrow" />
+              </div>
+            ))}
+          </div>
+        ) : recentReports.length === 0 ? (
           <div className="recent-works-empty">
             <ClipboardCheck size={36} className="empty-icon" />
-            <p className="empty-title">아직 등록된 작업 이력이 없습니다.</p>
+            <p className="empty-title">아직 등록된 작업 이력이 없습니다</p>
             <p className="empty-desc">
-              [작업 목록]에서 배정된 세대를 선택하고 시공 사진과 보고서를 등록해 보세요.
+              [작업 목록]에서 배정된 세대를 선택하고<br />
+              시공 사진과 보고서를 등록해 보세요.
             </p>
             <Link href="/portal/work" className="btn-start-work">
               작업 시작하기
@@ -295,6 +348,7 @@ export default function PortalPage() {
           setSelectedReport(undefined);
         }}
         existingReport={selectedReport}
+        onSubmitted={loadPortalData}
       />
 
       {/* ── WORK HISTORY SEARCH & FILTER DIALOG ── */}

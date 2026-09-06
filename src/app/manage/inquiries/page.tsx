@@ -20,7 +20,7 @@ import StatusBadge from '@/components/common/StatusBadge';
 import TableLoadingRow from '@/components/common/TableLoadingRow';
 import AdminService from '@/api/service/AdminService';
 import { useAuth } from '@/providers/AuthProvider';
-import { INQUIRY_TYPE_MAP } from '@/data/inquiryData';
+import { INQUIRY_TYPE_MAP } from '@/constants/inquiry';
 import '../ManageLayout.scss';
 
 dayjs.locale('ko');

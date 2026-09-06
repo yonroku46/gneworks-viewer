@@ -23,9 +23,7 @@ import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
 import SearchInput from '@/components/common/SearchInput';
 import StatusBadge, { STATUS_LABEL_MAP } from '@/components/common/StatusBadge';
-import { INITIAL_REPORTS_DATA } from '@/data/reportData';
-import { getStoredReports, subscribeToReportsUpdate } from '@/data/reportStorage';
-import { getStoredSites } from '@/data/siteStorage';
+import AdminService from '@/api/service/AdminService';
 import '../ManageLayout.scss';
 
 dayjs.locale('ko');
@@ -34,18 +32,34 @@ export default function ManageWorkPage() {
   const { enqueueSnackbar } = useSnackbar();
 
   // Master Reports Data
-  const [reports, setReports] = useState<WorkReport[]>(INITIAL_REPORTS_DATA);
+  const [reports, setReports] = useState<WorkReport[]>([]);
   const [sites, setSites] = useState<SiteDetail[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load from Storage & Subscribe to Updates
-  React.useEffect(() => {
-    setReports(getStoredReports());
-    setSites(getStoredSites());
-    const unsub = subscribeToReportsUpdate(newReports => {
-      setReports(newReports);
-    });
-    return () => unsub();
+  // Load from Backend API
+  const loadData = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [reportList, siteList] = await Promise.all([
+        AdminService.getReportList().catch(err => {
+          console.error('[ManageWorkPage] getReportList error', err);
+          return [];
+        }),
+        AdminService.getSiteList().catch(err => {
+          console.error('[ManageWorkPage] getSiteList error', err);
+          return [];
+        }),
+      ]);
+      setReports(reportList || []);
+      setSites(siteList || []);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Region State for Common RegionSelector (Global Shared State)
   const { region, setRegion } = useManageRegion();
@@ -242,7 +256,7 @@ export default function ManageWorkPage() {
   };
 
   // Submit Status Change
-  const handleSubmitStatusChange = (e: React.FormEvent) => {
+  const handleSubmitStatusChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetReport) return;
 
@@ -251,24 +265,35 @@ export default function ManageWorkPage() {
       return;
     }
 
-    const updatedReport: WorkReport = {
-      ...targetReport,
-      status: statusFormData.status,
-      fixReason: statusFormData.status === 'REJECTED' ? statusFormData.fixReason.trim() : '',
-    };
+    try {
+      await AdminService.updateReportStatus(targetReport.reportId, {
+        status: statusFormData.status,
+        fixReason: statusFormData.status === 'REJECTED' ? statusFormData.fixReason.trim() : '',
+      });
 
-    setReports(prev => prev.map(r => (r.reportId === updatedReport.reportId ? updatedReport : r)));
+      const updatedReport: WorkReport = {
+        ...targetReport,
+        status: statusFormData.status,
+        fixReason: statusFormData.status === 'REJECTED' ? statusFormData.fixReason.trim() : '',
+      };
 
-    if (selectedReport && selectedReport.reportId === updatedReport.reportId) {
-      setSelectedReport(updatedReport);
+      setReports(prev => prev.map(r => (r.reportId === updatedReport.reportId ? updatedReport : r)));
+
+      if (selectedReport && selectedReport.reportId === updatedReport.reportId) {
+        setSelectedReport(updatedReport);
+      }
+
+      setIsStatusModalOpen(false);
+      const statusLabel = STATUS_LABEL_MAP[updatedReport.status] || updatedReport.status;
+      enqueueSnackbar(`[${updatedReport.siteName} ${updatedReport.dong}동 ${updatedReport.ho}호] 상태가 '${statusLabel}'(으)로 변경되었습니다.`, {
+        variant: 'success',
+      });
+    } catch (err: any) {
+      console.error('[ManageWorkPage] updateReportStatus error:', err);
+      enqueueSnackbar(err?.message || '상태 변경 중 오류가 발생했습니다.', { variant: 'error' });
     }
-
-    setIsStatusModalOpen(false);
-    const statusLabel = STATUS_LABEL_MAP[updatedReport.status] || updatedReport.status;
-    enqueueSnackbar(`[${updatedReport.siteName} ${updatedReport.dong}동 ${updatedReport.ho}호] 상태가 '${statusLabel}'(으)로 변경되었습니다.`, {
-      variant: 'success',
-    });
   };
+
 
   // Region Label Display
   const regionLabel = useMemo(() => {
@@ -459,7 +484,6 @@ export default function ManageWorkPage() {
         isOpen={!!selectedReport && !isStatusModalOpen}
         report={selectedReport}
         onClose={() => setSelectedReport(undefined)}
-        isManageWorkPage={true}
         onOpenStatusModal={(rep) => handleOpenStatusModal(rep)}
         onReportUpdated={(updated) => {
           setSelectedReport(updated);

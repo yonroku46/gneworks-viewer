@@ -134,6 +134,37 @@ declare global {
     answerContents: string;
     processedFlg: boolean;
   }
+  interface AdminReportSearchReq {
+    sido?: string;
+    sigungu?: string;
+    eupmyeondong?: string;
+    status?: string;
+    installStartDate?: string;
+    installEndDate?: string;
+    reportStartDate?: string;
+    reportEndDate?: string;
+    query?: string;
+    siteId?: string;
+    userId?: string;
+  }
+  interface WorkReportReq {
+    householdId?: string;
+    siteId?: string;
+    dong?: string;
+    ho?: string;
+    headName?: string;
+    installDate?: string;
+    reporterName?: string;
+    confirmerName?: string;
+    confirmerSignature?: string;
+    photoDoor?: string;
+    photoBefore1?: string;
+    photoAfter1?: string;
+    photoBefore2?: string;
+    photoAfter2?: string;
+    status?: ReportStatus;
+    remarks?: string;
+  }
   interface AdminInquiryPendingSummary {
     pendingCount: number;
     latestPendingInquiry?: Inquiry;
@@ -231,12 +262,19 @@ declare global {
     remarks?: string;
     createTime: string;
   }
+  interface HouseholdRes extends Household {
+    reportId?: string;
+    reportStatus?: ReportStatus;
+    reportUserId?: string;
+    reporterName?: string;
+    reportTime?: string;
+  }
   interface SiteDetail extends Site {
     dongCount: number;
     totalHouseholds: number;
     completedHouseholds: number;
     status: SiteStatus;
-    households: Household[];
+    households: HouseholdRes[];
     assignedWorkers?: RegionWorkerUser[];
   }
 }

@@ -46,6 +46,11 @@ const ADMIN_INQUIRY_DETAIL = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inq
 const ADMIN_INQUIRY_ANSWER = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inquiryId}/answer`;
 const ADMIN_INQUIRY_DELETE = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inquiryId}`;
 
+// admin (report)
+const ADMIN_REPORT_LIST = `${ADMIN_ROOT}/report/list`;
+const ADMIN_REPORT_DETAIL = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}`;
+const ADMIN_REPORT_STATUS = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}/status`;
+
 // portal
 const PORTAL_ROOT = `${ROOT}/portal`;
 const PORTAL_PROFILE = `${PORTAL_ROOT}/profile`;
@@ -54,6 +59,10 @@ const PORTAL_REGION_DELETE = (regionId: string) => `${PORTAL_ROOT}/regions/${reg
 const PORTAL_FIRE_REGIONS = `${PORTAL_ROOT}/fire-regions`;
 const PORTAL_SITES = `${PORTAL_ROOT}/sites`;
 const PORTAL_SITE_DETAIL = (siteId: string) => `${PORTAL_ROOT}/sites/${siteId}`;
+const PORTAL_REPORT_SUBMIT = `${PORTAL_ROOT}/report`;
+const PORTAL_REPORT_BY_HOUSEHOLD = (householdId: string) => `${PORTAL_ROOT}/report/${householdId}`;
+const PORTAL_REPORTS = `${PORTAL_ROOT}/reports`;
+const PORTAL_INQUIRIES = `${PORTAL_ROOT}/inquiries`;
 
 const ApiRoutes = {
   AUTH_LOGIN,
@@ -84,12 +93,19 @@ const ApiRoutes = {
   ADMIN_INQUIRY_DETAIL,
   ADMIN_INQUIRY_ANSWER,
   ADMIN_INQUIRY_DELETE,
+  ADMIN_REPORT_LIST,
+  ADMIN_REPORT_DETAIL,
+  ADMIN_REPORT_STATUS,
   PORTAL_PROFILE,
   PORTAL_REGIONS,
   PORTAL_REGION_DELETE,
   PORTAL_FIRE_REGIONS,
   PORTAL_SITES,
   PORTAL_SITE_DETAIL,
+  PORTAL_REPORT_SUBMIT,
+  PORTAL_REPORT_BY_HOUSEHOLD,
+  PORTAL_REPORTS,
+  PORTAL_INQUIRIES,
 };
 
-export default ApiRoutes;
+export default ApiRoutes;
