@@ -17,9 +17,10 @@ interface FormState {
   phoneNum: string;
   inquiryType: string;
   inquiryContents: string;
+  website: string;
 }
 
-const INITIAL: FormState = { userName: '', userId: '', phoneNum: '', inquiryType: '', inquiryContents: '' };
+const INITIAL: FormState = { userName: '', userId: '', phoneNum: '', inquiryType: '', inquiryContents: '', website: '' };
 
 function ContactFormContent() {
   const { user } = useAuth();
@@ -62,6 +63,7 @@ function ContactFormContent() {
         phoneNum: form.phoneNum,
         inquiryType: form.inquiryType,
         inquiryContents: form.inquiryContents,
+        website: form.website || undefined,
       });
 
       setSent(true);
@@ -148,8 +150,31 @@ function ContactFormContent() {
               </div>
             ) : (
               <>
-
                 <form className="contact-form" onSubmit={handleSubmit}>
+                  <div 
+                    aria-hidden="true" 
+                    style={{ 
+                      position: 'absolute', 
+                      left: '-9999px', 
+                      top: '-9999px', 
+                      opacity: 0, 
+                      height: 0, 
+                      width: 0, 
+                      zIndex: -1, 
+                      pointerEvents: 'none' 
+                    }}
+                  >
+                    <label htmlFor="hp-website">Website</label>
+                    <input
+                      type="text"
+                      id="hp-website"
+                      name="website"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={form.website || ''}
+                      onChange={update('website')}
+                    />
+                  </div>
                   <div className="contact-field-row">
                     <div className="contact-field">
                       <label className="contact-label">이름 *</label>

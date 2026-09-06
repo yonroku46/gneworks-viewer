@@ -43,6 +43,7 @@ export default function PortalPage() {
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isInquiryHistoryOpen, setIsInquiryHistoryOpen] = useState(false);
+  const [systemNotice, setSystemNotice] = useState<SystemSettings>();
 
   const loadPortalData = React.useCallback(async () => {
     setLoading(true);
@@ -72,6 +73,35 @@ export default function PortalPage() {
 
   useEffect(() => {
     loadPortalData();
+
+    if (typeof window !== 'undefined') {
+      const updateNoticeFromStorage = () => {
+        try {
+          const stored = localStorage.getItem('gneworks_manage_system_settings');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            setSystemNotice({
+              noticeTitle: parsed.noticeTitle || '현장 사진 촬영 및 보고서 작성 지침 안내',
+              noticeContent: parsed.noticeContent || '작업 전/후 사진은 가이드라인 안내선에 맞추어 선명하게 촬영해 주시기 바라며, 작업 확인 완료된 세대는 임의 수정이 불가하오니 제출 전 확인자 서명 및 기재사항을 꼼꼼히 확인 바랍니다.',
+              noticeDate: parsed.noticeDate || '2026.09.02',
+              contactPhone: parsed.contactPhone || '',
+              contactEmail: parsed.contactEmail || '',
+              notifyNewInquiry: parsed.notifyNewInquiry ?? false,
+              notifyNewReport: parsed.notifyNewReport ?? false,
+              notifyWebPush: parsed.notifyWebPush ?? false,
+              noticeVisible: parsed.noticeVisible ?? true,
+              visible: parsed.noticeVisible ?? true,
+            });
+          }
+        } catch (e) {
+          console.error('[PortalPage] notice parse error', e);
+        }
+      };
+
+      updateNoticeFromStorage();
+      window.addEventListener('storage', updateNoticeFromStorage);
+      return () => window.removeEventListener('storage', updateNoticeFromStorage);
+    }
   }, [loadPortalData]);
 
   // 담당 지역의 현장들 (isRegionMatch 유연 매칭)
@@ -299,18 +329,18 @@ export default function PortalPage() {
           <h2 className="portal-section-title">현장 지원 및 안내</h2>
         </div>
         {/* ── NOTICE FEED ── */}
-        <section className="portal-notice-card">
-          <div className="notice-header">
-            <span className="notice-badge"> 
-              <Sparkles size={12} /> 현장 안내사항
-            </span>
-            <span className="notice-date">2026.09.02</span>
-          </div>
-          <h4 className="notice-title">현장 사진 촬영 및 보고서 작성 지침 안내</h4>
-          <p className="notice-content">
-            작업 전/후 사진은 가이드라인 안내선에 맞추어 선명하게 촬영해 주시기 바라며, 작업 확인 완료된 세대는 임의 수정이 불가하오니 제출 전 확인자 서명 및 기재사항을 꼼꼼히 확인 바랍니다.
-          </p>
-        </section>
+        {(systemNotice?.noticeVisible ?? systemNotice?.visible) && (
+          <section className="portal-notice-card">
+            <div className="notice-header">
+              <span className="notice-badge"> 
+                <Sparkles size={12} /> 현장 안내사항
+              </span>
+              <span className="notice-date">{systemNotice.noticeDate}</span>
+            </div>
+            <h4 className="notice-title">{systemNotice.noticeTitle}</h4>
+            <p className="notice-content">{systemNotice.noticeContent}</p>
+          </section>
+        )}
         <div className="portal-action-grid">
           <Link href="/contact?type=task_report" className="action-card">
             <div className="action-header">

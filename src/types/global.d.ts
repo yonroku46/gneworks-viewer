@@ -111,6 +111,7 @@ declare global {
     phoneNum: string;
     inquiryType: string;
     inquiryContents: string;
+    website?: string;
   }
   interface AdminUserCreateReq {
     userId: string;
@@ -276,6 +277,18 @@ declare global {
     status: SiteStatus;
     households: HouseholdRes[];
     assignedWorkers?: RegionWorkerUser[];
+  }
+  interface SystemSettings {
+    contactPhone: string;
+    contactEmail: string;
+    notifyWebPush: boolean;
+    notifyNewReport: boolean;
+    notifyNewInquiry: boolean;
+    noticeVisible: boolean;
+    noticeTitle: string;
+    noticeContent: string;
+    noticeDate: string;
+    visible: boolean;
   }
 }
 
