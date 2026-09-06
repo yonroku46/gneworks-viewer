@@ -227,7 +227,7 @@ export default function AccountManagementPage() {
           detailAddress: updatedUser.detailAddress,
         });
       } catch (err: any) {
-        enqueueSnackbar('계정 수정에 실패했습니다. 다시 시도해 주세요.', { variant: 'error' });
+        enqueueSnackbar('계정 수정에 실패했습니다.', { variant: 'error' });
         return;
       }
 
@@ -299,7 +299,7 @@ export default function AccountManagementPage() {
           { variant: 'success', autoHideDuration: 5000 }
         );
       } catch (err: any) {
-        enqueueSnackbar('비밀번호 초기화에 실패했습니다. 다시 시도해 주세요.', { variant: 'error' });
+        enqueueSnackbar('비밀번호 초기화에 실패했습니다.', { variant: 'error' });
       }
     }
   };
@@ -309,7 +309,7 @@ export default function AccountManagementPage() {
     try {
       await AdminService.deleteUser(user.userId);
     } catch (err: any) {
-      enqueueSnackbar('계정 삭제에 실패했습니다. 다시 시도해 주세요.', { variant: 'error' });
+      enqueueSnackbar('계정 삭제에 실패했습니다.', { variant: 'error' });
       return;
     }
 

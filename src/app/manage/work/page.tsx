@@ -179,7 +179,7 @@ export default function ManageWorkPage() {
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [targetReport, setTargetReport] = useState<WorkReport>();
   const [statusFormData, setStatusFormData] = useState<{
-    status: WorkReport['status'];
+    status: ReportStatus;
     fixReason: string;
   }>({
     status: 'PENDING',
@@ -433,7 +433,9 @@ export default function ManageWorkPage() {
                     <span className="installer-name">{report.reporterName}</span>
                   </td>
                   <td className="col-photos">
-                    <span className="photo-count-text">{report.photos.length}장</span>
+                    <span className="photo-count-text">
+                      {[report.photoDoor, report.photoBefore1, report.photoAfter1, report.photoBefore2, report.photoAfter2].filter(Boolean).length}장
+                    </span>
                   </td>
                   <td className="col-status">
                     <StatusBadge status={report.status} />
@@ -507,7 +509,7 @@ export default function ManageWorkPage() {
                 value={statusFormData.status}
                 onChange={e => setStatusFormData(prev => ({ 
                   ...prev, 
-                  status: e.target.value as WorkReport['status'] 
+                  status: e.target.value as ReportStatus 
                 }))}
               >
                 <option value="PENDING">검토대기 (관리자 확인 대기)</option>

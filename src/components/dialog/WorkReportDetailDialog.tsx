@@ -45,7 +45,7 @@ export default function WorkReportDetailDialog({
   // 자체 내장 상태 변경 팝업 상태 (대시보드 / 보고서관리 공통 지원)
   const [isInternalStatusModalOpen, setIsInternalStatusModalOpen] = useState(false);
   const [statusFormData, setStatusFormData] = useState<{
-    status: WorkReport['status'];
+    status: ReportStatus;
     fixReason: string;
   }>({
     status: 'PENDING',
@@ -305,16 +305,13 @@ export default function WorkReportDetailDialog({
     }
   };
 
-  const getPhoto = (type: string) => {
-    return report.photos?.find(
-      p =>
-        p.type?.toUpperCase() === type.toUpperCase() ||
-        (type === 'DOOR' && (p.title?.includes('대문') || p.type?.toLowerCase() === 'door')) ||
-        (type === 'BEFORE1' && (p.title?.includes('전 ①') || p.type?.toLowerCase() === 'before1')) ||
-        (type === 'AFTER1' && (p.title?.includes('후 ①') || p.type?.toLowerCase() === 'after1')) ||
-        (type === 'BEFORE2' && (p.title?.includes('전 ②') || p.type?.toLowerCase() === 'before2')) ||
-        (type === 'AFTER2' && (p.title?.includes('후 ②') || p.type?.toLowerCase() === 'after2'))
-    );
+  const getPhoto = (type: string): { url?: string; title?: string } | undefined => {
+    if (type === 'DOOR' && report.photoDoor) return { url: report.photoDoor, title: '대문' };
+    if (type === 'BEFORE1' && report.photoBefore1) return { url: report.photoBefore1, title: '설치 전 ①' };
+    if (type === 'AFTER1' && report.photoAfter1) return { url: report.photoAfter1, title: '설치 후 ①' };
+    if (type === 'BEFORE2' && report.photoBefore2) return { url: report.photoBefore2, title: '설치 전 ②' };
+    if (type === 'AFTER2' && report.photoAfter2) return { url: report.photoAfter2, title: '설치 후 ②' };
+    return undefined;
   };
 
   const doorPhoto = getPhoto('DOOR');
@@ -324,10 +321,10 @@ export default function WorkReportDetailDialog({
   const after2Photo = getPhoto('AFTER2');
 
   const submittedCount = [doorPhoto, before1Photo, after1Photo, before2Photo, after2Photo].filter(
-    (p: ReportPhoto | undefined) => Boolean(p?.url)
+    (p: { url?: string } | undefined) => Boolean(p?.url)
   ).length;
 
-  const renderPhotoUploadBox = (label: string, photo: ReportPhoto | undefined) => {
+  const renderPhotoUploadBox = (label: string, photo: { url?: string; title?: string } | undefined) => {
     const hasPhoto = Boolean(photo?.url);
     return (
       <div className={`photo-upload-box ${hasPhoto ? 'has-photo' : 'empty-slot'}`}>
@@ -995,7 +992,7 @@ export default function WorkReportDetailDialog({
             value={statusFormData.status}
             onChange={e => setStatusFormData(prev => ({ 
               ...prev, 
-              status: e.target.value as WorkReport['status'] 
+              status: e.target.value as ReportStatus 
             }))}
           >
             <option value="PENDING">검토대기 (관리자 확인 대기)</option>

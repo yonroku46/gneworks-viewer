@@ -556,7 +556,6 @@ export default function ManageDashboard() {
                 const isRejected = rep.status === 'REJECTED';
                 const isPending = rep.status === 'PENDING';
                 const hasRemarks = Boolean(rep.remarks && rep.remarks.trim() !== '' && !rep.remarks.includes('특이사항 없음'));
-                const photoCount = rep.photos?.filter(p => p.url).length || 0;
 
                 let itemThemeClass = 'is-completed';
                 if (isRejected) {
@@ -637,7 +636,6 @@ export default function ManageDashboard() {
                   const isRejected = rep.status === 'REJECTED';
                   const isPending = rep.status === 'PENDING';
                   const hasRemarks = Boolean(rep.remarks && rep.remarks.trim() !== '' && !rep.remarks.includes('특이사항 없음'));
-                  const photoCount = rep.photos?.filter(p => p.url).length || 0;
 
                   let itemThemeClass = 'is-completed';
                   if (isRejected) {

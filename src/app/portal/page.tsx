@@ -16,11 +16,8 @@ import {
   Check,
   MessageCircle,
 } from 'lucide-react';
-import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
-import {
-  getStoredAssignedRegions,
-  subscribeToAssignedRegionsUpdate,
-} from '@/data/regionStorage';
+import PortalService from '@/api/service/PortalService';
+import { isRegionMatch } from '@/data/koreaRegions';
 import {
   getStoredReports,
   subscribeToReportsUpdate,
@@ -36,7 +33,7 @@ export default function PortalPage() {
   const { user } = useAuth();
   const displayName = user?.userName || '현장 작업자';
 
-  // Storage states
+  // API states
   const [allSites, setAllSites] = useState<SiteDetail[]>([]);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [reports, setReports] = useState<WorkReport[]>([]);
@@ -48,26 +45,26 @@ export default function PortalPage() {
   const [isInquiryHistoryOpen, setIsInquiryHistoryOpen] = useState(false);
 
   useEffect(() => {
-    setAllSites(getStoredSites());
-    setAssignedRegions(getStoredAssignedRegions());
+    PortalService.getAssignedRegions()
+      .then(regions => setAssignedRegions(regions || []))
+      .catch(err => console.error('[PortalPage] getAssignedRegions error', err));
+
+    PortalService.getSites({ includeHouseholds: true })
+      .then(sites => setAllSites(sites || []))
+      .catch(err => console.error('[PortalPage] getSites error', err));
+
     setReports(getStoredReports());
-
-    const unsubSites = subscribeToSitesUpdate(sites => setAllSites(sites));
-    const unsubRegions = subscribeToAssignedRegionsUpdate(regions => setAssignedRegions(regions));
     const unsubReports = subscribeToReportsUpdate(reps => setReports(reps));
-
     return () => {
-      unsubSites();
-      unsubRegions();
       unsubReports();
     };
   }, []);
 
-  // 담당 지역의 현장들
+  // 담당 지역의 현장들 (isRegionMatch 유연 매칭)
   const assignedSites = useMemo(() => {
     if (assignedRegions.length === 0) return [];
     return allSites.filter(site =>
-      assignedRegions.some(reg => reg.sido === site.sido && reg.sigungu === site.sigungu)
+      assignedRegions.some(reg => isRegionMatch(site.sido, site.sigungu, reg.sido, reg.sigungu))
     );
   }, [allSites, assignedRegions]);
 

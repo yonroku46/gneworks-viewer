@@ -538,11 +538,11 @@ export default function RegionalBatchPrintDialog({
               {/* ───────────────────────────────────────────────────────────── */}
               {exportReports.map((rep, idx) => {
                 const isHiddenInScreen = !showAllInPreview && idx >= 3;
-                const doorPhoto = rep.photos?.find(p => p.type === 'DOOR')?.url || '';
-                const before1Photo = rep.photos?.find(p => p.type === 'BEFORE1')?.url || '';
-                const after1Photo = rep.photos?.find(p => p.type === 'AFTER1')?.url || '';
-                const before2Photo = rep.photos?.find(p => p.type === 'BEFORE2')?.url || '';
-                const after2Photo = rep.photos?.find(p => p.type === 'AFTER2')?.url || '';
+                const doorPhoto = rep.photoDoor || '';
+                const before1Photo = rep.photoBefore1 || '';
+                const after1Photo = rep.photoAfter1 || '';
+                const before2Photo = rep.photoBefore2 || '';
+                const after2Photo = rep.photoAfter2 || '';
 
                 return (
                   <div 

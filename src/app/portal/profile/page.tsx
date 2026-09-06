@@ -1,22 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSnackbar } from 'notistack';
 import ProfileEditDialog from '@/components/dialog/ProfileEditDialog';
 import RegionAssignDialog from '@/components/dialog/RegionAssignDialog';
-import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
-import {
-  getStoredAssignedRegions,
-  addAssignedRegion,
-  removeAssignedRegion,
-  subscribeToAssignedRegionsUpdate,
-} from '@/data/regionStorage';
-import {
-  getStoredReports,
-  subscribeToReportsUpdate,
-} from '@/data/reportStorage';
-
+import PortalService from '@/api/service/PortalService';
+import { isRegionMatch } from '@/data/koreaRegions';
 import { 
   LogOut, 
   Settings,
@@ -33,26 +23,33 @@ export default function ProfilePage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isRegionAssignOpen, setIsRegionAssignOpen] = useState(false);
 
-  // Sites, Regions & Reports state synchronized with storage
+  // Sites & Regions state synchronized with Backend API
   const [allSites, setAllSites] = useState<SiteDetail[]>([]);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
-  const [reports, setReports] = useState<WorkReport[]>([]);
+  const [reports] = useState<WorkReport[]>([]);
+
+  const fetchAssignedRegions = useCallback(async () => {
+    try {
+      const data = await PortalService.getAssignedRegions();
+      setAssignedRegions(data || []);
+    } catch (error) {
+      console.error('[ProfilePage] getAssignedRegions error', error);
+    }
+  }, []);
+
+  const fetchSites = useCallback(async () => {
+    try {
+      const data = await PortalService.getSites();
+      setAllSites(data || []);
+    } catch (error) {
+      console.error('[ProfilePage] getSites error', error);
+    }
+  }, []);
 
   useEffect(() => {
-    setAllSites(getStoredSites());
-    setAssignedRegions(getStoredAssignedRegions());
-    setReports(getStoredReports());
-
-    const unsubSites = subscribeToSitesUpdate(sites => setAllSites(sites));
-    const unsubRegions = subscribeToAssignedRegionsUpdate(regions => setAssignedRegions(regions));
-    const unsubReports = subscribeToReportsUpdate(reps => setReports(reps));
-
-    return () => {
-      unsubSites();
-      unsubRegions();
-      unsubReports();
-    };
-  }, []);
+    fetchAssignedRegions();
+    fetchSites();
+  }, [fetchAssignedRegions, fetchSites]);
 
   const completedCount = reports.filter(r => r.status === 'COMPLETED').length;
   const pendingCount = reports.filter(r => r.status === 'PENDING').length;
@@ -60,22 +57,45 @@ export default function ProfilePage() {
 
   const displayName = user?.userName || '사용자';
 
-  const handleSaveProfile = (data: { profileImg?: string; phoneNum?: string }) => {
-    updateUser(data);
-    enqueueSnackbar('프로필 정보가 저장되었습니다.', { variant: 'success' });
+  const handleSaveProfile = async (data: { profileImg?: string; phoneNum?: string }) => {
+    try {
+      const updatedUser = await PortalService.updateProfile(data);
+      updateUser({
+        phoneNum: updatedUser.phoneNum,
+        profileImg: updatedUser.profileImg,
+      });
+      enqueueSnackbar('프로필 정보가 저장되었습니다.', { variant: 'success' });
+    } catch (error) {
+      console.error('[ProfilePage] updateProfile error', error);
+      enqueueSnackbar('프로필 정보 수정에 실패했습니다.', { variant: 'error' });
+    }
   };
 
-  const handleAssignRegion = (sido: string, sigungu: string) => {
-    if (!user?.userId) return;
-    const updated = addAssignedRegion(sido, sigungu, undefined, user.userId);
-    setAssignedRegions(updated);
-    enqueueSnackbar(`${sido} ${sigungu}이(가) 담당 지역으로 등록되었습니다.`, { variant: 'success' });
+  const handleAssignRegion = async (sido: string, sigungu: string) => {
+    try {
+      await PortalService.assignRegion(sido, sigungu);
+      await fetchAssignedRegions();
+      enqueueSnackbar(`${sido} ${sigungu}이(가) 담당 지역으로 등록되었습니다.`, { variant: 'success' });
+    } catch (error) {
+      console.error('[ProfilePage] assignRegion error', error);
+      enqueueSnackbar('담당 지역 배정에 실패했습니다.', { variant: 'error' });
+    }
   };
 
-  const handleRemoveRegion = (region: UserAssignedRegionDetail) => {
-    const updated = removeAssignedRegion(region.assignedRegionId);
-    setAssignedRegions(updated);
-    enqueueSnackbar(`${region.sido} ${region.sigungu} 배정이 해제되었습니다.`, { variant: 'info' });
+  const handleRemoveRegion = async (region: UserAssignedRegionDetail) => {
+    const targetId = region.regionId || region.assignedRegionId;
+    if (!targetId) {
+      enqueueSnackbar('지역 정보가 올바르지 않습니다.', { variant: 'error' });
+      return;
+    }
+    try {
+      await PortalService.unassignRegion(targetId);
+      await fetchAssignedRegions();
+      enqueueSnackbar(`${region.sido} ${region.sigungu} 배정이 해제되었습니다.`, { variant: 'info' });
+    } catch (error) {
+      console.error('[ProfilePage] unassignRegion error', error);
+      enqueueSnackbar('담당 지역 해제에 실패했습니다.', { variant: 'error' });
+    }
   };
 
   return (
@@ -163,7 +183,7 @@ export default function ProfilePage() {
             <div className="assigned-sites-list">
               {assignedRegions.map(region => {
                 const sitesInRegion = allSites.filter(
-                  s => s.sido === region.sido && s.sigungu === region.sigungu
+                  s => isRegionMatch(s.sido, s.sigungu, region.sido, region.sigungu)
                 );
                 const totalHouseholds = sitesInRegion.reduce(
                   (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),
@@ -238,6 +258,7 @@ export default function ProfilePage() {
         isOpen={isRegionAssignOpen}
         onClose={() => setIsRegionAssignOpen(false)}
         assignedRegions={assignedRegions}
+        sites={allSites}
         onAssignRegion={handleAssignRegion}
         onUnassignRegion={handleRemoveRegion}
       />

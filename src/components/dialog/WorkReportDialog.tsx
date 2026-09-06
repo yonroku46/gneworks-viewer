@@ -21,13 +21,12 @@ interface WorkReportDialogProps {
   onSubmitted?: () => void;
 }
 
-// ── 사진 5종 슬롯 규격 ──
-const REPORT_PHOTO_SLOTS: { type: ReportPhoto['type']; title: string; defaultUrl?: string }[] = [
-  { type: 'DOOR', title: '신주소 보이는 대문 등' },
-  { type: 'BEFORE1', title: '단독경보형감지기 보급 전 ①' },
-  { type: 'AFTER1', title: '단독경보형감지기 보급 후 ①' },
-  { type: 'BEFORE2', title: '단독경보형감지기 보급 전 ②' },
-  { type: 'AFTER2', title: '단독경보형감지기 보급 후 ②' },
+const REPORT_PHOTO_SLOTS: { key: PhotoSlotKey; title: string }[] = [
+  { key: 'photoDoor', title: '신주소 보이는 대문 등' },
+  { key: 'photoBefore1', title: '단독경보형감지기 보급 전 ①' },
+  { key: 'photoAfter1', title: '단독경보형감지기 보급 후 ①' },
+  { key: 'photoBefore2', title: '단독경보형감지기 보급 전 ②' },
+  { key: 'photoAfter2', title: '단독경보형감지기 보급 후 ②' },
 ];
 
 export default function WorkReportDialog({
@@ -54,6 +53,7 @@ export default function WorkReportDialog({
       dong: household?.dong || existingReport?.dong || '',
       ho: household?.ho || existingReport?.ho || '',
       headName: household?.headName || existingReport?.headName || '',
+      householdId: household?.householdId || existingReport?.householdId || '',
       existingReport: existingReport || undefined,
     };
   }, [site, household, existingReport]);
@@ -65,14 +65,14 @@ export default function WorkReportDialog({
   const [reporterName, setReporterName] = useState('');
   const [confirmerName, setConfirmerName] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [photos, setPhotos] = useState<{ [key: string]: string }>({});
+  const [photos, setPhotos] = useState<{ [key in PhotoSlotKey]?: string }>({});
   const [confirmerSignature, setConfirmerSignature] = useState<string>('');
 
   // 서명 모달 상태
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
 
   // 이미지 크롭 모달 상태 (4:3 비율 및 WebP 압축)
-  const [cropTarget, setCropTarget] = useState<{ type: string; rawSrc: string; title: string }>();
+  const [cropTarget, setCropTarget] = useState<{ key: PhotoSlotKey; rawSrc: string; title: string }>();
 
   // 3-Step 마법사 진행 상태 (1: 세대·일자 확인, 2: 시공 사진 등록, 3: 서명 및 최종 제출)
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -84,7 +84,7 @@ export default function WorkReportDialog({
     confirmerName: string;
     remarks: string;
     confirmerSignature: string;
-    photos: { [key: string]: string };
+    photos: { [key in PhotoSlotKey]?: string };
   } | undefined>(undefined);
 
   useEffect(() => {
@@ -99,11 +99,14 @@ export default function WorkReportDialog({
       const initSignature = target.existingReport?.confirmerSignature || '';
 
       // 사진 초기화
-      const photoMap: { [key: string]: string } = {};
-      if (target.existingReport?.photos && target.existingReport.photos.length > 0) {
-        target.existingReport.photos.forEach((p: ReportPhoto) => {
-          photoMap[p.type] = p.url;
-        });
+      const photoMap: { [key in PhotoSlotKey]?: string } = {};
+      if (target.existingReport) {
+        const rep = target.existingReport;
+        if (rep.photoDoor) photoMap.photoDoor = rep.photoDoor;
+        if (rep.photoBefore1) photoMap.photoBefore1 = rep.photoBefore1;
+        if (rep.photoAfter1) photoMap.photoAfter1 = rep.photoAfter1;
+        if (rep.photoBefore2) photoMap.photoBefore2 = rep.photoBefore2;
+        if (rep.photoAfter2) photoMap.photoAfter2 = rep.photoAfter2;
       }
 
       setInstallDate(initInstallDate);
@@ -136,25 +139,25 @@ export default function WorkReportDialog({
     setStep(2);
   };
 
-  // 2단계 -> 3단계 이동
+  // 2단계 -> 3단계 이동 (5장 고정 필수 검증)
   const handleGoToStep3 = () => {
-    const photoCount = Object.keys(photos).length;
-    if (photoCount === 0) {
-      enqueueSnackbar('최소 1장 이상의 현장 사진을 등록해 주세요.', { variant: 'warning' });
+    const missingSlots = REPORT_PHOTO_SLOTS.filter(s => !photos[s.key]);
+    if (missingSlots.length > 0) {
+      enqueueSnackbar(`필수 현장 사진 5장을 모두 등록해 주세요. (${missingSlots.length}장 미등록)`, { variant: 'warning' });
       return;
     }
     setStep(3);
   };
 
   // 사진 업로드 핸들러 (선택 즉시 4:3 크롭 & WebP 압축 모달 오픈)
-  const handlePhotoUpload = (type: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = (key: PhotoSlotKey, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.type === type);
+      const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
       const reader = new FileReader();
       reader.onload = () => {
         setCropTarget({
-          type,
+          key,
           rawSrc: reader.result as string,
           title: slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)',
         });
@@ -165,22 +168,22 @@ export default function WorkReportDialog({
   };
 
   // 등록된 사진 재편집 (크롭/위치 조정)
-  const handleReCrop = (type: string) => {
-    if (photos[type]) {
-      const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.type === type);
+  const handleReCrop = (key: PhotoSlotKey) => {
+    if (photos[key]) {
+      const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
       setCropTarget({
-        type,
-        rawSrc: photos[type],
+        key,
+        rawSrc: photos[key]!,
         title: slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)',
       });
     }
   };
 
   // 사진 삭제 핸들러
-  const handleRemovePhoto = (type: string) => {
+  const handleRemovePhoto = (key: PhotoSlotKey) => {
     setPhotos(prev => {
       const next = { ...prev };
-      delete next[type];
+      delete next[key];
       return next;
     });
   };
@@ -199,11 +202,8 @@ export default function WorkReportDialog({
     }
 
     // 1) 사진 변경 여부 비교
-    const currentPhotoKeys = Object.keys(photos);
-    const initPhotoKeys = Object.keys(init.photos);
-    const isPhotosChanged =
-      currentPhotoKeys.length !== initPhotoKeys.length ||
-      currentPhotoKeys.some(k => photos[k] !== init.photos[k]);
+    const photoKeys: PhotoSlotKey[] = ['photoDoor', 'photoBefore1', 'photoAfter1', 'photoBefore2', 'photoAfter2'];
+    const isPhotosChanged = photoKeys.some(k => (photos[k] || '') !== (init.photos[k] || ''));
 
     // 2) 텍스트 및 서명 변경 여부 비교
     const isTextChanged =
@@ -229,14 +229,9 @@ export default function WorkReportDialog({
     if (e) e.preventDefault();
     if (isReadOnly) return;
 
-    const photoList: ReportPhoto[] = REPORT_PHOTO_SLOTS.filter(slot => photos[slot.type]).map(slot => ({
-      title: slot.title,
-      url: photos[slot.type],
-      type: slot.type,
-    }));
-
-    if (photoList.length === 0) {
-      enqueueSnackbar('최소 1장 이상의 현장 사진을 등록해 주세요.', { variant: 'warning' });
+    const missingSlots = REPORT_PHOTO_SLOTS.filter(slot => !photos[slot.key]);
+    if (missingSlots.length > 0) {
+      enqueueSnackbar(`필수 현장 사진 5장을 모두 등록해 주세요. (${missingSlots.length}장 누락)`, { variant: 'warning' });
       return;
     }
 
@@ -256,6 +251,7 @@ export default function WorkReportDialog({
     }
 
     upsertReport({
+      householdId: target.householdId,
       siteId: target.siteId,
       siteName: target.siteName,
       sido: target.sido,
@@ -271,7 +267,11 @@ export default function WorkReportDialog({
       visitorName: reporterName,
       confirmerName: confirmerName.trim() || target.headName,
       confirmerSignature,
-      photos: photoList,
+      photoDoor: photos.photoDoor || '',
+      photoBefore1: photos.photoBefore1 || '',
+      photoAfter1: photos.photoAfter1 || '',
+      photoBefore2: photos.photoBefore2 || '',
+      photoAfter2: photos.photoAfter2 || '',
       remarks,
     });
 
@@ -503,9 +503,9 @@ export default function WorkReportDialog({
                   <div className="door-single-section">
                     <div className="photo-upload-box">
                       <span className="photo-label">1. 신주소 대문</span>
-                      {photos['door'] ? (
+                      {photos.photoDoor ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos['door']} alt="신주소 대문" className="preview-img" />
+                          <img src={photos.photoDoor} alt="신주소 대문" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -516,9 +516,9 @@ export default function WorkReportDialog({
                   <div className="sensor-pairs-grid">
                     <div className="photo-upload-box">
                       <span className="photo-label">2. 보급 전 ①</span>
-                      {photos['before1'] ? (
+                      {photos.photoBefore1 ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos['before1']} alt="보급 전 ①" className="preview-img" />
+                          <img src={photos.photoBefore1} alt="보급 전 ①" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -526,9 +526,9 @@ export default function WorkReportDialog({
                     </div>
                     <div className="photo-upload-box">
                       <span className="photo-label">3. 보급 후 ①</span>
-                      {photos['after1'] ? (
+                      {photos.photoAfter1 ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos['after1']} alt="보급 후 ①" className="preview-img" />
+                          <img src={photos.photoAfter1} alt="보급 후 ①" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -536,9 +536,9 @@ export default function WorkReportDialog({
                     </div>
                     <div className="photo-upload-box">
                       <span className="photo-label">4. 보급 전 ②</span>
-                      {photos['before2'] ? (
+                      {photos.photoBefore2 ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos['before2']} alt="보급 전 ②" className="preview-img" />
+                          <img src={photos.photoBefore2} alt="보급 전 ②" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -546,9 +546,9 @@ export default function WorkReportDialog({
                     </div>
                     <div className="photo-upload-box">
                       <span className="photo-label">5. 보급 후 ②</span>
-                      {photos['after2'] ? (
+                      {photos.photoAfter2 ? (
                         <div className="photo-preview-wrapper readonly">
-                          <img src={photos['after2']} alt="보급 후 ②" className="preview-img" />
+                          <img src={photos.photoAfter2} alt="보급 후 ②" className="preview-img" />
                         </div>
                       ) : (
                         <div className="photo-placeholder-readonly">사진 미등록</div>
@@ -680,19 +680,19 @@ export default function WorkReportDialog({
                     <div className="door-single-section">
                       <div className="photo-upload-box">
                         <span className="photo-label">1. 신주소 대문</span>
-                        {photos['door'] ? (
+                        {photos.photoDoor ? (
                           <div
                             className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('door')}
+                            onClick={() => handleReCrop('photoDoor')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos['door']} alt="신주소 보이는 대문 등" className="preview-img" />
+                            <img src={photos.photoDoor} alt="신주소 보이는 대문 등" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleRemovePhoto('door');
+                                handleRemovePhoto('photoDoor');
                               }}
                             >
                               <X size={13} />
@@ -706,7 +706,7 @@ export default function WorkReportDialog({
                               type="file"
                               accept="image/*"
                               style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('door', e)}
+                              onChange={e => handlePhotoUpload('photoDoor', e)}
                             />
                           </label>
                         )}
@@ -718,19 +718,19 @@ export default function WorkReportDialog({
                       {/* 보급 전 ① */}
                       <div className="photo-upload-box">
                         <span className="photo-label">2. 보급 전 ①</span>
-                        {photos['before1'] ? (
+                        {photos.photoBefore1 ? (
                           <div
                             className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('before1')}
+                            onClick={() => handleReCrop('photoBefore1')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos['before1']} alt="보급 전 ①" className="preview-img" />
+                            <img src={photos.photoBefore1} alt="보급 전 ①" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleRemovePhoto('before1');
+                                handleRemovePhoto('photoBefore1');
                               }}
                             >
                               <X size={13} />
@@ -744,7 +744,7 @@ export default function WorkReportDialog({
                               type="file"
                               accept="image/*"
                               style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('before1', e)}
+                              onChange={e => handlePhotoUpload('photoBefore1', e)}
                             />
                           </label>
                         )}
@@ -753,19 +753,19 @@ export default function WorkReportDialog({
                       {/* 보급 후 ① */}
                       <div className="photo-upload-box">
                         <span className="photo-label">3. 보급 후 ①</span>
-                        {photos['after1'] ? (
+                        {photos.photoAfter1 ? (
                           <div
                             className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('after1')}
+                            onClick={() => handleReCrop('photoAfter1')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos['after1']} alt="보급 후 ①" className="preview-img" />
+                            <img src={photos.photoAfter1} alt="보급 후 ①" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleRemovePhoto('after1');
+                                handleRemovePhoto('photoAfter1');
                               }}
                             >
                               <X size={13} />
@@ -779,7 +779,7 @@ export default function WorkReportDialog({
                               type="file"
                               accept="image/*"
                               style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('after1', e)}
+                              onChange={e => handlePhotoUpload('photoAfter1', e)}
                             />
                           </label>
                         )}
@@ -788,19 +788,19 @@ export default function WorkReportDialog({
                       {/* 보급 전 ② */}
                       <div className="photo-upload-box">
                         <span className="photo-label">4. 보급 전 ②</span>
-                        {photos['before2'] ? (
+                        {photos.photoBefore2 ? (
                           <div
                             className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('before2')}
+                            onClick={() => handleReCrop('photoBefore2')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos['before2']} alt="보급 전 ②" className="preview-img" />
+                            <img src={photos.photoBefore2} alt="보급 전 ②" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleRemovePhoto('before2');
+                                handleRemovePhoto('photoBefore2');
                               }}
                             >
                               <X size={13} />
@@ -814,7 +814,7 @@ export default function WorkReportDialog({
                               type="file"
                               accept="image/*"
                               style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('before2', e)}
+                              onChange={e => handlePhotoUpload('photoBefore2', e)}
                             />
                           </label>
                         )}
@@ -823,19 +823,19 @@ export default function WorkReportDialog({
                       {/* 보급 후 ② */}
                       <div className="photo-upload-box">
                         <span className="photo-label">5. 보급 후 ②</span>
-                        {photos['after2'] ? (
+                        {photos.photoAfter2 ? (
                           <div
                             className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('after2')}
+                            onClick={() => handleReCrop('photoAfter2')}
                             title="클릭하여 사진 자르기/위치 조절"
                           >
-                            <img src={photos['after2']} alt="보급 후 ②" className="preview-img" />
+                            <img src={photos.photoAfter2} alt="보급 후 ②" className="preview-img" />
                             <button
                               type="button"
                               className="btn-remove-photo"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleRemovePhoto('after2');
+                                handleRemovePhoto('photoAfter2');
                               }}
                             >
                               <X size={13} />
@@ -849,7 +849,7 @@ export default function WorkReportDialog({
                               type="file"
                               accept="image/*"
                               style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('after2', e)}
+                              onChange={e => handlePhotoUpload('photoAfter2', e)}
                             />
                           </label>
                         )}
@@ -984,7 +984,7 @@ export default function WorkReportDialog({
           aspect={4 / 3}
           onClose={() => setCropTarget(undefined)}
           onCropComplete={(croppedWebPUrl) => {
-            setPhotos(prev => ({ ...prev, [cropTarget.type]: croppedWebPUrl }));
+            setPhotos(prev => ({ ...prev, [cropTarget.key]: croppedWebPUrl }));
             setCropTarget(undefined);
             enqueueSnackbar('4:3 비율로 사진이 최적화되었습니다.', { variant: 'success' });
           }}

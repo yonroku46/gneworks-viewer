@@ -110,7 +110,7 @@ export default function SignatureDialog({
 
     try {
       const trimmedCanvas = sigPadRef.current.getTrimmedCanvas();
-      const signatureDataUrl = trimmedCanvas.toDataURL('image/png');
+      const signatureDataUrl = trimmedCanvas.toDataURL('image/webp', 0.85);
       onSave(signatureDataUrl);
       onClose();
     } catch (e) {

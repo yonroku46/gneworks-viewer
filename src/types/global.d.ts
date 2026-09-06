@@ -54,13 +54,10 @@ declare global {
     | 'revise'
     | 'completed';
   type ReportStatus = 'COMPLETED' | 'PENDING' | 'REJECTED' | 'UNSUBMITTED';
-  interface ReportPhoto {
-    title: string;
-    url: string;
-    type: ReportPhotoType;
-  }
+  type PhotoSlotKey = 'photoDoor' | 'photoBefore1' | 'photoAfter1' | 'photoBefore2' | 'photoAfter2';
   interface WorkReport {
     reportId: string;
+    householdId?: string;
     siteId: string;
     siteName: string;
     sido: string;
@@ -71,19 +68,24 @@ declare global {
     ho: string;
     headName: string;
     installDate: string;          // YYYY-MM-DD
-    installDateFormatted: string; // YYYY년 M월 D일
-    reportTime: string;           // YYYY-MM-DD HH:mm
+    installDateFormatted?: string; // YYYY년 M월 D일
+    reportTime?: string;           // YYYY-MM-DD HH:mm
     reporterName: string;
     installerName?: string;
     installerId: string;
     visitorName: string;
     confirmerName: string;
     confirmerSignature?: string;
-    photos: ReportPhoto[];
+    photoDoor?: string;           // 신주소 보이는 대문 등
+    photoBefore1?: string;        // 단독경보형감지기 보급 전 ①
+    photoAfter1?: string;         // 단독경보형감지기 보급 후 ①
+    photoBefore2?: string;        // 단독경보형감지기 보급 전 ②
+    photoAfter2?: string;         // 단독경보형감지기 보급 후 ②
     status: ReportStatus;
     fixReason?: string;
     submittedAt?: string;
     remarks?: string;
+    createTime?: string;
   }
   // API
   interface ApiResponse {
@@ -206,7 +208,6 @@ declare global {
   type HouseholdTargetType = 'ELDERLY' | 'CHILD' | 'DISABLED' | 'GENERAL';
   type InstallStatus = 'INSTALLED' | 'SCHEDULED' | 'HOLD' | 'UNINSTALLED';
   type SiteStatus = 'IN_PROGRESS' | 'READY' | 'COMPLETED';
-  type ReportPhotoType = 'DOOR' | 'BEFORE1' | 'AFTER1' | 'BEFORE2' | 'AFTER2';
   interface Site {
     siteId: string;
     regionId?: string;

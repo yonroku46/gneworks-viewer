@@ -18,7 +18,6 @@ import { useManageRegion } from '@/providers/ManageRegionProvider';
 import SearchInput from '@/components/common/SearchInput';
 import { useDaumPostcodePopup, Address } from 'react-daum-postcode';
 import { normalizeSidoName, cleanRegionName } from '@/utils/addressUtils';
-import { isRegionMatch } from '@/data/koreaRegions';
 import '../ManageLayout.scss';
 
 export default function ManageCustomers() {

@@ -89,7 +89,7 @@ function ContactFormContent() {
       setSent(true);
     } catch (error) {
       console.error('[ContactPage] submit error', error);
-      alert('문의 접수 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      alert('문의 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setSending(false);
     }

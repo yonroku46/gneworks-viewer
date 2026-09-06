@@ -1,19 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
-import { getStoredSites, subscribeToSitesUpdate } from '@/data/siteStorage';
-import {
-  getStoredAssignedRegions,
-  subscribeToAssignedRegionsUpdate,
-} from '@/data/regionStorage';
+import PortalService from '@/api/service/PortalService';
+import { isRegionMatch } from '@/data/koreaRegions';
 import {
   getStoredReports,
   subscribeToReportsUpdate,
 } from '@/data/reportStorage';
 
 import WorkReportDialog from '@/components/dialog/WorkReportDialog';
+import Skeleton from '@/components/contents/Skeleton';
 import {
   MapPin,
   Building2,
@@ -132,23 +130,38 @@ export default function PortalWorkPage() {
   const [selectedHousehold, setSelectedHousehold] = useState<Household>();
   const [selectedReport, setSelectedReport] = useState<WorkReport>();
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    setAllSites(getStoredSites());
-    setAssignedRegions(getStoredAssignedRegions());
-    setReports(getStoredReports());
+  const loadInitialData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [regions, siteList] = await Promise.all([
+        PortalService.getAssignedRegions().catch(err => {
+          console.error('[PortalWorkPage] getAssignedRegions error', err);
+          return [];
+        }),
+        PortalService.getSites({ includeHouseholds: true }).catch(err => {
+          console.error('[PortalWorkPage] getSites error', err);
+          return [];
+        }),
+      ]);
 
-    const unsubSites = subscribeToSitesUpdate(sites => setAllSites(sites));
-    const unsubRegions = subscribeToAssignedRegionsUpdate(regions => setAssignedRegions(regions));
-    const unsubReports = subscribeToReportsUpdate(reps => setReports(reps));
-
-    return () => {
-      unsubSites();
-      unsubRegions();
-      unsubReports();
-    };
+      setAssignedRegions(regions || []);
+      setAllSites(siteList || []);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    loadInitialData();
+    setReports(getStoredReports());
+
+    const unsubReports = subscribeToReportsUpdate(reps => setReports(reps));
+    return () => {
+      unsubReports();
+    };
+  }, [loadInitialData]);
 
   // 보고서 매핑 맵: `siteName_dong_ho` => WorkReport
   const reportMap = useMemo(() => {
@@ -159,22 +172,22 @@ export default function PortalWorkPage() {
     return map;
   }, [reports]);
 
-  // 1. 담당 지역에 속하는 현장들만 필터링
+  // 1. 담당 지역에 속하는 현장들만 필터링 (isRegionMatch 유연 매칭)
   const assignedSites = useMemo(() => {
     if (assignedRegions.length === 0) return [];
 
     return allSites.filter(site => {
       // 선택된 지역 탭 필터링
       if (selectedRegionId !== 'ALL') {
-        const selectedRegion = assignedRegions.find(r => r.assignedRegionId === selectedRegionId);
+        const selectedRegion = assignedRegions.find(
+          r => r.assignedRegionId === selectedRegionId || r.regionId === selectedRegionId
+        );
         if (!selectedRegion) return false;
-        return site.sido === selectedRegion.sido && site.sigungu === selectedRegion.sigungu;
+        return isRegionMatch(site.sido, site.sigungu, selectedRegion.sido, selectedRegion.sigungu);
       }
 
       // 'ALL'인 경우 담당 중인 지역 중 하나와 일치하면 포함
-      return assignedRegions.some(
-        r => r.sido === site.sido && r.sigungu === site.sigungu
-      );
+      return assignedRegions.some(r => isRegionMatch(site.sido, site.sigungu, r.sido, r.sigungu));
     });
   }, [allSites, assignedRegions, selectedRegionId]);
 
@@ -187,8 +200,9 @@ export default function PortalWorkPage() {
         const matchesSiteName = site.name.toLowerCase().includes(query);
         const matchesAddress = site.address.toLowerCase().includes(query);
 
+        const siteHouseholds = site.households || [];
         // 세대 필터링
-        const filteredHouseholds = site.households.filter(h => {
+        const filteredHouseholds = siteHouseholds.filter(h => {
           // 1. 검색어 필터링
           if (query && !matchesSiteName && !matchesAddress) {
             const dongFormatted = `${h.dong}동`;
@@ -269,32 +283,43 @@ export default function PortalWorkPage() {
             ref={tabListRef}
             onScroll={checkScrollButtons}
           >
-            <button
-              type="button"
-              className={`region-tab-btn ${selectedRegionId === 'ALL' ? 'active' : ''}`}
-              onClick={() => setSelectedRegionId('ALL')}
-            >
-              전체 담당 지역
-            </button>
-            {assignedRegions.map(reg => {
-              const sitesCount = allSites.filter(
-                s => s.sido === reg.sido && s.sigungu === reg.sigungu
-              ).length;
-
-              return (
+            {isLoading ? (
+              <div className="region-tab-skeleton-list">
+                <Skeleton width={110} height={34} borderRadius={10} />
+                <Skeleton width={96} height={34} borderRadius={10} />
+                <Skeleton width={100} height={34} borderRadius={10} />
+              </div>
+            ) : (
+              <>
                 <button
-                  key={reg.assignedRegionId}
                   type="button"
-                  className={`region-tab-btn ${selectedRegionId === reg.assignedRegionId ? 'active' : ''}`}
-                  onClick={() => setSelectedRegionId(reg.assignedRegionId)}
+                  className={`region-tab-btn ${selectedRegionId === 'ALL' ? 'active' : ''}`}
+                  onClick={() => setSelectedRegionId('ALL')}
                 >
-                  <span>
-                    {reg.sido} {reg.sigungu}
-                  </span>
-                  <span className="count-badge">{sitesCount}</span>
+                  <span>전체 담당 지역</span>
+                  <span className="count-badge">{assignedSites.length}</span>
                 </button>
-              );
-            })}
+                {assignedRegions.map(reg => {
+                  const sitesCount = allSites.filter(
+                    s => isRegionMatch(s.sido, s.sigungu, reg.sido, reg.sigungu)
+                  ).length;
+
+                  return (
+                    <button
+                      key={reg.assignedRegionId}
+                      type="button"
+                      className={`region-tab-btn ${selectedRegionId === reg.assignedRegionId ? 'active' : ''}`}
+                      onClick={() => setSelectedRegionId(reg.assignedRegionId)}
+                    >
+                      <span>
+                        {reg.sido} {reg.sigungu}
+                      </span>
+                      <span className="count-badge">{sitesCount}</span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
 
           <button
@@ -378,7 +403,28 @@ export default function PortalWorkPage() {
 
       {/* ── WORK SITES & HOUSEHOLDS CONTAINER ── */}
       <section className="work-sites-container">
-        {assignedRegions.length === 0 ? (
+        {isLoading ? (
+          <div className="work-sites-skeleton-group">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="work-site-card-skeleton">
+                <div className="skeleton-header-row">
+                  <div className="skeleton-title-col">
+                    <Skeleton width={180} height={20} borderRadius={6} />
+                    <Skeleton width={260} height={14} borderRadius={4} />
+                  </div>
+                  <div className="skeleton-meta-col">
+                    <Skeleton width={68} height={24} borderRadius={999} />
+                    <Skeleton width={28} height={28} borderRadius={8} />
+                  </div>
+                </div>
+                <div className="skeleton-progress-row">
+                  <Skeleton width="100%" height={8} borderRadius={999} />
+                  <Skeleton width={48} height={14} borderRadius={4} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : assignedRegions.length === 0 ? (
           <div className="work-empty-state">
             <MapPin size={48} className="empty-icon" />
             <p className="empty-title">배정된 담당 지역이 없습니다.</p>

@@ -46,6 +46,15 @@ const ADMIN_INQUIRY_DETAIL = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inq
 const ADMIN_INQUIRY_ANSWER = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inquiryId}/answer`;
 const ADMIN_INQUIRY_DELETE = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inquiryId}`;
 
+// portal
+const PORTAL_ROOT = `${ROOT}/portal`;
+const PORTAL_PROFILE = `${PORTAL_ROOT}/profile`;
+const PORTAL_REGIONS = `${PORTAL_ROOT}/regions`;
+const PORTAL_REGION_DELETE = (regionId: string) => `${PORTAL_ROOT}/regions/${regionId}`;
+const PORTAL_FIRE_REGIONS = `${PORTAL_ROOT}/fire-regions`;
+const PORTAL_SITES = `${PORTAL_ROOT}/sites`;
+const PORTAL_SITE_DETAIL = (siteId: string) => `${PORTAL_ROOT}/sites/${siteId}`;
+
 const ApiRoutes = {
   AUTH_LOGIN,
   AUTH_REFRESH,
@@ -75,6 +84,12 @@ const ApiRoutes = {
   ADMIN_INQUIRY_DETAIL,
   ADMIN_INQUIRY_ANSWER,
   ADMIN_INQUIRY_DELETE,
+  PORTAL_PROFILE,
+  PORTAL_REGIONS,
+  PORTAL_REGION_DELETE,
+  PORTAL_FIRE_REGIONS,
+  PORTAL_SITES,
+  PORTAL_SITE_DETAIL,
 };
 
 export default ApiRoutes;

@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import SlideDialog from './SlideDialog';
 import { KOREA_ADMIN_REGIONS, isRegionMatch } from '@/data/koreaRegions';
 import CustomSelect from '@/components/common/CustomSelect';
-import { MapPin, Plus, CheckCircle2, Building2, AlertCircle, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Building2, AlertCircle, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
 import './RegionAssignDialog.scss';
 
 interface RegionAssignDialogProps {
