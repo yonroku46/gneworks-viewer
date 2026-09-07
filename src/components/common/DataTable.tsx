@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FileSpreadsheet, Loader2, Inbox, ChevronDown } from 'lucide-react';
+import { Download, Loader2, Inbox, ChevronDown } from 'lucide-react';
 import TableLoadingRow from './TableLoadingRow';
 import Pagination from './Pagination';
 import './DataTable.scss';
@@ -119,13 +119,13 @@ export default function DataTable<T>({
               >
                 {excelAction.isExporting ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" />
                     <span>다운로드 중...</span>
+                    <Loader2 size={16} className="animate-spin" />
                   </>
                 ) : (
                   <>
-                    <FileSpreadsheet size={18} />
-                    <span>{excelAction.label || '엑셀 내보내기'}</span>
+                    <Download size={16} />
+                    <span>{excelAction.label || '내보내기'}</span>
                   </>
                 )}
               </button> 

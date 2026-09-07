@@ -1,0 +1,458 @@
+@use '../../styles/mixins' as *;
+
+.excel-import-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--card-overlay, rgba(0, 0, 0, 0.5));
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  &.is-uploading {
+    cursor: wait;
+  }
+}
+
+.excel-import-dialog {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px var(--card-shadow, rgba(0, 0, 0, 0.3));
+  overflow: hidden;
+  .eid-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    .eid-header-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--foreground);
+      svg {
+        color: var(--manage-primary);
+      }
+      .eid-loading-badge {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--manage-primary);
+        background: var(--manage-primary-light);
+        padding: 0.125rem 0.5rem;
+        border-radius: 9999px;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+    }
+    .eid-close-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.5rem;
+      border: none;
+      background: transparent;
+      color: var(--slate-400);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+  }
+  .eid-body {
+    padding: 1.5rem;
+  }
+  .eid-step-select {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.5rem 0;
+    .eid-desc {
+      text-align: center;
+      font-size: 0.875rem;
+      color: var(--slate-500);
+      line-height: 1.6;
+      strong {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+    }
+    .eid-upload-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 2rem 3rem;
+      border: 2px dashed var(--border);
+      border-radius: 1rem;
+      background: transparent;
+      color: var(--foreground);
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      svg {
+        transition: transform 0.2s;
+      }
+      span {
+        font-size: 0.9375rem;
+        font-weight: 600;
+      }
+      small {
+        font-size: 0.75rem;
+        color: var(--slate-400);
+      }
+    }
+  }
+  .eid-step-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    .eid-file-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.875rem 1rem;
+      background: var(--gray-alpha-100);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      svg {
+        color: var(--manage-primary);
+        flex-shrink: 0;
+      }
+      .eid-file-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        flex: 1;
+        overflow: hidden;
+        .eid-file-name {
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--foreground);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .eid-file-size {
+          font-size: 0.75rem;
+          color: var(--slate-400);
+        }
+      }
+      .eid-file-remove {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        border: none;
+        background: transparent;
+        color: var(--slate-400);
+        cursor: pointer;
+        border-radius: 0.375rem;
+        flex-shrink: 0;
+        transition: background 0.15s, color 0.15s;
+      }
+    }
+    .eid-error-msg {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      background: var(--danger-light);
+      border: 1px solid var(--danger-border);
+      border-radius: 0.625rem;
+      font-size: 0.8125rem;
+      color: var(--danger);
+    }
+    .eid-region-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      .eid-region-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--foreground);
+        .eid-auto-badge {
+          font-size: 0.6875rem;
+          font-weight: 500;
+          color: var(--manage-primary);
+          background: var(--manage-primary-light);
+          padding: 0.125rem 0.5rem;
+          border-radius: 100px;
+        }
+      }
+      .eid-select-wrap {
+        position: relative;
+        .eid-region-select {
+          width: 100%;
+          height: 2.5rem;
+          padding: 0 2.25rem 0 0.875rem;
+          border: 1px solid var(--border);
+          border-radius: 0.625rem;
+          background: var(--card-bg);
+          color: var(--foreground);
+          font-size: 0.875rem;
+          appearance: none;
+          cursor: pointer;
+          outline: none;
+          transition: border-color 0.15s;
+        }
+        .eid-select-icon {
+          position: absolute;
+          right: 0.75rem;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--slate-400);
+          pointer-events: none;
+        }
+      }
+      .eid-region-hint {
+        font-size: 0.75rem;
+        color: var(--slate-500);
+      }
+    }
+    .eid-confirm-actions {
+      display: flex;
+      gap: 0.75rem;
+      padding-top: 0.25rem;
+      .eid-btn-cancel {
+        flex: 1;
+        height: 2.625rem;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        background: transparent;
+        color: var(--slate-500);
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .eid-btn-import {
+        flex: 2;
+        height: 2.625rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.375rem;
+        border: none;
+        border-radius: 0.75rem;
+        background: var(--manage-primary);
+        color: var(--white);
+        font-size: 0.875rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+    }
+  }
+  .eid-step-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 2rem 1rem;
+    text-align: center;
+    .eid-spinner-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 4.5rem;
+      height: 4.5rem;
+      border-radius: 50%;
+      background: var(--manage-primary-light);
+      .eid-spinner {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        color: var(--manage-primary);
+        animation: spin 1s linear infinite;
+      }
+      .eid-spinner-icon {
+        color: var(--manage-primary);
+        animation: bounce-subtle 2s infinite;
+      }
+    }
+    .eid-loading-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+      .eid-loading-title {
+        font-size: 1.0625rem;
+        font-weight: 700;
+        color: var(--foreground);
+      }
+      .eid-loading-sub {
+        font-size: 0.8125rem;
+        color: var(--slate-500);
+      }
+    }
+    .eid-loading-notice {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1rem;
+      border-radius: 0.625rem;
+      background: var(--manage-primary-soft, rgba(99, 102, 241, 0.05));
+      border: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--slate-600);
+      line-height: 1.4;
+      svg {
+        flex-shrink: 0;
+        color: var(--manage-primary);
+      }
+    }
+  }
+  .eid-step-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+    .eid-result-icon {
+      svg {
+        color: var(--success);
+      }
+    }
+    .eid-result-title {
+      font-size: 1.0625rem;
+      font-weight: 700;
+      color: var(--foreground);
+    }
+    .eid-result-region {
+      font-size: 0.8125rem;
+      color: var(--slate-500);
+      margin-top: -0.5rem;
+    }
+    .eid-result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      width: 100%;
+      .eid-result-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        &.inserted {
+          background: var(--success-light);
+          border: 1px solid var(--success-border);
+          .eid-result-num {
+            color: var(--success);
+          }
+        }
+        &.skipped {
+          background: var(--gray-alpha-100);
+          border: 1px solid var(--border);
+          .eid-result-num {
+            color: var(--slate-500);
+          }
+        }
+        .eid-result-num {
+          font-size: 1.375rem;
+          font-weight: 800;
+        }
+        .eid-result-lbl {
+          font-size: 0.6875rem;
+          color: var(--slate-500);
+          font-weight: 500;
+        }
+      }
+    }
+    .eid-result-actions {
+      display: flex;
+      gap: 0.75rem;
+      width: 100%;
+      padding-top: 0.25rem;
+      .eid-btn-another {
+        flex: 1;
+        height: 2.625rem;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        background: transparent;
+        color: var(--slate-500);
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .eid-btn-done {
+        flex: 1;
+        height: 2.625rem;
+        border: none;
+        border-radius: 0.75rem;
+        background: var(--manage-primary);
+        color: var(--white);
+        font-size: 0.875rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@include mobile {
+  .excel-import-dialog {
+    margin: 1rem;
+    max-width: calc(100vw - 2rem);
+  }
+}
+
+@include hover {
+  .eid-close-btn:hover {
+    background: var(--gray-alpha-100);
+    color: var(--foreground);
+  }
+  .eid-upload-btn:hover {
+    border-color: var(--manage-primary);
+    background: var(--manage-primary-light);
+    svg {
+      transform: translateY(-2px);
+    }
+  }
+  .eid-file-remove:hover {
+    background: var(--gray-alpha-100);
+    color: var(--foreground);
+  }
+  .eid-btn-cancel:hover {
+    background: var(--gray-alpha-100);
+    color: var(--foreground);
+  }
+  .eid-btn-import:hover {
+    opacity: 0.88;
+  }
+  .eid-btn-another:hover {
+    background: var(--gray-alpha-100);
+    color: var(--foreground);
+  }
+  .eid-btn-done:hover {
+    opacity: 0.88;
+  }
+}

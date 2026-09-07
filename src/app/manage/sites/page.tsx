@@ -3,14 +3,16 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import SiteDetailDialog from '@/components/dialog/SiteDetailDialog';
+import ExcelImportDialog from '@/components/dialog/ExcelImportDialog';
 import DataTable, { ColumnDef } from '@/components/common/DataTable';
 import AdminService from '@/api/service/AdminService';
 import { useSnackbar } from 'notistack';
-import { 
-  Building2, 
-  Plus, 
-  Users, 
+import {
+  Building2,
+  Plus,
+  Users,
   Search,
+  FileUp,
 } from 'lucide-react';
 import RegionSelector from '@/components/common/RegionSelector';
 import CustomSelect from '@/components/common/CustomSelect';
@@ -40,6 +42,7 @@ export default function ManageCustomers() {
   // Dialog Controls
   const [isSiteFormOpen, setIsSiteFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<SiteDetail>();
   const [editingSite, setEditingSite] = useState<SiteDetail>();
 
@@ -487,10 +490,16 @@ export default function ManageCustomers() {
           <h2>현장 리스트</h2>
           <p>행정구역별 보급 대상 아파트 현장을 관리합니다.</p>
         </div>
-        <button className="add-btn" onClick={handleOpenAddSite}>
-          <Plus size={18} />
-          <span>신규 현장 등록</span>
-        </button>
+        <div className="page-header-actions">
+          <button className="import-btn" onClick={() => setIsImportOpen(true)}>
+            <FileUp size={16} />
+            <span>엑셀 업로드</span>
+          </button>
+          <button className="add-btn" onClick={handleOpenAddSite}>
+            <Plus size={18} />
+            <span>신규 현장 등록</span>
+          </button>
+        </div>
       </div>
 
       {/* ── UNIFIED SITES SUMMARY BAR ── */}
@@ -698,6 +707,13 @@ export default function ManageCustomers() {
           setSelectedSite(updated);
           setSites(prev => prev.map(s => s.siteId === updated.siteId ? updated : s));
         }}
+      />
+      {/* ── EXCEL IMPORT DIALOG ── */}
+      <ExcelImportDialog
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        fireRegions={fireRegions}
+        onImported={loadSites}
       />
     </div>
   );

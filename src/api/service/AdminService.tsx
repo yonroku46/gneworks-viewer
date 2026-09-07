@@ -743,6 +743,27 @@ class AdminService {
       throw error;
     }
   }
+  /**
+   * 엑셀 파일 업로드 → site/household 일괄 임포트
+   * POST /admin/data/import-excel (multipart/form-data)
+   */
+  async importExcel(file: File, regionId?: string): Promise<AdminImportResultRes> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (regionId) formData.append('regionId', regionId);
+      const response: ApiResponse = await ApiInstance.post(ApiRoutes.ADMIN_IMPORT_EXCEL, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (response && !response.hasErrors) {
+        return response.responseData as AdminImportResultRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || '임포트에 실패했습니다.');
+    } catch (error) {
+      console.error('[AdminService] importExcel', error);
+      throw error;
+    }
+  }
 }
 
 export default AdminService.getInstance();

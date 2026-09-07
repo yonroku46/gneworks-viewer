@@ -63,6 +63,9 @@ const ADMIN_REPORT_STATUS = (reportId: string) => `${ADMIN_ROOT}/report/${report
 const ADMIN_WORKER_RANKING = `${ADMIN_ROOT}/worker/ranking`;
 const ADMIN_DASHBOARD_SUMMARY = `${ADMIN_ROOT}/dashboard/summary`;
 
+// admin (data import)
+const ADMIN_IMPORT_EXCEL = `${ADMIN_ROOT}/data/import-excel`;
+
 // portal
 const PORTAL_ROOT = `${ROOT}/portal`;
 const PORTAL_PROFILE = `${PORTAL_ROOT}/profile`;
@@ -120,6 +123,7 @@ const ApiRoutes = {
   ADMIN_REPORT_STATUS,
   ADMIN_WORKER_RANKING,
   ADMIN_DASHBOARD_SUMMARY,
+  ADMIN_IMPORT_EXCEL,
   PORTAL_PROFILE,
   PORTAL_PROFILE_PASSWORD,
   PORTAL_REGIONS,

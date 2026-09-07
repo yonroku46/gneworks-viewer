@@ -331,7 +331,6 @@ declare global {
     pending: number;
     rejected: number;
   }
-  // type WorkerStat = AdminWorkerStatRes;
   interface AdminDashboardSummaryRes {
     totalSites: number;
     totalTarget: number;
@@ -345,7 +344,13 @@ declare global {
     issueReportsCount: number;
     totalWorkers: number;
   }
-  // type DashboardSummary = AdminDashboardSummaryRes;
+  interface AdminImportResultRes {
+    siteInserted: number;
+    siteSkipped: number;
+    householdInserted: number;
+    householdSkipped: number;
+    regionName?: string;
+  }
 }
 
 export {};
