@@ -9,6 +9,7 @@ import CustomSelect from '@/components/common/CustomSelect';
 import UserAvatar from '@/components/common/UserAvatar';
 import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
+import { useDaumPostcodePopup, Address } from 'react-daum-postcode';
 import {
   Search,
   KeyRound,
@@ -22,6 +23,8 @@ import {
 } from 'lucide-react';
 import AdminService from '@/api/service/AdminService';
 import { isRegionMatch } from '@/common/utils/regionUtils';
+import Pagination from '@/components/common/Pagination';
+import { formatPhoneNumber } from '@/utils/formatUtils';
 import './AccountDetailDialog.scss';
 
 export interface AccountDetailDialogProps {
@@ -68,6 +71,9 @@ export default function AccountDetailDialog({
 
   const user = currentUser || initialUser;
 
+  // Daum Postcode Popup
+  const openPostcode = useDaumPostcodePopup();
+
   // 자체 내장 기본정보 수정 모달 상태
   const [isInternalEditOpen, setIsInternalEditOpen] = useState(false);
   const [editFormData, setEditFormData] = useState<{
@@ -85,6 +91,31 @@ export default function AccountDetailDialog({
     postalCode: '',
     detailAddress: '',
   });
+
+  const handleCompletePostcode = (data: Address) => {
+    let fullAddress = data.roadAddress || data.address;
+    let extraAddress = '';
+
+    if (data.addressType === 'R') {
+      if (data.bname !== '') {
+        extraAddress += data.bname;
+      }
+      if (data.buildingName !== '') {
+        extraAddress += extraAddress !== '' ? `, ${data.buildingName}` : data.buildingName;
+      }
+      fullAddress += extraAddress !== '' ? ` (${extraAddress})` : '';
+    }
+
+    setEditFormData(prev => ({
+      ...prev,
+      postalCode: data.zonecode || '',
+      detailAddress: fullAddress,
+    }));
+  };
+
+  const handleSearchAddress = () => {
+    openPostcode({ onComplete: handleCompletePostcode });
+  };
 
   const handleOpenInternalEdit = () => {
     if (!user) return;
@@ -114,15 +145,19 @@ export default function AccountDetailDialog({
       enqueueSnackbar('전화번호를 입력해 주세요.', { variant: 'error' });
       return;
     }
+    if (!editFormData.birthday) {
+      enqueueSnackbar('생년월일을 입력해 주세요.', { variant: 'error' });
+      return;
+    }
 
     const updatedUser: User = {
       ...user,
       userName: editFormData.userName.trim(),
-      phoneNum: editFormData.phoneNum.trim(),
+      phoneNum: formatPhoneNumber(editFormData.phoneNum.trim()),
       birthday: editFormData.birthday || undefined,
       gender: editFormData.gender,
-      postalCode: editFormData.postalCode || undefined,
-      detailAddress: editFormData.detailAddress || undefined,
+      postalCode: editFormData.postalCode.trim() || undefined,
+      detailAddress: editFormData.detailAddress.trim() || undefined,
       lastUpdated: dayjs().toISOString(),
     };
 
@@ -178,6 +213,31 @@ export default function AccountDetailDialog({
     }
   }, [user?.userId, isOpen]);
 
+  // Sites State (Props 우선, 없을 시 자체 서버 조회)
+  const [internalSites, setInternalSites] = useState<SiteDetail[]>(sites || []);
+
+  useEffect(() => {
+    if (sites && sites.length > 0) {
+      setInternalSites(sites);
+    } else if (isOpen) {
+      AdminService.getSiteList()
+        .then(res => setInternalSites(res?.list || []))
+        .catch(err => {
+          console.error('[AccountDetailDialog] getSiteList error:', err);
+          setInternalSites([]);
+        });
+    }
+  }, [isOpen, sites]);
+
+  // Site ID -> Site Detail Map
+  const siteMap = useMemo(() => {
+    const map = new Map<string, SiteDetail>();
+    internalSites.forEach(s => {
+      if (s.siteId) map.set(s.siteId, s);
+    });
+    return map;
+  }, [internalSites]);
+
   // Performance Tab Filters
   const [userPerfRegionFilter, setUserPerfRegionFilter] = useState<string>('all');
   const [perfSearchQuery, setPerfSearchQuery] = useState('');
@@ -186,6 +246,19 @@ export default function AccountDetailDialog({
   const [perfStartDate, setPerfStartDate] = useState('');
   const [perfEndDate, setPerfEndDate] = useState('');
   const [perfStatusFilter, setPerfStatusFilter] = useState<'ALL' | 'COMPLETED' | 'PENDING' | 'REJECTED'>('ALL');
+  const [perfPage, setPerfPage] = useState<number>(1);
+  const PERF_PAGE_SIZE = 20;
+
+  // Server-side Paged Reports State
+  const [apiReports, setApiReports] = useState<WorkReport[]>([]);
+  const [totalReportCount, setTotalReportCount] = useState<number>(0);
+  const [totalPerfPages, setTotalPerfPages] = useState<number>(1);
+  const [isReportsLoading, setIsReportsLoading] = useState<boolean>(false);
+
+  // 필터 변경 시 페이지 리셋
+  useEffect(() => {
+    setPerfPage(1);
+  }, [userPerfRegionFilter, perfSearchQuery, perfSortOrder, perfPreset, perfStartDate, perfEndDate, perfStatusFilter]);
 
   // Reset states when user or open changes
   useEffect(() => {
@@ -210,6 +283,7 @@ export default function AccountDetailDialog({
     setPerfEndDate('');
     setPerfStatusFilter('ALL');
     setUserPerfRegionFilter('all');
+    setPerfPage(1);
   };
 
   // Performance Date Preset Handler
@@ -256,51 +330,79 @@ export default function AccountDetailDialog({
     );
   }, [user, reports]);
 
-  // Unique region list: 담당 지역(userAssignedRegions) + 작업 보고서 지역(userReports) 통합 연동
+  // Unique region list: 담당 지역(userAssignedRegions) + 작업 보고서 세대의 현장 소방관할(Site) 통합 연동
   const userAvailableRegions = useMemo(() => {
-    const regionMap = new Map<string, { label: string; count: number; sido: string; sigungu: string }>();
-
-    // 1. 담당 지역(userAssignedRegions) 등록 (작업 보고서가 없어도 필터 탭에 0건으로 정상 노출)
-    userAssignedRegions.forEach(reg => {
-      const key = `${reg.sido}_${reg.sigungu}`;
+    // 1. 담당 지역(userAssignedRegions) 기본 등록 (소방관서 기준 탭, 초기 count: 0)
+    const assignedList = userAssignedRegions.map(reg => {
+      const key = reg.regionId ? `reg_${reg.regionId}` : `${reg.sido}_${reg.sigungu}`;
       const label = `${reg.sido} ${reg.sigungu}`;
-      regionMap.set(key, { label, count: 0, sido: reg.sido, sigungu: reg.sigungu });
+      return {
+        key,
+        label,
+        count: 0,
+        sido: reg.sido,
+        sigungu: reg.sigungu,
+        regionId: reg.regionId,
+        isAssigned: true,
+      };
     });
 
-    // 2. 작업자의 전체 보고서(userReports)를 순회하며 해당 지역 카운트 집계 및 추가
+    const unassignedMap = new Map<string, { key: string; label: string; count: number; sido: string; sigungu: string; regionId?: string }>();
+
+    // 2. 작업자의 전체 보고서(userReports)를 순회하며, 보고서의 현장(Site) 소방관서 기준으로 집계
     userReports.forEach(r => {
-      const sido = r.sido || '';
-      const sigungu = r.sigungu || '';
-      if (!sido && !sigungu) return;
-      const key = `${sido}_${sigungu}`;
-      const label = `${sido} ${sigungu}`.trim();
-      if (!regionMap.has(key)) {
-        regionMap.set(key, { label, count: 0, sido, sigungu });
+      const site = r.siteId ? siteMap.get(r.siteId) : undefined;
+      const siteRegion = site ? (site.region || site.sigungu) : r.sigungu;
+      const siteRegionId = site?.regionId;
+      const siteSido = site?.sido || r.sido || '';
+
+      if (!siteSido && !siteRegion) return;
+
+      const matched = assignedList.find(reg => {
+        if (reg.regionId || siteRegionId) {
+          return Boolean(reg.regionId && siteRegionId && reg.regionId === siteRegionId);
+        }
+        return reg.sido === siteSido && reg.sigungu === siteRegion;
+      });
+
+      if (matched) {
+        matched.count += 1;
+      } else {
+        // 담당 지역 외 보고서의 경우 fallback 집계
+        const key = siteRegionId ? `reg_${siteRegionId}` : `${siteSido}_${siteRegion}`;
+        const label = `${siteSido} ${siteRegion}`.trim();
+        if (!unassignedMap.has(key)) {
+          unassignedMap.set(key, {
+            key,
+            label,
+            count: 0,
+            sido: siteSido,
+            sigungu: siteRegion,
+            regionId: siteRegionId,
+          });
+        }
+        unassignedMap.get(key)!.count += 1;
       }
-      regionMap.get(key)!.count += 1;
     });
 
-    return Array.from(regionMap.entries()).map(([key, data]) => ({
-      key,
-      label: data.label,
-      count: data.count,
-      sido: data.sido,
-      sigungu: data.sigungu,
-    }));
-  }, [userAssignedRegions, userReports]);
+    return [...assignedList, ...Array.from(unassignedMap.values())];
+  }, [userAssignedRegions, userReports, siteMap]);
 
   // Region Assign & Unassign handlers (API 연동)
-  const handleAssignRegion = async (sido: string, sigungu: string) => {
+  const handleAssignRegion = async (sido: string, sigungu: string, regionId?: string) => {
     if (!user?.userId) {
       enqueueSnackbar('작업자 정보를 찾을 수 없습니다.', { variant: 'error' });
       return;
     }
-    if (userAssignedRegions.some(r => isRegionMatch(r.sido, r.sigungu, sido, sigungu))) {
+    if (userAssignedRegions.some(r => {
+      if (regionId || r.regionId) return Boolean(regionId && r.regionId && r.regionId === regionId);
+      return isRegionMatch(r.sido, r.sigungu, sido, sigungu);
+    })) {
       enqueueSnackbar('이미 배정된 지역입니다.', { variant: 'warning' });
       return;
     }
     try {
-      await AdminService.assignRegion(user.userId, sido, sigungu);
+      await AdminService.assignRegion(user.userId, sido, sigungu, regionId);
       await fetchAssignedRegions(user.userId);
       onRegionsUpdated?.();
       const targetName = user.userName ? `${user.userName}님` : '해당 작업자';
@@ -333,10 +435,25 @@ export default function AccountDetailDialog({
 
   // Base filtered reports
   const baseUserReports = useMemo(() => {
+    const selectedRegion = userPerfRegionFilter !== 'all'
+      ? userAvailableRegions.find(ar => ar.key === userPerfRegionFilter)
+      : null;
+
     return userReports.filter(r => {
-      if (userPerfRegionFilter !== 'all') {
-        const rKey = `${r.sido}_${r.sigungu}`;
-        if (rKey !== userPerfRegionFilter) return false;
+      if (selectedRegion) {
+        const site = r.siteId ? siteMap.get(r.siteId) : undefined;
+        const siteRegion = site ? (site.region || site.sigungu) : r.sigungu;
+        const siteRegionId = site?.regionId;
+        const siteSido = site?.sido || r.sido;
+
+        const isMatch = (() => {
+          if (siteRegionId || selectedRegion.regionId) {
+            return Boolean(siteRegionId && selectedRegion.regionId && siteRegionId === selectedRegion.regionId);
+          }
+          return selectedRegion.sido === siteSido && selectedRegion.sigungu === siteRegion;
+        })();
+
+        if (!isMatch) return false;
       }
       const date = r.installDate || (r.reportTime ? r.reportTime.split(' ')[0] : '');
       if (perfStartDate && date < perfStartDate) return false;
@@ -351,7 +468,7 @@ export default function AccountDetailDialog({
       }
       return true;
     });
-  }, [userReports, userPerfRegionFilter, perfStartDate, perfEndDate, perfSearchQuery]);
+  }, [userReports, userPerfRegionFilter, userAvailableRegions, siteMap, perfStartDate, perfEndDate, perfSearchQuery]);
 
   // Status counts
   const statusCounts = useMemo(() => {
@@ -376,6 +493,74 @@ export default function AccountDetailDialog({
       return perfSortOrder === 'desc' ? dateB.localeCompare(dateA) : dateA.localeCompare(dateB);
     });
   }, [baseUserReports, perfStatusFilter, perfSortOrder]);
+
+  const pagedUserReports = useMemo(() => {
+    const start = (perfPage - 1) * PERF_PAGE_SIZE;
+    return filteredUserReports.slice(start, start + PERF_PAGE_SIZE);
+  }, [filteredUserReports, perfPage]);
+
+  // Server-side reports fetching effect
+  useEffect(() => {
+    if (!isOpen || !user?.userId) return;
+    let isMounted = true;
+    setIsReportsLoading(true);
+
+    const selectedRegion = userPerfRegionFilter !== 'all'
+      ? userAvailableRegions.find(ar => ar.key === userPerfRegionFilter)
+      : null;
+
+    AdminService.getReportListPaged({
+      userId: user.userId,
+      page: perfPage,
+      size: PERF_PAGE_SIZE,
+      query: perfSearchQuery.trim() || undefined,
+      regionId: selectedRegion?.regionId || undefined,
+      status: perfStatusFilter !== 'ALL' ? perfStatusFilter : undefined,
+      installStartDate: perfStartDate || undefined,
+      installEndDate: perfEndDate || undefined,
+      orderBy: perfSortOrder === 'desc' ? 'REPORT_TIME_DESC' : undefined,
+    })
+      .then(res => {
+        if (!isMounted) return;
+        setApiReports(res?.list || []);
+        setTotalReportCount(res?.totalCount || 0);
+        setTotalPerfPages(res?.totalPages || Math.ceil((res?.totalCount || 0) / PERF_PAGE_SIZE) || 1);
+      })
+      .catch(err => {
+        if (!isMounted) return;
+        console.error('[AccountDetailDialog] getReportListPaged error:', err);
+        setApiReports([]);
+        setTotalReportCount(0);
+        setTotalPerfPages(1);
+      })
+      .finally(() => {
+        if (isMounted) setIsReportsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    isOpen,
+    user?.userId,
+    perfPage,
+    userPerfRegionFilter,
+    perfSearchQuery,
+    perfSortOrder,
+    perfStartDate,
+    perfEndDate,
+    perfStatusFilter,
+  ]);
+
+  const displayedReports = (apiReports.length > 0 || totalReportCount > 0 || isReportsLoading)
+    ? apiReports
+    : pagedUserReports;
+  const finalTotalPages = totalReportCount > 0
+    ? totalPerfPages
+    : (Math.ceil(filteredUserReports.length / PERF_PAGE_SIZE) || 1);
+  const finalTotalCount = totalReportCount > 0
+    ? totalReportCount
+    : filteredUserReports.length;
 
   if (!user) return null;
 
@@ -511,11 +696,14 @@ export default function AccountDetailDialog({
                 <div className="pw-reset-alert-box">
                   <div className="pw-reset-desc">
                     <strong>비밀번호 초기화</strong>
-                    <p>비밀번호 분실 시 해당 유저의 <strong>하이픈 없는 전화번호({user.phoneNum.replace(/[^0-9]/g, '')})</strong>로 즉시 초기화됩니다.</p>
+                    <p>
+                      비밀번호 분실 시 해당 유저의 <strong>{user.birthday ? `생년월일 6자리(${dayjs(user.birthday).format('YYMMDD')})` : '생년월일 미등록(초기화 불가)'}</strong>로 즉시 초기화됩니다.
+                    </p>
                   </div>
                   <button
                     type="button"
                     className="btn-pw-action"
+                    disabled={!user.birthday}
                     onClick={() => onResetPassword(user)}
                   >
                     <KeyRound size={15} />
@@ -550,9 +738,11 @@ export default function AccountDetailDialog({
                 {userAssignedRegions.length > 0 ? (
                   <div className="assigned-sites-list">
                     {userAssignedRegions.map((region, rIdx) => {
-                      const sitesInRegion = sites.filter(
-                        s => isRegionMatch(s.sido, s.sigungu, region.sido, region.sigungu)
-                      );
+                      const sitesInRegion = sites.filter(s => {
+                        if (region.regionId || s.regionId) return Boolean(region.regionId && s.regionId && s.regionId === region.regionId);
+                        if (s.region) return isRegionMatch(s.sido, s.region, region.sido, region.sigungu);
+                        return isRegionMatch(s.sido, s.sigungu, region.sido, region.sigungu);
+                      });
                       const totalHouseholds = sitesInRegion.reduce(
                         (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),
                         0
@@ -794,15 +984,15 @@ export default function AccountDetailDialog({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredUserReports.length > 0 ? (
-                      filteredUserReports.map((report, idx) => (
+                    {displayedReports.length > 0 ? (
+                      displayedReports.map((report, idx) => (
                         <tr
                           key={report.reportId ? `${report.reportId}_${idx}` : `report_${idx}_${report.siteName || ''}_${report.dong || ''}_${report.ho || ''}`}
                           onClick={() => onReportClick?.(report)}
                           style={{ cursor: onReportClick ? 'pointer' : 'default' }}
                         >
                           <td className="col-num">
-                            <span className="row-index">{idx + 1}</span>
+                            <span className="row-index">{(perfPage - 1) * PERF_PAGE_SIZE + idx + 1}</span>
                           </td>
                           <td>{report.installDate || report.installDateFormatted || '—'}</td>
                           <td><strong>{report.siteName}</strong></td>
@@ -816,15 +1006,27 @@ export default function AccountDetailDialog({
                     ) : (
                       <tr>
                         <td colSpan={6} className="perf-empty-state">
-                          {userReports.length === 0
-                            ? `[${user.userName}] 작업자의 등록된 작업 보고서가 없습니다.`
-                            : '선택하신 조건에 해당하는 작업 보고서가 없습니다.'}
+                          {isReportsLoading
+                            ? '보고서 목록을 불러오는 중입니다...'
+                            : (finalTotalCount === 0 && userReports.length === 0
+                                ? `[${user.userName}] 작업자의 등록된 작업 보고서가 없습니다.`
+                                : '선택하신 조건에 해당하는 작업 보고서가 없습니다.')}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+
+              {/* 페이지네이션 (공통 컴포넌트 사용) */}
+              <Pagination
+                page={perfPage}
+                totalPages={finalTotalPages}
+                totalCount={finalTotalCount}
+                pageSize={PERF_PAGE_SIZE}
+                onPageChange={setPerfPage}
+                showInfo={false}
+              />
             </div>
           )}
         </div>
@@ -835,7 +1037,7 @@ export default function AccountDetailDialog({
         isOpen={isRegionAssignOpen}
         onClose={() => setIsRegionAssignOpen(false)}
         assignedRegions={userAssignedRegions}
-        sites={sites}
+        sites={internalSites}
         onAssignRegion={handleAssignRegion}
         onUnassignRegion={handleUnassignRegion}
       />
@@ -886,7 +1088,7 @@ export default function AccountDetailDialog({
                 placeholder="예: 010-1234-5678"
                 required
                 value={editFormData.phoneNum}
-                onChange={e => setEditFormData(prev => ({ ...prev, phoneNum: e.target.value }))}
+                onChange={e => setEditFormData(prev => ({ ...prev, phoneNum: formatPhoneNumber(e.target.value) }))}
               />
             </div>
 
@@ -905,30 +1107,43 @@ export default function AccountDetailDialog({
                 </CustomSelect>
               </div>
               <div className="form-field">
-                <label>생년월일</label>
+                <label>생년월일 <span className="req">*</span></label>
                 <input
                   type="date"
+                  required
                   value={editFormData.birthday}
                   onChange={e => setEditFormData(prev => ({ ...prev, birthday: e.target.value }))}
                 />
               </div>
             </div>
 
+            {/* 주소 검색 필드 (우편번호 검색 상단 + 도로명 주소 하단) */}
             <div className="form-field">
               <label>우편번호</label>
-              <input
-                type="text"
-                placeholder="예: 06544"
-                value={editFormData.postalCode}
-                onChange={e => setEditFormData(prev => ({ ...prev, postalCode: e.target.value }))}
-              />
+              <div className="address-input-group">
+                <input
+                  type="text"
+                  placeholder="우편번호"
+                  readOnly
+                  value={editFormData.postalCode}
+                  onClick={handleSearchAddress}
+                />
+                <button
+                  type="button"
+                  className="btn-search-address"
+                  onClick={handleSearchAddress}
+                >
+                  <Search size={15} />
+                  <span>주소 검색</span>
+                </button>
+              </div>
             </div>
 
             <div className="form-field">
-              <label>상세 주소</label>
+              <label>주소</label>
               <input
                 type="text"
-                placeholder="예: 서울시 서초구 신반포로 100 관리동 2층"
+                placeholder="주소 검색 시 자동 입력되며, 상세 정보(동·호수 등)를 추가 입력할 수 있습니다"
                 value={editFormData.detailAddress}
                 onChange={e => setEditFormData(prev => ({ ...prev, detailAddress: e.target.value }))}
               />

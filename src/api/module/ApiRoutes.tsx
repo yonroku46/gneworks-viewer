@@ -19,6 +19,8 @@ const CONTACT_SUBMIT = `${CONTACT_ROOT}/submit`;
 // admin (user)
 const ADMIN_ROOT = `${ROOT}/admin`;
 const ADMIN_USER_LIST = `${ADMIN_ROOT}/user/list`;
+const ADMIN_USER_LIST_PAGED = `${ADMIN_ROOT}/user/paged`;
+const ADMIN_USER_EXPORT_EXCEL = `${ADMIN_ROOT}/user/export/excel`;
 const ADMIN_USER_CREATE = `${ADMIN_ROOT}/user/create`;
 const ADMIN_USER_UPDATE = `${ADMIN_ROOT}/user/update`;
 const ADMIN_USER_RESET_PW = `${ADMIN_ROOT}/user/reset-password`;
@@ -26,6 +28,8 @@ const ADMIN_USER_DELETE = (userId: string) => `${ADMIN_ROOT}/user/${userId}`;
 
 // admin (site & household)
 const ADMIN_SITE_LIST = `${ADMIN_ROOT}/site/list`;
+const ADMIN_SITE_LIST_PAGED = `${ADMIN_ROOT}/site/paged`;
+const ADMIN_SITE_EXPORT_EXCEL = `${ADMIN_ROOT}/site/export/excel`;
 const ADMIN_SITE_DETAIL = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}`;
 const ADMIN_SITE_CREATE = `${ADMIN_ROOT}/site`;
 const ADMIN_SITE_UPDATE = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}`;
@@ -41,6 +45,8 @@ const ADMIN_USER_REGION_DELETE = (userId: string, regionId: string) => `${ADMIN_
 
 // admin (inquiry)
 const ADMIN_INQUIRY_LIST = `${ADMIN_ROOT}/inquiry/list`;
+const ADMIN_INQUIRY_LIST_PAGED = `${ADMIN_ROOT}/inquiry/paged`;
+const ADMIN_INQUIRY_EXPORT_EXCEL = `${ADMIN_ROOT}/inquiry/export/excel`;
 const ADMIN_INQUIRY_PENDING_SUMMARY = `${ADMIN_ROOT}/inquiry/pending-summary`;
 const ADMIN_INQUIRY_DETAIL = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inquiryId}`;
 const ADMIN_INQUIRY_ANSWER = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inquiryId}/answer`;
@@ -48,14 +54,22 @@ const ADMIN_INQUIRY_DELETE = (inquiryId: string) => `${ADMIN_ROOT}/inquiry/${inq
 
 // admin (report)
 const ADMIN_REPORT_LIST = `${ADMIN_ROOT}/report/list`;
+const ADMIN_REPORT_LIST_PAGED = `${ADMIN_ROOT}/report/paged`;
+const ADMIN_REPORT_EXPORT_EXCEL = `${ADMIN_ROOT}/report/export/excel`;
 const ADMIN_REPORT_DETAIL = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}`;
 const ADMIN_REPORT_STATUS = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}/status`;
+
+// admin (dashboard)
+const ADMIN_WORKER_RANKING = `${ADMIN_ROOT}/worker/ranking`;
+const ADMIN_DASHBOARD_SUMMARY = `${ADMIN_ROOT}/dashboard/summary`;
 
 // portal
 const PORTAL_ROOT = `${ROOT}/portal`;
 const PORTAL_PROFILE = `${PORTAL_ROOT}/profile`;
+const PORTAL_PROFILE_PASSWORD = `${PORTAL_PROFILE}/password`;
 const PORTAL_REGIONS = `${PORTAL_ROOT}/regions`;
 const PORTAL_REGION_DELETE = (regionId: string) => `${PORTAL_ROOT}/regions/${regionId}`;
+const PORTAL_REGION_SUMMARY = (regionId: string) => `${PORTAL_ROOT}/regions/${regionId}/summary`;
 const PORTAL_FIRE_REGIONS = `${PORTAL_ROOT}/fire-regions`;
 const PORTAL_SITES = `${PORTAL_ROOT}/sites`;
 const PORTAL_SITE_DETAIL = (siteId: string) => `${PORTAL_ROOT}/sites/${siteId}`;
@@ -73,11 +87,15 @@ const ApiRoutes = {
   NOTIFICATION_SUBSCRIBE,
   CONTACT_SUBMIT,
   ADMIN_USER_LIST,
+  ADMIN_USER_LIST_PAGED,
+  ADMIN_USER_EXPORT_EXCEL,
   ADMIN_USER_CREATE,
   ADMIN_USER_UPDATE,
   ADMIN_USER_RESET_PW,
   ADMIN_USER_DELETE,
   ADMIN_SITE_LIST,
+  ADMIN_SITE_LIST_PAGED,
+  ADMIN_SITE_EXPORT_EXCEL,
   ADMIN_SITE_DETAIL,
   ADMIN_SITE_CREATE,
   ADMIN_SITE_UPDATE,
@@ -89,16 +107,24 @@ const ApiRoutes = {
   ADMIN_USER_REGIONS,
   ADMIN_USER_REGION_DELETE,
   ADMIN_INQUIRY_LIST,
+  ADMIN_INQUIRY_LIST_PAGED,
+  ADMIN_INQUIRY_EXPORT_EXCEL,
   ADMIN_INQUIRY_PENDING_SUMMARY,
   ADMIN_INQUIRY_DETAIL,
   ADMIN_INQUIRY_ANSWER,
   ADMIN_INQUIRY_DELETE,
   ADMIN_REPORT_LIST,
+  ADMIN_REPORT_LIST_PAGED,
+  ADMIN_REPORT_EXPORT_EXCEL,
   ADMIN_REPORT_DETAIL,
   ADMIN_REPORT_STATUS,
+  ADMIN_WORKER_RANKING,
+  ADMIN_DASHBOARD_SUMMARY,
   PORTAL_PROFILE,
+  PORTAL_PROFILE_PASSWORD,
   PORTAL_REGIONS,
   PORTAL_REGION_DELETE,
+  PORTAL_REGION_SUMMARY,
   PORTAL_FIRE_REGIONS,
   PORTAL_SITES,
   PORTAL_SITE_DETAIL,

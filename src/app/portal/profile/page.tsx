@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSnackbar } from 'notistack';
 import ProfileEditDialog from '@/components/dialog/ProfileEditDialog';
+import PasswordChangeDialog from '@/components/dialog/PasswordChangeDialog';
 import RegionAssignDialog from '@/components/dialog/RegionAssignDialog';
 import PortalService from '@/api/service/PortalService';
 import { isRegionMatch } from '@/common/utils/regionUtils';
@@ -21,6 +22,7 @@ export default function ProfilePage() {
   const { enqueueSnackbar } = useSnackbar();
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isRegionAssignOpen, setIsRegionAssignOpen] = useState(false);
 
   // Sites & Regions state synchronized with Backend API
@@ -71,9 +73,9 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAssignRegion = async (sido: string, sigungu: string) => {
+  const handleAssignRegion = async (sido: string, sigungu: string, regionId?: string) => {
     try {
-      await PortalService.assignRegion(sido, sigungu);
+      await PortalService.assignRegion(sido, sigungu, regionId);
       await fetchAssignedRegions();
       enqueueSnackbar(`${sido} ${sigungu}이(가) 담당 지역으로 등록되었습니다.`, { variant: 'success' });
     } catch (error) {
@@ -182,9 +184,11 @@ export default function ProfilePage() {
           {assignedRegions.length > 0 ? (
             <div className="assigned-sites-list">
               {assignedRegions.map(region => {
-                const sitesInRegion = allSites.filter(
-                  s => isRegionMatch(s.sido, s.sigungu, region.sido, region.sigungu)
-                );
+                const sitesInRegion = allSites.filter(s => {
+                  if (region.regionId || s.regionId) return Boolean(region.regionId && s.regionId && s.regionId === region.regionId);
+                  if (s.region) return isRegionMatch(s.sido, s.region, region.sido, region.sigungu);
+                  return isRegionMatch(s.sido, s.sigungu, region.sido, region.sigungu);
+                });
                 const totalHouseholds = sitesInRegion.reduce(
                   (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),
                   0
@@ -250,8 +254,17 @@ export default function ProfilePage() {
         initialPhone={user?.phoneNum || ''}
         userName={displayName}
         onSave={handleSaveProfile}
+        onOpenPasswordChange={() => {
+          setIsEditDialogOpen(false);
+          setIsPasswordDialogOpen(true);
+        }}
       />
 
+      {/* 비밀번호 변경 다이얼로그 */}
+      <PasswordChangeDialog
+        isOpen={isPasswordDialogOpen}
+        onClose={() => setIsPasswordDialogOpen(false)}
+      />
 
       {/* 담당 지역 배정 다이얼로그 */}
       <RegionAssignDialog
@@ -259,6 +272,7 @@ export default function ProfilePage() {
         onClose={() => setIsRegionAssignOpen(false)}
         assignedRegions={assignedRegions}
         sites={allSites}
+        mode="portal"
         onAssignRegion={handleAssignRegion}
         onUnassignRegion={handleRemoveRegion}
       />

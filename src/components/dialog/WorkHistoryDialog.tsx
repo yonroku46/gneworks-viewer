@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 import PortalService from '@/api/service/PortalService';
@@ -11,16 +11,19 @@ import './WorkHistoryDialog.scss';
 interface WorkHistoryDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  sites?: SiteDetail[];
   onSelectReport?: (report: WorkReport) => void;
 }
 
 export default function WorkHistoryDialog({
   isOpen,
   onClose,
+  sites = [],
   onSelectReport,
 }: WorkHistoryDialogProps) {
   const [reports, setReports] = useState<WorkReport[]>([]);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
+  const [internalSites, setInternalSites] = useState<SiteDetail[]>(sites || []);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,15 +34,17 @@ export default function WorkHistoryDialog({
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>('ALL');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
+  // Server-side Infinite Scroll State
+  const PAGE_CHUNK_SIZE = 20;
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+  const observerTargetRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
-
-    PortalService.getReports()
-      .then(res => setReports(res || []))
-      .catch(err => {
-        console.error('[WorkHistoryDialog] getReports error:', err);
-        setReports([]);
-      });
 
     PortalService.getAssignedRegions()
       .then(regs => setAssignedRegions(regs || []))
@@ -47,118 +52,182 @@ export default function WorkHistoryDialog({
         console.error('[WorkHistoryDialog] getAssignedRegions error:', err);
         setAssignedRegions([]);
       });
-  }, [isOpen]);
 
-  // Available unique regions with report counts
-  const availableRegions = useMemo(() => {
-    const regionMap = new Map<string, { label: string; count: number; sido: string; sigungu: string }>();
+    if (sites && sites.length > 0) {
+      setInternalSites(sites);
+    } else {
+      PortalService.getSites()
+        .then(res => setInternalSites(res || []))
+        .catch(err => {
+          console.error('[WorkHistoryDialog] getSites error:', err);
+          setInternalSites([]);
+        });
+    }
+  }, [isOpen, sites]);
 
-    reports.forEach(r => {
-      const key = `${r.sido}_${r.sigungu}`;
-      const label = `${r.sido} ${r.sigungu}`;
-      if (!regionMap.has(key)) {
-        regionMap.set(key, { label, count: 0, sido: r.sido, sigungu: r.sigungu });
-      }
-      regionMap.get(key)!.count += 1;
+  // Site ID -> Site Detail Map for exact region resolution
+  const siteMap = useMemo(() => {
+    const map = new Map<string, SiteDetail>();
+    internalSites.forEach(s => {
+      if (s.siteId) map.set(s.siteId, s);
     });
+    return map;
+  }, [internalSites]);
 
-    return Array.from(regionMap.entries()).map(([key, data]) => ({
-      key,
-      label: data.label,
-      count: data.count,
-    }));
-  }, [reports]);
+  // Available assigned regions for filtering
+  const availableRegions = useMemo(() => {
+    return assignedRegions.map(reg => {
+      const key = reg.regionId ? `reg_${reg.regionId}` : `${reg.sido}_${reg.sigungu}`;
+      const label = `${reg.sido} ${reg.sigungu}`;
+      return {
+        key,
+        label,
+        sido: reg.sido,
+        sigungu: reg.sigungu,
+        regionId: reg.regionId,
+        isAssigned: true,
+      };
+    });
+  }, [assignedRegions]);
 
-  // Base reports filtered by region, date, and search query (used to compute status counts)
-  const baseReports = useMemo(() => {
+  const getDateRange = () => {
     const todayStr = dayjs().format('YYYY-MM-DD');
-
-    let cutoffDate = '';
     if (datePreset === 'today') {
-      cutoffDate = todayStr;
-    } else if (datePreset === 'week') {
-      cutoffDate = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
-    } else if (datePreset === 'month') {
-      cutoffDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+      return { start: todayStr, end: todayStr };
+    }
+    if (datePreset === 'week') {
+      return { start: dayjs().subtract(7, 'day').format('YYYY-MM-DD'), end: todayStr };
+    }
+    if (datePreset === 'month') {
+      return { start: dayjs().subtract(30, 'day').format('YYYY-MM-DD'), end: todayStr };
+    }
+    if (datePreset === 'custom') {
+      return { start: customStartDate || undefined, end: customEndDate || undefined };
+    }
+    return { start: undefined, end: undefined };
+  };
+
+  const fetchReports = async (pageToFetch: number, isAppend: boolean = false) => {
+    if (!isOpen) return;
+    if (isAppend) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
     }
 
-    return reports.filter(r => {
-      // Region filter (sido_sigungu)
-      if (selectedRegionKey !== 'all') {
-        const rKey = `${r.sido}_${r.sigungu}`;
-        if (rKey !== selectedRegionKey) return false;
-      }
+    try {
+      const targetReg = selectedRegionKey !== 'all'
+        ? availableRegions.find(ar => ar.key === selectedRegionKey)
+        : undefined;
+      const { start, end } = getDateRange();
 
-      // Date filter
-      const rawDate = r.installDate || (r.reportTime ? r.reportTime.split(' ')[0] : '');
-      const normDate = rawDate ? rawDate.replace(/\./g, '-') : '';
-
-      if (datePreset === 'custom') {
-        if (customStartDate && normDate && normDate < customStartDate) return false;
-        if (customEndDate && normDate && normDate > customEndDate) return false;
-      } else if (datePreset !== 'all' && normDate) {
-        if (normDate < cutoffDate) return false;
-      }
-
-      // Text search filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const matches =
-          r.siteName.toLowerCase().includes(q) ||
-          r.dong.toLowerCase().includes(q) ||
-          r.ho.toLowerCase().includes(q) ||
-          (r.headName && r.headName.toLowerCase().includes(q)) ||
-          (r.address && r.address.toLowerCase().includes(q));
-        if (!matches) return false;
-      }
-
-      return true;
-    });
-  }, [reports, selectedRegionKey, datePreset, customStartDate, customEndDate, searchQuery]);
-
-  // Counts by status
-  const statusCounts = useMemo(() => {
-    return {
-      all: baseReports.length,
-      completed: baseReports.filter(r => r.status === 'COMPLETED').length,
-      pending: baseReports.filter(r => r.status === 'PENDING').length,
-      rejected: baseReports.filter(r => r.status === 'REJECTED').length,
-    };
-  }, [baseReports]);
-
-  // Filtered reports by status & sort
-  const filteredReports = useMemo(() => {
-    return baseReports
-      .filter(r => {
-        if (statusFilter !== 'ALL' && r.status !== statusFilter) {
-          return false;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        const timeA = a.reportTime || a.installDate || '';
-        const timeB = b.reportTime || b.installDate || '';
-        return sortOrder === 'desc' ? timeB.localeCompare(timeA) : timeA.localeCompare(timeB);
+      const res = await PortalService.getReports({
+        page: pageToFetch,
+        size: PAGE_CHUNK_SIZE,
+        query: searchQuery.trim() || undefined,
+        regionId: targetReg?.regionId || undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        installStartDate: start,
+        installEndDate: end,
       });
-  }, [baseReports, statusFilter, sortOrder]);
 
-  // Group filtered reports by Site Name
+      if (isAppend) {
+        setReports(prev => [...prev, ...(res?.list || [])]);
+      } else {
+        setReports(res?.list || []);
+      }
+      setTotalCount(res?.totalCount || 0);
+      setCurrentPage(pageToFetch);
+      setHasMore(Boolean(res?.hasNext));
+    } catch (err) {
+      console.error('[WorkHistoryDialog] getReports error:', err);
+      if (!isAppend) {
+        setReports([]);
+        setTotalCount(0);
+        setHasMore(false);
+      }
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  // 필터 조건 변경 시 1페이지부터 다시 취득
+  useEffect(() => {
+    if (isOpen) {
+      fetchReports(1, false);
+    }
+  }, [
+    isOpen,
+    searchQuery,
+    selectedRegionKey,
+    datePreset,
+    customStartDate,
+    customEndDate,
+    statusFilter,
+  ]);
+
+  // 다음 페이지 로드 핸들러
+  const handleLoadMore = () => {
+    if (!hasMore || isLoading || isLoadingMore) return;
+    fetchReports(currentPage + 1, true);
+  };
+
+  // IntersectionObserver 자동 로드
+  useEffect(() => {
+    const target = observerTargetRef.current;
+    if (!target || !hasMore || isLoading || isLoadingMore) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: '120px' }
+    );
+
+    observer.observe(target);
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, isLoading, isLoadingMore, currentPage]);
+
+  const sortedReports = useMemo(() => {
+    if (sortOrder === 'desc') return reports;
+    return [...reports].sort((a, b) => {
+      const timeA = a.reportTime || a.installDate || '';
+      const timeB = b.reportTime || b.installDate || '';
+      return timeA.localeCompare(timeB);
+    });
+  }, [reports, sortOrder]);
+
   const groupedBySite = useMemo(() => {
     const map = new Map<string, { siteName: string; address: string; items: WorkReport[] }>();
 
-    filteredReports.forEach(r => {
-      if (!map.has(r.siteName)) {
-        map.set(r.siteName, {
-          siteName: r.siteName,
-          address: r.address || `${r.sido} ${r.sigungu} ${r.eupmyeondong}`,
+    sortedReports.forEach(r => {
+      const siteName = r.siteName || '기타 현장';
+      if (!map.has(siteName)) {
+        map.set(siteName, {
+          siteName,
+          address: r.address || `${r.sido || ''} ${r.sigungu || ''} ${r.eupmyeondong || ''}`.trim(),
           items: [],
         });
       }
-      map.get(r.siteName)!.items.push(r);
+      map.get(siteName)!.items.push(r);
     });
 
     return Array.from(map.values());
-  }, [filteredReports]);
+  }, [sortedReports]);
+
+  const statusCounts = useMemo(() => {
+    return {
+      all: totalCount,
+      completed: reports.filter(r => r.status === 'COMPLETED').length,
+      pending: reports.filter(r => r.status === 'PENDING').length,
+      rejected: reports.filter(r => r.status === 'REJECTED').length,
+    };
+  }, [reports, totalCount]);
 
   const handleReset = () => {
     setSearchQuery('');
@@ -239,7 +308,7 @@ export default function WorkHistoryDialog({
               onClick={() => setSelectedRegionKey('all')}
             >
               <span>전체 지역</span>
-              <span className="count-pill">{reports.length}</span>
+              {selectedRegionKey === 'all' && <span className="count-pill">{totalCount}</span>}
             </button>
             {availableRegions.map(reg => (
               <button
@@ -249,7 +318,7 @@ export default function WorkHistoryDialog({
                 onClick={() => setSelectedRegionKey(reg.key)}
               >
                 <span>{reg.label}</span>
-                <span className="count-pill">{reg.count}</span>
+                {selectedRegionKey === reg.key && <span className="count-pill">{totalCount}</span>}
               </button>
             ))}
           </div>
@@ -402,6 +471,31 @@ export default function WorkHistoryDialog({
                 </div>
               </div>
             ))
+          )}
+
+          {/* 무한 스크롤 센티넬 및 로딩 / 더보기 안내 푸터 */}
+          {reports.length > 0 && (
+            <div className="infinite-scroll-footer">
+              {hasMore ? (
+                <>
+                  <div ref={observerTargetRef} className="scroll-sentinel" />
+                  <button
+                    type="button"
+                    className="btn-load-more"
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                  >
+                    <span>
+                      {isLoadingMore ? '작업 이력을 불러오는 중...' : `더 보기 (${reports.length} / ${totalCount}건)`}
+                    </span>
+                  </button>
+                </>
+              ) : (
+                totalCount > PAGE_CHUNK_SIZE && (
+                  <p className="all-loaded-text">모든 작업 이력을 불러왔습니다. (총 {totalCount}건)</p>
+                )
+              )}
+            </div>
           )}
         </div>
       </div>

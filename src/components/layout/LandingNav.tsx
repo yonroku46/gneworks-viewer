@@ -122,23 +122,6 @@ export default function LandingNav() {
       {/* Mobile Menu Overlay */}
       <div className={`landing-nav-mobile-menu ${isMenuOpen ? 'active' : ''}`}>
         <div className="landing-nav-mobile-inner">
-          <div className="landing-nav-mobile-links">
-            <Link 
-              href="/pricing" 
-              className={`landing-nav-mobile-link ${isActive('/pricing') ? 'active' : ''}`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              요금제
-            </Link>
-            <Link 
-              href="/contact" 
-              className={`landing-nav-mobile-link ${isActive('/contact') ? 'active' : ''}`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              문의하기
-            </Link>
-          </div>
-          
           <div className="landing-nav-mobile-auth">
             {!mounted ? (
               <div className="landing-nav-mobile-card-skeleton">

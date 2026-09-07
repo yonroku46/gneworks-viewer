@@ -156,6 +156,11 @@
       width: 780px;
       max-width: 95vw;
     }
+    &.profile-edit-slide-dialog,
+    &.password-change-slide-dialog {
+      width: 480px;
+      max-width: 92vw;
+    }
     &.open {
       transform: translateY(0) scale(1);
       opacity: 1;

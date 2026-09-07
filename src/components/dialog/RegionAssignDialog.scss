@@ -245,6 +245,33 @@
               &:last-child {
                 border-bottom: none;
               }
+              &.more-sites-row {
+                background: var(--slate-50);
+                cursor: default;
+                &:hover {
+                  background: var(--slate-50);
+                }
+                td {
+                  text-align: center;
+                  padding: 0.625rem 0.75rem;
+                  border-top: 1px dashed var(--border);
+                  .more-sites-content {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.25rem;
+                    font-size: 0.75rem;
+                    color: var(--slate-500);
+                    .more-text {
+                      font-weight: 500;
+                      strong {
+                        color: var(--manage-primary);
+                        font-weight: 800;
+                      }
+                    }
+                  }
+                }
+              }
               td {
                 padding: 0.625rem 0.75rem;
                 vertical-align: middle;

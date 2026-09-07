@@ -59,13 +59,14 @@ export default function PortalPage() {
         }),
         PortalService.getReports().catch(err => {
           console.error('[PortalPage] getReports error', err);
-          return [];
+          return { list: [] } as any;
         }),
       ]);
 
       setAssignedRegions(regions || []);
       setAllSites(sites || []);
-      setReports(reps || []);
+      const repList = (reps as any)?.list || (Array.isArray(reps) ? reps : []);
+      setReports(repList);
     } finally {
       setLoading(false);
     }
@@ -104,11 +105,15 @@ export default function PortalPage() {
     }
   }, [loadPortalData]);
 
-  // 담당 지역의 현장들 (isRegionMatch 유연 매칭)
+  // 담당 지역의 현장들 (regionId 및 관할서 명칭 정확 매칭)
   const assignedSites = useMemo(() => {
     if (assignedRegions.length === 0) return [];
     return allSites.filter(site =>
-      assignedRegions.some(reg => isRegionMatch(site.sido, site.sigungu, reg.sido, reg.sigungu))
+      assignedRegions.some(reg => {
+        if (reg.regionId || site.regionId) return Boolean(reg.regionId && site.regionId && site.regionId === reg.regionId);
+        if (site.region) return isRegionMatch(site.sido, site.region, reg.sido, reg.sigungu);
+        return isRegionMatch(site.sido, site.sigungu, reg.sido, reg.sigungu);
+      })
     );
   }, [allSites, assignedRegions]);
 
@@ -385,6 +390,7 @@ export default function PortalPage() {
       <WorkHistoryDialog
         isOpen={isHistoryDialogOpen}
         onClose={() => setIsHistoryDialogOpen(false)}
+        sites={allSites}
         onSelectReport={report => {
           handleOpenReportFromHistory(report);
         }}

@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Camera } from 'lucide-react';
+import SlideDialog from './SlideDialog';
+import { Camera, KeyRound, ChevronRight } from 'lucide-react';
 import ImageCropDialog from './ImageCropDialog';
 import UserAvatar from '@/components/common/UserAvatar';
+import { formatPhoneNumber } from '@/utils/formatUtils';
 import './ProfileEditDialog.scss';
 
 interface ProfileEditDialogProps {
@@ -14,6 +15,7 @@ interface ProfileEditDialogProps {
   initialPhone?: string;
   userName?: string;
   onSave: (data: { profileImg?: string; phoneNum?: string }) => void;
+  onOpenPasswordChange?: () => void;
 }
 
 export default function ProfileEditDialog({
@@ -23,6 +25,7 @@ export default function ProfileEditDialog({
   initialPhone = '',
   userName = '사용자',
   onSave,
+  onOpenPasswordChange,
 }: ProfileEditDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,16 +41,6 @@ export default function ProfileEditDialog({
       setPhone(initialPhone || '');
     }
   }, [isOpen, initialPhoto, initialPhone]);
-
-  if (!isOpen) return null;
-
-  // 휴대폰 번호 자동 하이픈 포맷팅
-  const formatPhoneNumber = (value: string) => {
-    const numbers = value.replace(/[^0-9]/g, '');
-    if (numbers.length <= 3) return numbers;
-    if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
-    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
-  };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPhone(formatPhoneNumber(e.target.value));
@@ -84,78 +77,86 @@ export default function ProfileEditDialog({
     onClose();
   };
 
-  const dialogRoot = typeof document !== 'undefined'
-    ? document.getElementById('dialog-root') || document.body
-    : null;
-
-  if (!dialogRoot) return null;
-
   return (
     <>
-      {createPortal(
-        <div className={`profile-edit-modal-overlay ${isOpen ? 'open' : ''}`} onClick={onClose}>
-          <div className="profile-edit-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title">프로필 정보 수정</span>
-              <button type="button" className="close-btn" onClick={onClose} title="닫기">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              {/* 프로필 사진 편집 */}
-              <div className="avatar-edit-section">
-                <UserAvatar 
-                  src={photo} 
-                  name={userName} 
-                  size="huge" 
-                />
-                <div className="avatar-actions-row">
-                  <button
-                    type="button"
-                    className="btn-change-photo"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Camera size={14} />
-                    <span>사진 {photo ? '변경' : '등록'}</span>
-                  </button>
-                </div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept="image/*"
-                  className="hidden-input"
-                />
-              </div>
-
-              {/* 연락처 편집 */}
-              <div className="form-group">
-                <label className="form-label" htmlFor="phone-input">연락처</label>
-                <input
-                  id="phone-input"
-                  type="tel"
-                  className="form-input"
-                  placeholder="010-0000-0000"
-                  value={phone}
-                  onChange={handlePhoneChange}
-                  maxLength={13}
-                />
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button type="button" className="action-btn cancel" onClick={onClose}>
-                취소
-              </button>
-              <button type="button" className="action-btn save" onClick={handleSave}>
-                저장하기
-              </button>
-            </div>
+      <SlideDialog
+        isOpen={isOpen}
+        onClose={onClose}
+        title="프로필 정보 수정"
+        className="profile-edit-slide-dialog"
+        footer={
+          <div className="profile-edit-footer-btns">
+            <button type="button" className="btn-cancel" onClick={onClose}>
+              취소
+            </button>
+            <button type="button" className="btn-save" onClick={handleSave}>
+              저장하기
+            </button>
           </div>
-        </div>,
-        dialogRoot
-      )}
+        }
+      >
+        <div className="profile-edit-body">
+          {/* 프로필 사진 편집 */}
+          <div className="avatar-edit-section">
+            <UserAvatar 
+              src={photo} 
+              name={userName} 
+              size="huge" 
+            />
+            <div className="avatar-actions-row">
+              <button
+                type="button"
+                className="btn-change-photo"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera size={14} />
+                <span>사진 {photo ? '변경' : '등록'}</span>
+              </button>
+            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept="image/*"
+              className="hidden-input"
+            />
+          </div>
+
+          {/* 연락처 편집 */}
+          <div className="form-group">
+            <label className="form-label" htmlFor="phone-input">연락처</label>
+            <input
+              id="phone-input"
+              type="tel"
+              className="form-input"
+              placeholder="010-0000-0000"
+              value={phone}
+              onChange={handlePhoneChange}
+              maxLength={13}
+            />
+          </div>
+
+          {onOpenPasswordChange && (
+            <div className="security-section">
+              <span className="section-title">계정 보안</span>
+              <button
+                type="button"
+                className="security-nav-tile"
+                onClick={onOpenPasswordChange}
+              >
+                <div className="tile-icon-box">
+                  <KeyRound size={18} />
+                </div>
+                <div className="tile-texts">
+                  <strong className="tile-title">비밀번호 변경</strong>
+                  <span className="tile-sub">새로운 비밀번호로 계정을 보호하세요.</span>
+                </div>
+                <ChevronRight size={18} className="tile-arrow" />
+              </button>
+            </div>
+          )}
+        </div>
+      </SlideDialog>
 
       {/* 크롭 다이얼로그 */}
       {cropImageSrc && (

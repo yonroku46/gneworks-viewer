@@ -72,9 +72,29 @@ export default function ManageDashboard() {
   const { region, setRegion } = useManageRegion();
   const { enqueueSnackbar } = useSnackbar();
 
-  const [reports, setReports] = useState<WorkReport[]>([]);
+  const [summary, setSummary] = useState<AdminDashboardSummaryRes>({
+    totalSites: 0,
+    totalTarget: 0,
+    completedTarget: 0,
+    progressRate: 0,
+    totalReports: 0,
+    todayReports: 0,
+    pendingReports: 0,
+    rejectedReports: 0,
+    completedReports: 0,
+    issueReportsCount: 0,
+    totalWorkers: 0,
+  });
   const [sites, setSites] = useState<SiteDetail[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [totalSiteCount, setTotalSiteCount] = useState<number>(0);
+  const [workerRanking, setWorkerRanking] = useState<AdminWorkerStatRes[]>([]);
+  const [totalWorkerCount, setTotalWorkerCount] = useState<number>(0);
+  const [issueReports, setIssueReports] = useState<WorkReport[]>([]);
+  const [totalIssueCount, setTotalIssueCount] = useState<number>(0);
+  const [recentReports, setRecentReports] = useState<WorkReport[]>([]);
+  const [totalReportCount, setTotalReportCount] = useState<number>(0);
+  const [workerReports, setWorkerReports] = useState<WorkReport[]>([]);
+
   const [pendingInquirySummary, setPendingInquirySummary] = useState<{
     pendingCount: number;
     latestPendingInquiry?: Inquiry;
@@ -91,8 +111,8 @@ export default function ManageDashboard() {
   // 1. 백엔드 API에서 답변 대기 문의 요약 경량 조회 (건수 + 최신 1건 미리보기)
   const loadPendingInquirySummary = useCallback(async () => {
     try {
-      const summary = await AdminService.getPendingInquirySummary();
-      setPendingInquirySummary(summary);
+      const inquirySummary = await AdminService.getPendingInquirySummary();
+      setPendingInquirySummary(inquirySummary);
     } catch (error) {
       console.error('[Dashboard] loadPendingInquirySummary error:', error);
       setPendingInquirySummary({ pendingCount: 0 });
@@ -103,183 +123,72 @@ export default function ManageDashboard() {
     loadPendingInquirySummary();
   }, [loadPendingInquirySummary]);
 
-  // 2. Initial Load from Backend API
+  // 2. Initial Load from Backend API (API 단에서 10건 한도 적용 및 전체 집계 취득)
   const loadDashboardData = useCallback(async () => {
     try {
-      const [reportList, siteList, userList] = await Promise.all([
-        AdminService.getReportList().catch(err => {
-          console.error('[Dashboard] getReportList error', err);
-          return [];
+      const regionParam = region.regionId ? { regionId: region.regionId } : {};
+
+      const [summaryRes, siteRes, workerRes, issueRes, recentRes] = await Promise.all([
+        AdminService.getDashboardSummary(regionParam).catch(err => {
+          console.error('[Dashboard] getDashboardSummary error', err);
+          return null;
         }),
-        AdminService.getSiteList().catch(err => {
+        AdminService.getSiteList({
+          ...regionParam,
+          limit: 10,
+          orderBy: 'RATE_DESC',
+        }).catch(err => {
           console.error('[Dashboard] getSiteList error', err);
-          return [];
+          return { list: [], totalCount: 0 };
         }),
-        AdminService.getUserList().catch(err => {
-          console.error('[Dashboard] getUserList error', err);
-          return [];
+        AdminService.getWorkerRanking({
+          ...regionParam,
+          limit: 10,
+        }).catch(err => {
+          console.error('[Dashboard] getWorkerRanking error', err);
+          return Object.assign([], { totalCount: 0 });
+        }),
+        AdminService.getReportList({
+          ...regionParam,
+          status: 'PENDING',
+          hasRemarks: true,
+          limit: 10,
+        }).catch(err => {
+          console.error('[Dashboard] getReportList (issues) error', err);
+          return Object.assign([], { totalCount: 0 });
+        }),
+        AdminService.getReportList({
+          ...regionParam,
+          orderBy: 'REPORT_TIME_DESC',
+          limit: 10,
+        }).catch(err => {
+          console.error('[Dashboard] getReportList (recent) error', err);
+          return Object.assign([], { totalCount: 0 });
         }),
       ]);
-      setReports(reportList || []);
-      setSites(siteList || []);
-      setUsers(userList || []);
+
+      if (summaryRes) {
+        setSummary(summaryRes);
+      }
+      setSites(siteRes?.list || []);
+      setTotalSiteCount(siteRes?.totalCount || summaryRes?.totalSites || 0);
+
+      setWorkerRanking(workerRes || []);
+      setTotalWorkerCount(workerRes?.totalCount || summaryRes?.totalWorkers || 0);
+
+      setIssueReports(issueRes || []);
+      setTotalIssueCount(issueRes?.totalCount || summaryRes?.issueReportsCount || 0);
+
+      setRecentReports(recentRes || []);
+      setTotalReportCount(recentRes?.totalCount || summaryRes?.totalReports || 0);
     } catch (e) {
       console.error('[Dashboard] loadDashboardData error', e);
     }
-  }, []);
+  }, [region.sido, region.sigungu, region.eupmyeondong]);
 
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
-
-
-  // 2. Filter Sites by Region
-  const filteredSites = useMemo(() => {
-    return sites.filter(site => {
-      const matchSido = region.sido === 'ALL' || site.sido === region.sido;
-      const matchSigungu = region.sigungu === 'ALL' || site.sigungu === region.sigungu;
-      const matchEup = region.eupmyeondong === 'ALL' || (site.eupmyeondong && site.eupmyeondong.includes(region.eupmyeondong));
-      return matchSido && matchSigungu && matchEup;
-    });
-  }, [sites, region]);
-
-  // 3. Filter Reports by Region
-  const filteredReports = useMemo(() => {
-    return reports.filter(rep => {
-      const matchSido = region.sido === 'ALL' || rep.sido === region.sido;
-      const matchSigungu = region.sigungu === 'ALL' || rep.sigungu === region.sigungu;
-      const matchEup = region.eupmyeondong === 'ALL' || (rep.eupmyeondong && rep.eupmyeondong.includes(region.eupmyeondong));
-      return matchSido && matchSigungu && matchEup;
-    });
-  }, [reports, region]);
-
-  // 4. Overall Regional Progress & Metrics
-  const regionalMetrics = useMemo(() => {
-    let totalTarget = 0;
-    let completedTarget = 0;
-
-    filteredSites.forEach(s => {
-      totalTarget += s.totalHouseholds ?? s.households?.length ?? 0;
-      completedTarget += s.completedHouseholds || s.households?.filter(h => h.installStatus === 'INSTALLED' || (h.installStatus as any) === '설치완료').length || 0;
-    });
-
-    const progressRate = totalTarget > 0 ? Math.round((completedTarget / totalTarget) * 100) : 0;
-    const pendingReports = filteredReports.filter(r => r.status === 'PENDING').length;
-    const rejectedReports = filteredReports.filter(r => r.status === 'REJECTED').length;
-    
-    // Reports with notable remarks or issues (관리자 확인이 필요한 검토대기 중 특이사항 건만 집계)
-    const issueReports = filteredReports.filter(
-      r => r.status === 'PENDING' && r.remarks && r.remarks.trim() !== '' && !r.remarks.includes('특이사항 없음')
-    );
-
-    // Today's submissions
-    const todayStr = dayjs().format('YYYY-MM-DD');
-    const todayReports = filteredReports.filter(
-      r => (r.submittedAt && r.submittedAt.startsWith(todayStr)) || (r.installDate === todayStr)
-    ).length;
-
-    return {
-      totalTarget,
-      completedTarget,
-      progressRate,
-      totalReports: filteredReports.length,
-      todayReports,
-      pendingReports,
-      rejectedReports,
-      issueCount: issueReports.length,
-    };
-  }, [filteredSites, filteredReports]);
-
-  // 5. Regional Assigned Workers Performance (지역 귀속 담당 작업자별 실적 집계)
-  const workerStats = useMemo(() => {
-    // 실제 유저 프로필 사진 맵 구성
-    const userProfileMap = new Map<string, string>();
-    users.forEach(u => {
-      if (u.profileImg) {
-        userProfileMap.set(u.userName, u.profileImg);
-        userProfileMap.set(u.userId, u.profileImg);
-      }
-    });
-
-    const map = new Map<string, { 
-      name: string; 
-      phone?: string; 
-      profileImg?: string;
-      total: number; 
-      completed: number; 
-      pending: number; 
-      rejected: number; 
-    }>();
-
-    // 1) 현재 선택된 권역의 사이트에 배정된 작업자 우선 등록
-    filteredSites.forEach(site => {
-      const workers = site.assignedWorkers || [];
-      workers.forEach(w => {
-        const workerName = w.userName || '미지정';
-        const key = workerName;
-        const phone = w.phoneNum;
-        const existing = map.get(key) || {
-          name: workerName,
-          phone,
-          profileImg: (workerName && userProfileMap.get(workerName)) || (w.userId && userProfileMap.get(w.userId)),
-          total: 0,
-          completed: 0,
-          pending: 0,
-          rejected: 0,
-        };
-        if (!existing.phone && phone) existing.phone = phone;
-        if (!existing.profileImg) {
-          existing.profileImg = (workerName && userProfileMap.get(workerName)) || (w.userId && userProfileMap.get(w.userId));
-        }
-        map.set(key, existing);
-      });
-    });
-
-    // 2) 현재 선택된 권역의 보고서 작업 실적 매핑 및 누적
-    filteredReports.forEach(rep => {
-      const workerName = rep.reporterName || '미지정';
-      const existing = map.get(workerName) || {
-        name: workerName,
-        phone: undefined,
-        profileImg: userProfileMap.get(workerName),
-        total: 0,
-        completed: 0,
-        pending: 0,
-        rejected: 0,
-      };
-
-      existing.total += 1;
-      if (rep.status === 'COMPLETED') existing.completed += 1;
-      else if (rep.status === 'PENDING') existing.pending += 1;
-      else if (rep.status === 'REJECTED') existing.rejected += 1;
-
-      map.set(workerName, existing);
-    });
-
-    return Array.from(map.values()).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
-  }, [filteredSites, filteredReports, users]);
-
-  // 6. Recent Reports Feed (Sorted by submission time descending)
-  const recentReports = useMemo(() => {
-    return [...filteredReports]
-      .sort((a, b) => {
-        const timeA = a.submittedAt || a.reportTime || a.installDate || '';
-        const timeB = b.submittedAt || b.reportTime || b.installDate || '';
-        return timeB.localeCompare(timeA);
-      })
-      .slice(0, 7);
-  }, [filteredReports]);
-
-  // 7. Notable Issue Reports (관리자 확인이 필요한 검토 대기 중 특이사항 확인서만 표시)
-  const issueReports = useMemo(() => {
-    return [...filteredReports]
-      .filter(r => r.status === 'PENDING' && r.remarks && r.remarks.trim() !== '' && !r.remarks.includes('특이사항 없음'))
-      .sort((a, b) => {
-        const timeA = a.submittedAt || a.reportTime || '';
-        const timeB = b.submittedAt || b.reportTime || '';
-        return timeB.localeCompare(timeA);
-      });
-  }, [filteredReports]);
 
   // Region Label Display
   const regionLabel = useMemo(() => {
@@ -289,14 +198,23 @@ export default function ManageDashboard() {
     return `${region.sido} ${region.sigungu} ${region.eupmyeondong}`;
   }, [region]);
 
-  // 8. 선택된 작업자의 전체 보고서 및 필터링된 보고서 (계정 상세 다이얼로그용)
-  const handleOpenWorkerHistory = (workerName: string, workerPhone?: string) => {
-    const user = users.find(u => u.userName === workerName || (workerPhone && u.phoneNum === workerPhone));
-    if (!user) {
-      enqueueSnackbar(`[${workerName}] 사용자의 계정 정보를 찾을 수 없습니다.`, { variant: 'warning' });
-      return;
+  // 선택된 작업자의 전체 보고서 및 필터링된 보고서 (계정 상세 다이얼로그용)
+  const handleOpenWorkerHistory = async (workerId?: string, workerName?: string, workerPhone?: string) => {
+    try {
+      const userList = await AdminService.getUserList().catch(() => []);
+      const user = userList.find(u => (workerId && u.userId === workerId) || u.userName === workerName || (workerPhone && u.phoneNum === workerPhone));
+      if (!user) {
+        enqueueSnackbar(`[${workerName || '선택된'}] 사용자의 계정 정보를 찾을 수 없습니다.`, { variant: 'warning' });
+        return;
+      }
+      if (user.userId) {
+        const reps = await AdminService.getReportList({ userId: user.userId }).catch(() => []);
+        setWorkerReports(reps);
+      }
+      setSelectedWorkerUser(user);
+    } catch (e) {
+      console.error('[Dashboard] handleOpenWorkerHistory error', e);
     }
-    setSelectedWorkerUser(user);
   };
 
   return (
@@ -352,15 +270,15 @@ export default function ManageDashboard() {
             </div>
           </div>
           <div className="kpi-main">
-            <h3 className="kpi-value">{regionalMetrics.progressRate}<span>%</span></h3>
+            <h3 className="kpi-value">{summary.progressRate}<span>%</span></h3>
             <span className="kpi-sub-text">
-              <strong>{regionalMetrics.completedTarget.toLocaleString()}</strong> / {regionalMetrics.totalTarget.toLocaleString()} 세대
+              <strong>{summary.completedTarget.toLocaleString()}</strong> / {summary.totalTarget.toLocaleString()} 세대
             </span>
           </div>
           <div className="kpi-progress-bar-bg">
             <div 
               className="kpi-progress-bar-fill" 
-              style={{ width: `${Math.min(regionalMetrics.progressRate, 100)}%` }} 
+              style={{ width: `${Math.min(summary.progressRate, 100)}%` }} 
             />
           </div>
         </div>
@@ -374,13 +292,13 @@ export default function ManageDashboard() {
             </div>
           </div>
           <div className="kpi-main">
-            <h3 className="kpi-value">{regionalMetrics.totalReports.toLocaleString()}<span>건</span></h3>
+            <h3 className="kpi-value">{summary.totalReports.toLocaleString()}<span>건</span></h3>
             <span className="kpi-sub-text badge-tag">
-              오늘 +{regionalMetrics.todayReports}건 접수
+              오늘 +{summary.todayReports}건 접수
             </span>
           </div>
           <div className="kpi-card-footer">
-            <span>승인 완료: <strong>{filteredReports.filter(r => r.status === 'COMPLETED').length}건</strong></span>
+            <span>승인 완료: <strong>{summary.completedReports.toLocaleString()}건</strong></span>
           </div>
         </div>
 
@@ -393,7 +311,7 @@ export default function ManageDashboard() {
             </div>
           </div>
           <div className="kpi-main">
-            <h3 className="kpi-value">{regionalMetrics.pendingReports}<span>건</span></h3>
+            <h3 className="kpi-value">{summary.pendingReports}<span>건</span></h3>
           </div>
           <div className="kpi-card-footer">
             <span className="sub-note">승인 심사 대기 대상</span>
@@ -409,7 +327,7 @@ export default function ManageDashboard() {
             </div>
           </div>
           <div className="kpi-main">
-            <h3 className="kpi-value">{regionalMetrics.issueCount}<span>건</span></h3>
+            <h3 className="kpi-value">{summary.issueReportsCount}<span>건</span></h3>
           </div>
           <div className="kpi-card-footer">
             <span className="sub-note">현장 특이 소견 접수 대상</span>
@@ -426,7 +344,7 @@ export default function ManageDashboard() {
             <div className="dash-card-header">
               <div className="header-title-group">
                 <h4>현장별 보급 진행 현황</h4>
-                <span className="count-pill">{filteredSites.length}곳</span>
+                <span className="count-pill">{totalSiteCount.toLocaleString()}곳</span>
               </div>
               <Link href="/manage/sites" className="link-all">
                 <span>전체보기</span>
@@ -435,12 +353,12 @@ export default function ManageDashboard() {
             </div>
 
             <div className="site-progress-list">
-              {filteredSites.length === 0 ? (
+              {sites.length === 0 ? (
                 <div key="empty-sites" className="dash-empty-state">
                   <p>선택된 지역에 등록된 사업지가 없습니다.</p>
                 </div>
               ) : (
-                filteredSites.slice(0, 6).map((site, idx) => {
+                sites.map((site, idx) => {
                   const total = site.totalHouseholds ?? site.households?.length ?? 0;
                   const completed = site.completedHouseholds || site.households?.filter(h => h.installStatus === 'INSTALLED' || (h.installStatus as any) === '설치완료').length || 0;
                   const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -487,7 +405,7 @@ export default function ManageDashboard() {
             <div className="dash-card-header">
               <div className="header-title-group">
                 <h4>지역 담당 작업자별 실적</h4>
-                <span className="count-pill">{workerStats.length}명</span>
+                <span className="count-pill">{totalWorkerCount.toLocaleString()}명</span>
               </div>
               <Link href="/manage/users" className="link-all">
                 <span>전체보기</span>
@@ -496,16 +414,16 @@ export default function ManageDashboard() {
             </div>
 
             <div className="worker-stats-list">
-              {workerStats.length === 0 ? (
+              {workerRanking.length === 0 ? (
                 <div key="empty-workers" className="dash-empty-state">
                   <p>해당 지역에 배정된 작업자 또는 등록된 실적이 없습니다.</p>
                 </div>
               ) : (
-                workerStats.map((w, idx) => (
+                workerRanking.map((w, idx) => (
                   <div 
-                    key={w.name || `worker_${idx}`} 
+                    key={w.userId || w.name || `worker_${idx}`} 
                     className="worker-stat-item"
-                    onClick={() => handleOpenWorkerHistory(w.name, w.phone)}
+                    onClick={() => handleOpenWorkerHistory(w.userId, w.name, w.phone)}
                     role="button"
                     tabIndex={0}
                     title={`${w.name} 작업자의 작업 실적 및 이력 확인`}
@@ -545,7 +463,7 @@ export default function ManageDashboard() {
             <div className="dash-card-header">
               <div className="header-title-group">
                 <h4>특이사항 확인서</h4>
-                <span className="count-pill danger">{issueReports.length}건</span>
+                <span className="count-pill danger">{totalIssueCount.toLocaleString()}건</span>
               </div>
               <Link href="/manage/work" className="link-all">
                 <span>전체보기</span>
@@ -621,6 +539,7 @@ export default function ManageDashboard() {
             <div className="dash-card-header">
               <div className="header-title-group">
                 <h4>최근 제출 보고서 피드</h4>
+                <span className="count-pill">{totalReportCount.toLocaleString()}건</span>
               </div>
               <Link href="/manage/work" className="link-all">
                 <span>전체보기</span>
@@ -699,7 +618,6 @@ export default function ManageDashboard() {
         }}
         onReportUpdated={(updated) => {
           setSelectedReport(updated);
-          setReports(prev => prev.map(r => r.reportId === updated.reportId ? updated : r));
           loadDashboardData();
         }}
       />
@@ -712,7 +630,7 @@ export default function ManageDashboard() {
           previousWorkerUserRef.current = undefined;
         }}
         user={selectedWorkerUser}
-        reports={reports}
+        reports={workerReports}
         sites={sites}
         initialTab="performance"
         showDeleteButton={false}

@@ -6,9 +6,6 @@ import {
   Search, 
   Filter, 
   RotateCcw, 
-  CheckCircle2, 
-  MessageCircle,
-  Calendar,
   Phone,
 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
@@ -17,7 +14,7 @@ import 'dayjs/locale/ko';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import CustomSelect from '@/components/common/CustomSelect';
 import StatusBadge from '@/components/common/StatusBadge';
-import TableLoadingRow from '@/components/common/TableLoadingRow';
+import DataTable, { ColumnDef } from '@/components/common/DataTable';
 import AdminService from '@/api/service/AdminService';
 import { useAuth } from '@/providers/AuthProvider';
 import { INQUIRY_TYPE_MAP } from '@/constants/inquiry';
@@ -25,27 +22,12 @@ import '../ManageLayout.scss';
 
 dayjs.locale('ko');
 
-// 날짜 표시 및 1개월 미만일 때 괄호로 몇분전/몇시간전/몇일전 병기, 1개월 이상은 YYYY-MM-DD로 통일
-function formatInquiryDateWithRelative(dateStr?: string): string {
-  if (!dateStr) return '';
-  const now = dayjs();
+// 날짜/시간 포맷 (YYYY년 M월 D일 HH:mm)
+function formatInquiryDateTime(dateStr?: string): string {
+  if (!dateStr) return '—';
   const target = dayjs(dateStr);
   if (!target.isValid()) return dateStr;
-
-  const diffMinutes = now.diff(target, 'minute');
-  const diffHours = now.diff(target, 'hour');
-  const diffDays = now.diff(target, 'day');
-
-  let relative = '';
-  if (diffMinutes < 1) relative = '방금 전';
-  else if (diffMinutes < 60) relative = `${diffMinutes}분 전`;
-  else if (diffHours < 24) relative = `${diffHours}시간 전`;
-  else if (diffDays < 30) relative = `${diffDays}일 전`;
-
-  if (!relative) {
-    return target.format('YYYY-MM-DD');
-  }
-  return `${target.format('YYYY-MM-DD HH:mm')} (${relative})`;
+  return target.format('YYYY년 M월 D일 HH:mm');
 }
 
 export default function ManageInquiriesPage() {
@@ -56,25 +38,21 @@ export default function ManageInquiriesPage() {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(30);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [pendingCount, setPendingCount] = useState<number>(0);
 
-  // 백엔드 API에서 문의 목록 불러오기
-  const loadInquiries = useCallback(async () => {
-    setIsLoading(true);
+  // 백엔드 API에서 미답변 건수 요약 조회
+  const loadPendingCount = useCallback(async () => {
     try {
-      const serverInquiries = await AdminService.getInquiryList();
-      setInquiries(serverInquiries || []);
-    } catch (error) {
-      console.error('[Admin] loadInquiries error:', error);
-      enqueueSnackbar('문의 목록을 불러오는 중 오류가 발생했습니다.', { variant: 'error' });
-      setInquiries([]);
-    } finally {
-      setIsLoading(false);
+      const summary = await AdminService.getPendingInquirySummary();
+      setPendingCount(summary?.pendingCount || 0);
+    } catch (e) {
+      console.error('[Admin] loadPendingCount error:', e);
     }
-  }, [enqueueSnackbar]);
-
-  useEffect(() => {
-    loadInquiries();
-  }, [loadInquiries]);
+  }, []);
 
   // Search Query
   const [searchQuery, setSearchQuery] = useState('');
@@ -91,6 +69,37 @@ export default function ManageInquiriesPage() {
   const [draftTypeFilter, setDraftTypeFilter] = useState<string>('ALL');
   const [draftStartDate, setDraftStartDate] = useState('');
   const [draftEndDate, setDraftEndDate] = useState('');
+
+  // 백엔드 API에서 페이징된 문의 목록 불러오기
+  const loadInquiries = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const searchParam: AdminInquirySearchReq = {
+        status: appliedStatusFilter !== 'ALL' ? (appliedStatusFilter ? 'RESOLVED' : 'WAITING') : undefined,
+        inquiryType: appliedTypeFilter !== 'ALL' ? appliedTypeFilter : undefined,
+        startDate: appliedStartDate || undefined,
+        endDate: appliedEndDate || undefined,
+        query: searchQuery.trim() || undefined,
+        page,
+        size: pageSize,
+      };
+      const pagedRes = await AdminService.getInquiryListPaged(searchParam);
+      setInquiries(pagedRes?.list || []);
+      setTotalCount(pagedRes?.totalCount || 0);
+    } catch (error) {
+      console.error('[Admin] loadInquiries error:', error);
+      enqueueSnackbar('문의 목록을 불러오는 중 오류가 발생했습니다.', { variant: 'error' });
+      setInquiries([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [appliedStatusFilter, appliedTypeFilter, appliedStartDate, appliedEndDate, searchQuery, page, pageSize, enqueueSnackbar]);
+
+  useEffect(() => {
+    loadInquiries();
+    loadPendingCount();
+  }, [loadInquiries, loadPendingCount]);
 
   // Detail & Answer Modal State
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry>();
@@ -159,6 +168,7 @@ export default function ManageInquiriesPage() {
     setAppliedTypeFilter(draftTypeFilter);
     setAppliedStartDate(draftStartDate);
     setAppliedEndDate(draftEndDate);
+    setPage(1);
     setIsFilterDialogOpen(false);
     enqueueSnackbar('필터가 적용되었습니다.', { variant: 'info' });
   };
@@ -173,6 +183,7 @@ export default function ManageInquiriesPage() {
     setDraftTypeFilter('ALL');
     setDraftStartDate('');
     setDraftEndDate('');
+    setPage(1);
     enqueueSnackbar('필터가 초기화되었습니다.', { variant: 'info' });
   };
 
@@ -185,40 +196,107 @@ export default function ManageInquiriesPage() {
     return count;
   }, [appliedStatusFilter, appliedTypeFilter, appliedStartDate, appliedEndDate]);
 
-  // Metrics (답변 대기 미처리 건수만 집중 집계)
+  // Metrics (답변 대기 미처리 건수와 전체 건수)
   const metrics = useMemo(() => {
-    const total = inquiries.length;
-    const pending = inquiries.filter(i => !i.processedFlg).length;
-    return { total, pending };
-  }, [inquiries]);
+    return { total: totalCount, pending: pendingCount };
+  }, [totalCount, pendingCount]);
 
-  // Filtered List (적용 완료된 필터로만 필터링)
-  const filteredInquiries = useMemo(() => {
-    return inquiries.filter(item => {
-      // Status Match (processedFlg: boolean)
-      if (appliedStatusFilter !== 'ALL' && item.processedFlg !== appliedStatusFilter) return false;
+  // 엑셀 다운로드 핸들러
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      await AdminService.exportInquiriesExcel({
+        status: appliedStatusFilter !== 'ALL' ? (appliedStatusFilter ? 'RESOLVED' : 'WAITING') : undefined,
+        inquiryType: appliedTypeFilter !== 'ALL' ? appliedTypeFilter : undefined,
+        startDate: appliedStartDate || undefined,
+        endDate: appliedEndDate || undefined,
+        query: searchQuery.trim() || undefined,
+      });
+      enqueueSnackbar('문의 내역이 엑셀 파일로 다운로드되었습니다.', { variant: 'success' });
+    } catch (err) {
+      console.error('Failed to export inquiries excel:', err);
+      enqueueSnackbar('엑셀 다운로드 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
-      // Type Match
-      if (appliedTypeFilter !== 'ALL' && item.inquiryType !== appliedTypeFilter) return false;
-
-      // Date Range Match (createTime: 'YYYY-MM-DD HH:mm')
-      const itemDate = item.createTime.slice(0, 10);
-      if (appliedStartDate && itemDate < appliedStartDate) return false;
-      if (appliedEndDate && itemDate > appliedEndDate) return false;
-
-      // Search Query Match (userName, userId, phoneNum, inquiryContents)
-      const q = searchQuery.trim().toLowerCase();
-      if (q) {
-        const matchName = item.userName ? item.userName.toLowerCase().includes(q) : '비회원'.includes(q);
-        const matchId = item.userId ? item.userId.toLowerCase().includes(q) : false;
-        const matchPhone = item.phoneNum.includes(q);
-        const matchContent = item.inquiryContents.toLowerCase().includes(q);
-        if (!matchName && !matchId && !matchPhone && !matchContent) return false;
-      }
-
-      return true;
-    });
-  }, [inquiries, appliedStatusFilter, appliedTypeFilter, appliedStartDate, appliedEndDate, searchQuery]);
+  // DataTable 컬럼 정의
+  const columns: ColumnDef<Inquiry>[] = useMemo(() => [
+    {
+      key: 'num',
+      header: '순번',
+      width: '60px',
+      align: 'center',
+      render: (_item, idx, startIdx) => (
+        <span className="row-index">{startIdx + idx + 1}</span>
+      ),
+    },
+    {
+      key: 'date',
+      header: '접수일시',
+      width: '160px',
+      render: (item) => {
+        if (!item.createTime) return <span className="empty-val">—</span>;
+        const d = dayjs(item.createTime);
+        const dateStr = d.isValid() ? d.format('YYYY년 M월 D일') : item.createTime;
+        const timeStr = d.isValid() ? d.format('HH:mm') : '';
+        return (
+          <div className="report-dates-cluster" style={{ display: 'flex', flexDirection: 'column', gap: '0.1875rem' }}>
+            <span className="install-date-text">{dateStr}</span>
+            {timeStr && <span className="report-time-sub">{timeStr}</span>}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'user',
+      header: '문의자',
+      width: '140px',
+      render: (item) => (
+        <div className="user-info-cluster">
+          <strong className={`user-name ${!item.userName ? 'non-member' : ''}`}>
+            {item.userName || '비회원'}
+          </strong>
+        </div>
+      ),
+    },
+    {
+      key: 'phone',
+      header: '연락처',
+      width: '130px',
+      render: (item) => (
+        <span className="phone-text">{item.phoneNum}</span>
+      ),
+    },
+    {
+      key: 'type',
+      header: '문의 유형',
+      width: '130px',
+      render: (item) => {
+        const typeInfo = INQUIRY_TYPE_MAP[item.inquiryType] || { label: item.inquiryType, badgeClass: 'type-general' };
+        return <span className="inquiry-type-text">{typeInfo.label}</span>;
+      },
+    },
+    {
+      key: 'content',
+      header: '문의 내용',
+      render: (item) => (
+        <p className="content-preview-text" title={item.inquiryContents}>
+          {item.inquiryContents}
+        </p>
+      ),
+    },
+    {
+      key: 'status',
+      header: '상태',
+      width: '110px',
+      align: 'center',
+      render: (item) => (
+        <StatusBadge status={item.processedFlg ? 'RESOLVED' : 'WAITING'} />
+      ),
+    },
+  ], []);
 
   // Open Detail / Answer Modal
   const handleOpenDetail = (item: Inquiry) => {
@@ -249,7 +327,7 @@ export default function ManageInquiriesPage() {
       const responder = user?.userName || '관리자';
       enqueueSnackbar(`[${selectedInquiry.userName || '비회원'}] 님의 문의 처리가 저장되었습니다. (답변자: ${responder})`, { variant: 'success' });
       setSelectedInquiry(undefined);
-      await loadInquiries();
+      await Promise.all([loadInquiries(), loadPendingCount()]);
     } catch (error: any) {
       console.error('[Admin] handleSubmitAnswer error:', error);
       enqueueSnackbar(error?.message || '답변 저장 중 오류가 발생했습니다.', { variant: 'error' });
@@ -275,7 +353,7 @@ export default function ManageInquiriesPage() {
             <MessageSquare size={22} />
           </div>
           <div className="summary-main-info">
-            <span className="summary-label">전체 접수 문의</span>
+            <span className="summary-label">총 접수 문의</span>
             <strong className="summary-val">{metrics.total}건</strong>
           </div>
         </div>
@@ -290,8 +368,8 @@ export default function ManageInquiriesPage() {
         </div>
       </div>
 
-      {/* ── SEARCH & FILTER BAR ── */}
-      <div className="reports-search-filter-bar">
+      {/* ── SEARCH & FILTER TRIGGER BAR ── */}
+      <div className="inquiries-search-filter-bar">
         <div className="search-bar">
           <Search size={18} className="search-icon" />
           <input
@@ -330,78 +408,29 @@ export default function ManageInquiriesPage() {
         </div>
       </div>
 
-      {/* ── INQUIRIES TABLE LIST ── */}
-      <div className="inquiries-table-wrapper">
-        <table className="inquiries-table">
-          <thead>
-            <tr>
-              <th className="col-num">순번</th>
-              <th className="col-date">접수일시</th>
-              <th className="col-type">문의 유형</th>
-              <th className="col-user">문의자</th>
-              <th className="col-phone">연락처</th>
-              <th className="col-content">문의 내용</th>
-              <th className="col-status">상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <TableLoadingRow colSpan={7} message="문의 목록을 불러오는 중입니다..." />
-            ) : filteredInquiries.length > 0 ? (
-              filteredInquiries.map((item, idx) => {
-                const typeInfo = INQUIRY_TYPE_MAP[item.inquiryType] || { label: item.inquiryType, badgeClass: 'type-general' };
-                return (
-                  <tr 
-                    key={item.inquiryId || `inquiry_${idx}`} 
-                    className="inquiry-table-row"
-                    onClick={() => handleOpenDetail(item)}
-                  >
-                    <td className="col-num">
-                      <span className="row-index">{idx + 1}</span>
-                    </td>
-                    <td className="col-date">
-                      <span className="date-text">{item.createTime}</span>
-                    </td>
-                    <td className="col-type">
-                      <span className="inquiry-type-text">
-                        {typeInfo.label}
-                      </span>
-                    </td>
-                    <td className="col-user">
-                      <div className="user-info-cluster">
-                        <strong className={`user-name ${!item.userName ? 'non-member' : ''}`}>
-                          {item.userName || '비회원'}
-                        </strong>
-                        {item.userId && <span className="user-id-sub">{item.userId}</span>}
-                      </div>
-                    </td>
-                    <td className="col-phone">
-                      <span className="phone-text">{item.phoneNum}</span>
-                    </td>
-                    <td className="col-content">
-                      <p className="content-preview-text" title={item.inquiryContents}>
-                        {item.inquiryContents}
-                      </p>
-                    </td>
-                    <td className="col-status">
-                      <StatusBadge
-                        status={item.processedFlg ? 'RESOLVED' : 'WAITING'}
-                      />
-                    </td>
-                  </tr>
-                );
-              })
-            ) : (
-              <tr key="empty-inquiries" className="empty-table-row">
-                <td colSpan={7} className="empty-table-cell">
-                  <MessageSquare size={36} className="empty-icon" />
-                  <p>선택된 조건에 해당하는 문의 내역이 없습니다.</p>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* ── INQUIRIES DATA TABLE ── */}
+      <DataTable<Inquiry>
+        columns={columns}
+        data={inquiries}
+        rowKey={(item, idx) => item.inquiryId || `inquiry_${idx}`}
+        totalCount={totalCount}
+        page={page}
+        pageSize={pageSize}
+        pageSizeOptions={[30, 50, 100]}
+        onPageChange={setPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setPage(1);
+        }}
+        isLoading={isLoading}
+        loadingMessage="문의 목록을 불러오는 중입니다..."
+        emptyMessage="선택된 조건에 해당하는 문의 내역이 없습니다."
+        onRowClick={(item) => handleOpenDetail(item)}
+        excelAction={{
+          onExport: handleExportExcel,
+          isExporting,
+        }}
+      />
 
       {/* ── FILTER DIALOG ── */}
       <SlideDialog
@@ -424,8 +453,7 @@ export default function ManageInquiriesPage() {
           {/* 1. 접수일자 기간 필터 (언제부터 언제까지) */}
           <div className="filter-field-block">
             <label className="field-block-title">
-              <Calendar size={15} />
-              <span>접수일자 기간 선택</span>
+              <span>접수일자 기간</span>
             </label>
             <div className="filter-tab-buttons-grid preset-grid">
               <button
@@ -491,7 +519,6 @@ export default function ManageInquiriesPage() {
           {/* 2. 문의 상태 필터 */}
           <div className="filter-field-block">
             <label className="field-block-title">
-              <CheckCircle2 size={15} />
               <span>처리 상태</span>
             </label>
             <div className="filter-tab-buttons-grid status-grid">
@@ -522,7 +549,6 @@ export default function ManageInquiriesPage() {
           {/* 3. 문의 유형 필터 */}
           <div className="filter-field-block">
             <label className="field-block-title">
-              <MessageSquare size={15} />
               <span>문의 유형</span>
             </label>
             <div className="filter-tab-buttons-grid">
@@ -592,7 +618,7 @@ export default function ManageInquiriesPage() {
                     <span>{activeInquiry.phoneNum}</span>
                   </a>
                   <span className="date-text">
-                    {formatInquiryDateWithRelative(activeInquiry.createTime)}
+                    {formatInquiryDateTime(activeInquiry.createTime)}
                   </span>
                 </div>
               </div>
@@ -613,7 +639,7 @@ export default function ManageInquiriesPage() {
                 <span className="section-label">답변 작성</span>
                 {activeInquiry.answerUserName && (
                   <span className="last-answered-badge" title={activeInquiry.answerTime}>
-                    최종 답변: <strong>{activeInquiry.answerUserName}</strong> ({formatInquiryDateWithRelative(activeInquiry.answerTime)})
+                    최종 답변: <strong>{activeInquiry.answerUserName}</strong> ({formatInquiryDateTime(activeInquiry.answerTime)})
                   </span>
                 )}
               </div>

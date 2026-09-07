@@ -3,6 +3,7 @@ import ApiRoutes from '@/api/module/ApiRoutes';
 
 class AdminService {
   private static instance: AdminService;
+  private fireRegionsPromise: Promise<FireRegion[]> | null = null;
 
   private constructor() {}
 
@@ -27,6 +28,50 @@ class AdminService {
       throw new Error(response?.informations?.[0]?.message || 'Failed to fetch user list');
     } catch (error) {
       console.error('[AdminService] getUserList', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 계정 목록 페이징 조회
+   * GET /admin/user/paged
+   */
+  async getUserListPaged(params?: AdminUserSearchReq): Promise<PageRes<User>> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_USER_LIST_PAGED, { params });
+      if (response && !response.hasErrors) {
+        return response.responseData as PageRes<User>;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch paged user list');
+    } catch (error) {
+      console.error('[AdminService] getUserListPaged', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 계정 목록 대용량 엑셀 스트리밍 다운로드
+   * GET /admin/user/export/excel
+   */
+  async exportUsersExcel(params?: AdminUserSearchReq): Promise<void> {
+    try {
+      const blobData: any = await ApiInstance.get(ApiRoutes.ADMIN_USER_EXPORT_EXCEL, {
+        params,
+        responseType: 'blob',
+      });
+      const blob = new Blob([blobData], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `계정목록_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('[AdminService] exportUsersExcel', error);
       throw error;
     }
   }
@@ -101,20 +146,89 @@ class AdminService {
 
   // ── [현장 및 세대 관리 API] ────────────────────────────────────
 
+
   /**
-   * 현장 목록 조회
+   * 현장 목록 조회 (대시보드 등 연동용: limit, orderBy 지원)
    * GET /admin/site/list
    */
-  async getSiteList(params?: { sido?: string; sigungu?: string; eupmyeondong?: string; query?: string }): Promise<SiteDetail[]> {
+  async getSiteList(params?: {
+    regionId?: string;
+    query?: string;
+    limit?: number;
+    orderBy?: string;
+  }): Promise<ListRes<SiteDetail>> {
     try {
       const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_SITE_LIST, { params });
       if (response && !response.hasErrors) {
         const data = response.responseData as ListRes<SiteDetail>;
-        return data?.list || [];
+        return {
+          list: data?.list || [],
+          totalCount: data?.totalCount ?? (data?.list?.length || 0),
+        };
       }
       throw new Error(response?.informations?.[0]?.message || 'Failed to fetch site list');
     } catch (error) {
       console.error('[AdminService] getSiteList', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 현장 목록 페이징 조회
+   * GET /admin/site/paged
+   */
+  async getSiteListPaged(params?: {
+    regionId?: string;
+    query?: string;
+    page?: number;
+    size?: number;
+  }): Promise<PageRes<SiteDetail>> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_SITE_LIST_PAGED, { params });
+      if (response && !response.hasErrors) {
+        return (response.responseData as PageRes<SiteDetail>) || {
+          list: [],
+          totalCount: 0,
+          page: 1,
+          size: 30,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        };
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch paged site list');
+    } catch (error) {
+      console.error('[AdminService] getSiteListPaged', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 현장 목록 대용량 엑셀 스트리밍 다운로드
+   * GET /admin/site/export/excel
+   */
+  async exportSitesExcel(params?: {
+    regionId?: string;
+    query?: string;
+  }): Promise<void> {
+    try {
+      const blobData: any = await ApiInstance.get(ApiRoutes.ADMIN_SITE_EXPORT_EXCEL, {
+        params,
+        responseType: 'blob',
+      });
+      const blob = new Blob([blobData], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `현장목록_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('[AdminService] exportSitesExcel', error);
       throw error;
     }
   }
@@ -256,28 +370,35 @@ class AdminService {
   // ── [소방관할 및 관할배정 API] ────────────────────────────────
 
   /**
-   * 전체 소방관할 목록 조회
+   * 전체 소방관할 목록 조회 (인메모리 캐시 적용)
    * GET /admin/region/fire-regions
    */
-  async getFireRegions(): Promise<FireRegion[]> {
-    try {
-      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_FIRE_REGION_LIST);
-      if (response && !response.hasErrors) {
-        const data = response.responseData as ListRes<FireRegion>;
-        return data?.list || [];
-      }
-      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch fire regions');
-    } catch (error) {
-      console.error('[AdminService] getFireRegions', error);
-      throw error;
+  async getFireRegions(forceRefresh: boolean = false): Promise<FireRegion[]> {
+    if (this.fireRegionsPromise && !forceRefresh) {
+      return this.fireRegionsPromise;
     }
+    this.fireRegionsPromise = (async () => {
+      try {
+        const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_FIRE_REGION_LIST);
+        if (response && !response.hasErrors) {
+          const data = response.responseData as ListRes<FireRegion>;
+          return data?.list || [];
+        }
+        throw new Error(response?.informations?.[0]?.message || 'Failed to fetch fire regions');
+      } catch (error) {
+        this.fireRegionsPromise = null;
+        console.error('[AdminService] getFireRegions', error);
+        throw error;
+      }
+    })();
+    return this.fireRegionsPromise;
   }
 
   /**
    * 특정 지역 담당 작업자 목록 조회
    * GET /admin/region/workers
    */
-  async getRegionWorkers(params?: { sido?: string; sigungu?: string; regionId?: string }): Promise<RegionWorkerUser[]> {
+  async getRegionWorkers(params?: { regionId?: string }): Promise<RegionWorkerUser[]> {
     try {
       const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_REGION_WORKERS, { params });
       if (response && !response.hasErrors) {
@@ -314,9 +435,10 @@ class AdminService {
    * 작업자에게 소방관할 배정
    * POST /admin/user/{userId}/regions
    */
-  async assignRegion(userId: string, sido: string, sigungu: string): Promise<ActionRes> {
+  async assignRegion(userId: string, sido: string, sigungu: string, regionId?: string): Promise<ActionRes> {
     try {
       const response: ApiResponse = await ApiInstance.post(ApiRoutes.ADMIN_USER_REGIONS(userId), {
+        regionId,
         sidoName: sido,
         regionName: sigungu,
       });
@@ -361,6 +483,50 @@ class AdminService {
       throw new Error(response?.informations?.[0]?.message || 'Failed to fetch inquiry list');
     } catch (error) {
       console.error('[AdminService] getInquiryList', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 문의 목록 페이징 조회
+   * GET /admin/inquiry/paged
+   */
+  async getInquiryListPaged(params?: AdminInquirySearchReq): Promise<PageRes<Inquiry>> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_INQUIRY_LIST_PAGED, { params });
+      if (response && !response.hasErrors) {
+        return response.responseData as PageRes<Inquiry>;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch paged inquiry list');
+    } catch (error) {
+      console.error('[AdminService] getInquiryListPaged', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 문의 목록 대용량 엑셀 스트리밍 다운로드
+   * GET /admin/inquiry/export/excel
+   */
+  async exportInquiriesExcel(params?: AdminInquirySearchReq): Promise<void> {
+    try {
+      const blobData: any = await ApiInstance.get(ApiRoutes.ADMIN_INQUIRY_EXPORT_EXCEL, {
+        params,
+        responseType: 'blob',
+      });
+      const blob = new Blob([blobData], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `문의내역_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('[AdminService] exportInquiriesExcel', error);
       throw error;
     }
   }
@@ -439,16 +605,104 @@ class AdminService {
    * 시공 보고서 목록 조회
    * GET /admin/report/list
    */
-  async getReportList(params?: AdminReportSearchReq): Promise<WorkReport[]> {
+  async getReportList(params?: AdminReportSearchReq): Promise<WorkReport[] & { totalCount: number }> {
     try {
       const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_REPORT_LIST, { params });
       if (response && !response.hasErrors) {
         const data = response.responseData as ListRes<WorkReport>;
-        return data?.list || [];
+        const list = (data?.list || []) as WorkReport[] & { totalCount: number };
+        list.totalCount = data?.totalCount ?? list.length;
+        return list;
       }
       throw new Error(response?.informations?.[0]?.message || 'Failed to fetch report list');
     } catch (error) {
       console.error('[AdminService] getReportList', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 시공 보고서 목록 페이징 조회
+   * GET /admin/report/paged
+   */
+  async getReportListPaged(params?: AdminReportSearchReq): Promise<PageRes<WorkReport>> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_REPORT_LIST_PAGED, { params });
+      if (response && !response.hasErrors) {
+        return response.responseData as PageRes<WorkReport>;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch paged report list');
+    } catch (error) {
+      console.error('[AdminService] getReportListPaged', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 시공 보고서 목록 대용량 엑셀 스트리밍 다운로드
+   * GET /admin/report/export/excel
+   */
+  async exportReportsExcel(params?: AdminReportSearchReq): Promise<void> {
+    try {
+      const blobData: any = await ApiInstance.get(ApiRoutes.ADMIN_REPORT_EXPORT_EXCEL, {
+        params,
+        responseType: 'blob',
+      });
+      const blob = new Blob([blobData], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `시공보고서목록_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('[AdminService] exportReportsExcel', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 작업자 실적 랭킹 목록 조회 (대시보드 전용: limit 지원)
+   * GET /admin/worker/ranking
+   */
+  async getWorkerRanking(params?: {
+    regionId?: string;
+    limit?: number;
+  }): Promise<AdminWorkerStatRes[] & { totalCount: number }> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_WORKER_RANKING, { params });
+      if (response && !response.hasErrors) {
+        const data = response.responseData as ListRes<AdminWorkerStatRes>;
+        const list = (data?.list || []) as AdminWorkerStatRes[] & { totalCount: number };
+        list.totalCount = data?.totalCount ?? list.length;
+        return list;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch worker ranking');
+    } catch (error) {
+      console.error('[AdminService] getWorkerRanking', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 대시보드 권역 종합 메트릭 집계 (세대수, 진행률, 보고서 통계 단일 집계)
+   * GET /admin/dashboard/summary
+   */
+  async getDashboardSummary(params?: {
+    regionId?: string;
+  }): Promise<AdminDashboardSummaryRes> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_DASHBOARD_SUMMARY, { params });
+      if (response && !response.hasErrors) {
+        return response.responseData as AdminDashboardSummaryRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch dashboard summary');
+    } catch (error) {
+      console.error('[AdminService] getDashboardSummary', error);
       throw error;
     }
   }

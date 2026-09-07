@@ -5,7 +5,9 @@ import SlideDialog from './SlideDialog';
 import { KOREA_ADMIN_REGIONS } from '@/constants/regions';
 import { isRegionMatch } from '@/common/utils/regionUtils';
 import CustomSelect from '@/components/common/CustomSelect';
-import { CheckCircle2, Building2, AlertCircle, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Building2, AlertCircle, X, ChevronDown, ChevronRight } from 'lucide-react';
+import AdminService from '@/api/service/AdminService';
+import PortalService from '@/api/service/PortalService';
 import './RegionAssignDialog.scss';
 
 interface RegionAssignDialogProps {
@@ -13,7 +15,9 @@ interface RegionAssignDialogProps {
   onClose: () => void;
   assignedRegions: UserAssignedRegionDetail[];
   sites?: SiteDetail[];
-  onAssignRegion: (sido: string, sigungu: string) => Promise<void> | void;
+  fireRegions?: FireRegion[];
+  mode?: 'admin' | 'portal';
+  onAssignRegion: (sido: string, sigungu: string, regionId?: string) => Promise<void> | void;
   onUnassignRegion: (region: UserAssignedRegionDetail) => Promise<void> | void;
 }
 
@@ -21,10 +25,38 @@ export default function RegionAssignDialog({
   isOpen,
   onClose,
   assignedRegions,
-  sites = [],
+  fireRegions: propFireRegions,
+  mode,
   onAssignRegion,
   onUnassignRegion,
 }: RegionAssignDialogProps) {
+  const [fireRegions, setFireRegions] = useState<FireRegion[]>(propFireRegions || []);
+  const [displayedSites, setDisplayedSites] = useState<SiteDetail[]>([]);
+  const [totalSites, setTotalSites] = useState<number>(0);
+  const [totalHouseholds, setTotalHouseholds] = useState<number>(0);
+  const [isLoadingSites, setIsLoadingSites] = useState<boolean>(false);
+
+  const isPortal = useMemo(() => {
+    if (mode) return mode === 'portal';
+    if (typeof window !== 'undefined') {
+      return window.location.pathname.startsWith('/portal');
+    }
+    return false;
+  }, [mode]);
+
+  useEffect(() => {
+    if (propFireRegions && propFireRegions.length > 0) {
+      setFireRegions(propFireRegions);
+      return;
+    }
+    if (isOpen) {
+      const fetcher = isPortal ? PortalService.getFireRegions() : AdminService.getFireRegions();
+      fetcher
+        .then(list => setFireRegions(list || []))
+        .catch(err => console.error('[RegionAssignDialog] getFireRegions error:', err));
+    }
+  }, [isOpen, propFireRegions, isPortal]);
+
   const [selectedSido, setSelectedSido] = useState('경기도');
   const [selectedSigungu, setSelectedSigungu] = useState('수원');
   const [isCurrentAssignedOpen, setIsCurrentAssignedOpen] = useState(false);
@@ -32,7 +64,7 @@ export default function RegionAssignDialog({
 
   // 다이얼로그 닫힐 때 상태 리셋
   useEffect(() => {
-    if(!isOpen) {
+    if (!isOpen) {
       setIsCurrentAssignedOpen(false);
       setIsSubmitting(false);
     }
@@ -48,13 +80,20 @@ export default function RegionAssignDialog({
 
   // 선택된 시/도에 따른 시/군/구 옵션 목록
   const sigunguOptions = useMemo(() => {
-    const sidoObj = KOREA_ADMIN_REGIONS.find(s => s.name === selectedSido);
-    if (!sidoObj) return [];
-    return sidoObj.sigungus.map(sg => ({
+    const sido = KOREA_ADMIN_REGIONS.find(s => s.name === selectedSido);
+    if (!sido) return [];
+    return sido.sigungus.map(sg => ({
       value: sg.name,
       label: sg.name,
     }));
   }, [selectedSido]);
+
+  // 선택된 소방관할구역의 FireRegion 정보 찾기
+  const targetFireRegion = useMemo(() => {
+    return fireRegions.find(fr => 
+      fr.sidoName === selectedSido && (fr.name === selectedSigungu || fr.name.replace(/(소방서|센터)$/, '').trim() === selectedSigungu)
+    );
+  }, [fireRegions, selectedSido, selectedSigungu]);
 
   // 시/도 변경 시 시/군/구 자동 첫 항목 선택
   const handleSidoChange = (sido: string) => {
@@ -74,29 +113,85 @@ export default function RegionAssignDialog({
     }
   }, [isOpen, assignedRegions.length]);
 
-  // 이미 배정된 지역 객체 찾기 (sido+sigungu 유연 매칭)
+  // 이미 배정된 지역 객체 찾기 (regionId 우선, 없으면 sido+sigungu 정확 매칭)
   const currentAssignedItem = useMemo(() => {
+    if (targetFireRegion) {
+      const byId = assignedRegions.find(r => r.regionId && r.regionId === targetFireRegion.regionId);
+      if (byId) return byId;
+    }
     return assignedRegions.find(r => isRegionMatch(r.sido, r.sigungu, selectedSido, selectedSigungu));
-  }, [assignedRegions, selectedSido, selectedSigungu]);
+  }, [assignedRegions, targetFireRegion, selectedSido, selectedSigungu]);
 
   const isAlreadyAssigned = !!currentAssignedItem;
 
-  // 선택된 지역 내 현장 목록 (props에서 필터링)
-  const regionSites = useMemo(() => {
-    return sites.filter(s => isRegionMatch(s.sido, s.sigungu, selectedSido, selectedSigungu));
-  }, [sites, selectedSido, selectedSigungu]);
+  // 지역 선택 변경 시: 전체 현장을 퍼오지 않고 API에서 limit 10건 및 요약 집계(숫자)만 정밀 취득
+  useEffect(() => {
+    if (!isOpen) return;
 
-  // 총 세대수 집계
-  const totalHouseholds = useMemo(() => {
-    return regionSites.reduce((sum, site) => sum + (site.totalHouseholds ?? site.households?.length ?? 0), 0);
-  }, [regionSites]);
+    const regionId = targetFireRegion?.regionId;
+    let isMounted = true;
+    setIsLoadingSites(true);
+
+    if (isPortal) {
+      Promise.all([
+        PortalService.getSites({ regionId, limit: 10, includeHouseholds: false }),
+        regionId ? PortalService.getRegionSummary(regionId).catch(() => null) : Promise.resolve(null),
+      ])
+        .then(([sitesRes, summaryRes]) => {
+          if (!isMounted) return;
+          const list = Array.isArray(sitesRes) ? sitesRes : [];
+          setDisplayedSites(list);
+          setTotalSites(summaryRes?.totalSites ?? list.length);
+          setTotalHouseholds(summaryRes?.totalTarget ?? 0);
+        })
+        .catch(err => {
+          if (!isMounted) return;
+          console.error('[RegionAssignDialog] Portal site/summary error:', err);
+          setDisplayedSites([]);
+          setTotalSites(0);
+          setTotalHouseholds(0);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingSites(false);
+        });
+    } else {
+      Promise.all([
+        AdminService.getSiteList({ regionId, limit: 10 }),
+        regionId ? AdminService.getDashboardSummary({ regionId }).catch(() => null) : Promise.resolve(null),
+      ])
+        .then(([sitesRes, summaryRes]) => {
+          if (!isMounted) return;
+          const list = sitesRes?.list || [];
+          const count = sitesRes?.totalCount ?? list.length;
+          setDisplayedSites(list);
+          setTotalSites(summaryRes?.totalSites ?? count);
+          setTotalHouseholds(summaryRes?.totalTarget ?? 0);
+        })
+        .catch(err => {
+          if (!isMounted) return;
+          console.error('[RegionAssignDialog] Admin site/summary error:', err);
+          setDisplayedSites([]);
+          setTotalSites(0);
+          setTotalHouseholds(0);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingSites(false);
+        });
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, targetFireRegion?.regionId, isPortal]);
+
+  const remainingCount = Math.max(0, totalSites - displayedSites.length);
 
   // 등록 제출
   const handleSubmit = async () => {
     if (!selectedSido || !selectedSigungu || isAlreadyAssigned || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await onAssignRegion(selectedSido, selectedSigungu);
+      await onAssignRegion(selectedSido, selectedSigungu, targetFireRegion?.regionId);
     } finally {
       setIsSubmitting(false);
     }
@@ -168,7 +263,9 @@ export default function RegionAssignDialog({
             assignedRegions.length > 0 ? (
               <div className="assigned-chips-row">
                 {assignedRegions.map(reg => {
-                  const isSelected = isRegionMatch(reg.sido, reg.sigungu, selectedSido, selectedSigungu);
+                  const isSelected = reg.regionId && targetFireRegion?.regionId
+                    ? reg.regionId === targetFireRegion.regionId
+                    : isRegionMatch(reg.sido, reg.sigungu, selectedSido, selectedSigungu);
 
                   return (
                     <div
@@ -255,9 +352,9 @@ export default function RegionAssignDialog({
                 {selectedSido} {selectedSigungu}의 현장 목록
               </h3>
               <div className="region-counts-tag">
-                <span>{regionSites.length}개소</span>
+                <span>{totalSites}개소</span>
                 <span className="dot">•</span>
-                <span>총 {totalHouseholds}세대</span>
+                <span>총 {totalHouseholds.toLocaleString()}세대</span>
               </div>
             </div>
 
@@ -274,7 +371,7 @@ export default function RegionAssignDialog({
             </div>
           </div>
 
-          {regionSites.length > 0 ? (
+          {totalSites > 0 ? (
             <div className="sites-table-container">
               <table className="sites-table">
                 <thead>
@@ -286,7 +383,7 @@ export default function RegionAssignDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {regionSites.map((site, index) => {
+                  {displayedSites.map((site, index) => {
                     const householdsCount = site.totalHouseholds ?? site.households?.length ?? 0;
 
                     return (
@@ -314,6 +411,17 @@ export default function RegionAssignDialog({
                       </tr>
                     );
                   })}
+                  {remainingCount > 0 && (
+                    <tr className="more-sites-row">
+                      <td colSpan={4}>
+                        <div className="more-sites-content">
+                          <span className="more-text">
+                            외 <strong>{remainingCount}</strong>건 (총 {totalSites}개소)
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

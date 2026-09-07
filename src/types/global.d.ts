@@ -20,6 +20,7 @@ declare global {
     disabled?: boolean;
   }
   interface SelectedRegion {
+    regionId?: string;
     sido: string;
     sigungu: string;
     eupmyeondong: string;
@@ -101,6 +102,16 @@ declare global {
   }
   interface ListRes<T> {
     list: Array<T>;
+    totalCount?: number;
+  }
+  interface PageRes<T> {
+    list: Array<T>;
+    totalCount: number;
+    page: number;
+    size: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
   }
   interface CountRes {
     count: number;
@@ -136,9 +147,7 @@ declare global {
     processedFlg: boolean;
   }
   interface AdminReportSearchReq {
-    sido?: string;
-    sigungu?: string;
-    eupmyeondong?: string;
+    regionId?: string;
     status?: string;
     installStartDate?: string;
     installEndDate?: string;
@@ -147,6 +156,26 @@ declare global {
     query?: string;
     siteId?: string;
     userId?: string;
+    limit?: number;
+    orderBy?: string;
+    hasRemarks?: boolean;
+    page?: number;
+    size?: number;
+  }
+  interface AdminInquirySearchReq {
+    status?: string;
+    inquiryType?: string;
+    startDate?: string;
+    endDate?: string;
+    query?: string;
+    page?: number;
+    size?: number;
+  }
+  interface AdminUserSearchReq {
+    query?: string;
+    roleId?: number;
+    page?: number;
+    size?: number;
   }
   interface WorkReportReq {
     householdId?: string;
@@ -220,6 +249,8 @@ declare global {
     gender?: string;
     postalCode?: string;
     detailAddress?: string;
+    regionCount?: number;
+    reportCount?: number;
     lastUpdated: string;
     createTime: string;
   }
@@ -290,6 +321,31 @@ declare global {
     noticeDate: string;
     visible: boolean;
   }
+  interface AdminWorkerStatRes {
+    userId: string;
+    name: string;
+    phone?: string;
+    profileImg?: string;
+    total: number;
+    completed: number;
+    pending: number;
+    rejected: number;
+  }
+  // type WorkerStat = AdminWorkerStatRes;
+  interface AdminDashboardSummaryRes {
+    totalSites: number;
+    totalTarget: number;
+    completedTarget: number;
+    progressRate: number;
+    totalReports: number;
+    todayReports: number;
+    pendingReports: number;
+    rejectedReports: number;
+    completedReports: number;
+    issueReportsCount: number;
+    totalWorkers: number;
+  }
+  // type DashboardSummary = AdminDashboardSummaryRes;
 }
 
 export {};

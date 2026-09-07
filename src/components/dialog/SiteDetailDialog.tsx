@@ -641,11 +641,11 @@ export default function SiteDetailDialog({
                                 </td>
                                 <td style={{ textAlign: 'center', fontSize: '0.8125rem', color: 'var(--slate-500)' }}>
                                   <span>
-                                    {worker.assignedRegions?.find((ar: UserAssignedRegionDetail) => 
-                                      (site.regionId && ar.regionId === site.regionId) ||
-                                      isRegionMatch(ar.sido, ar.sigungu, site.sido, site.sigungu) ||
-                                      (site.region && isRegionMatch(ar.sido, ar.sigungu, site.sido, site.region))
-                                    )?.assignedDate || '—'}
+                                    {worker.assignedRegions?.find((ar: UserAssignedRegionDetail) => {
+                                      if (site.regionId || ar.regionId) return Boolean(site.regionId && ar.regionId && ar.regionId === site.regionId);
+                                      if (site.region) return isRegionMatch(ar.sido, ar.sigungu, site.sido, site.region);
+                                      return isRegionMatch(ar.sido, ar.sigungu, site.sido, site.sigungu);
+                                    })?.assignedDate || '—'}
                                   </span>
                                 </td>
                               </tr>

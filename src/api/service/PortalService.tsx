@@ -3,6 +3,7 @@ import ApiRoutes from '@/api/module/ApiRoutes';
 
 class PortalService {
   private static instance: PortalService;
+  private fireRegionsPromise: Promise<FireRegion[]> | null = null;
 
   private constructor() {}
 
@@ -48,6 +49,26 @@ class PortalService {
   }
 
   /**
+   * 본인 비밀번호 변경
+   * PUT /portal/profile/password
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    try {
+      const response: ApiResponse = await ApiInstance.put(ApiRoutes.PORTAL_PROFILE_PASSWORD, {
+        currentPassword,
+        newPassword,
+      });
+      if (response && !response.hasErrors) {
+        return;
+      }
+      throw new Error(response?.informations?.[0]?.message || '비밀번호 변경에 실패했습니다.');
+    } catch (error) {
+      console.error('[PortalService] changePassword', error);
+      throw error;
+    }
+  }
+
+  /**
    * 본인 배정 관할 목록 조회
    * GET /portal/regions
    */
@@ -69,9 +90,10 @@ class PortalService {
    * 본인에게 소방관할 배정 등록
    * POST /portal/regions
    */
-  async assignRegion(sido: string, sigungu: string): Promise<ActionRes> {
+  async assignRegion(sido: string, sigungu: string, regionId?: string): Promise<ActionRes> {
     try {
       const response: ApiResponse = await ApiInstance.post(ApiRoutes.PORTAL_REGIONS, {
+        regionId,
         sidoName: sido,
         regionName: sigungu,
       });
@@ -103,21 +125,28 @@ class PortalService {
   }
 
   /**
-   * 전체 소방관할 목록 조회
+   * 전체 소방관할 목록 조회 (인메모리 캐시 적용)
    * GET /portal/fire-regions
    */
-  async getFireRegions(): Promise<FireRegion[]> {
-    try {
-      const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_FIRE_REGIONS);
-      if (response && !response.hasErrors) {
-        const data = response.responseData as ListRes<FireRegion>;
-        return data?.list || [];
-      }
-      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch fire regions');
-    } catch (error) {
-      console.error('[PortalService] getFireRegions', error);
-      throw error;
+  async getFireRegions(forceRefresh: boolean = false): Promise<FireRegion[]> {
+    if (this.fireRegionsPromise && !forceRefresh) {
+      return this.fireRegionsPromise;
     }
+    this.fireRegionsPromise = (async () => {
+      try {
+        const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_FIRE_REGIONS);
+        if (response && !response.hasErrors) {
+          const data = response.responseData as ListRes<FireRegion>;
+          return data?.list || [];
+        }
+        throw new Error(response?.informations?.[0]?.message || 'Failed to fetch fire regions');
+      } catch (error) {
+        this.fireRegionsPromise = null;
+        console.error('[PortalService] getFireRegions', error);
+        throw error;
+      }
+    })();
+    return this.fireRegionsPromise;
   }
 
   /**
@@ -125,10 +154,9 @@ class PortalService {
    * GET /portal/sites
    */
   async getSites(params?: {
-    sido?: string;
-    sigungu?: string;
-    eupmyeondong?: string;
+    regionId?: string;
     query?: string;
+    limit?: number;
     includeHouseholds?: boolean;
   }): Promise<SiteDetail[]> {
     try {
@@ -140,6 +168,23 @@ class PortalService {
       throw new Error(response?.informations?.[0]?.message || 'Failed to fetch sites');
     } catch (error) {
       console.error('[PortalService] getSites', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 권역별 세대수 및 현장수 요약 집계
+   * GET /portal/regions/{regionId}/summary
+   */
+  async getRegionSummary(regionId: string): Promise<{ totalSites: number; totalTarget: number; completedTarget: number; progressRate: number }> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_REGION_SUMMARY(regionId));
+      if (response && !response.hasErrors) {
+        return (response.responseData as any) || { totalSites: 0, totalTarget: 0, completedTarget: 0, progressRate: 0 };
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch region summary');
+    } catch (error) {
+      console.error('[PortalService] getRegionSummary', error);
       throw error;
     }
   }
@@ -198,15 +243,34 @@ class PortalService {
   }
 
   /**
-   * 시공 보고서 목록 조회 (담당 현장 또는 본인 작성)
+   * 시공 보고서 목록 조회 (담당 현장 또는 본인 작성, 페이징 지원)
    * GET /portal/reports
    */
-  async getReports(params?: { siteId?: string }): Promise<WorkReport[]> {
+  async getReports(params?: {
+    siteId?: string;
+    regionId?: string;
+    sido?: string;
+    sigungu?: string;
+    page?: number;
+    size?: number;
+    query?: string;
+    status?: string;
+    installStartDate?: string;
+    installEndDate?: string;
+  }): Promise<PageRes<WorkReport>> {
     try {
       const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_REPORTS, { params });
       if (response && !response.hasErrors) {
-        const data = response.responseData as ListRes<WorkReport>;
-        return data?.list || [];
+        const data = response.responseData as any;
+        return {
+          list: data?.list || [],
+          totalCount: data?.totalCount ?? data?.list?.length ?? 0,
+          page: data?.page || 1,
+          size: data?.size || data?.list?.length || 20,
+          totalPages: data?.totalPages || Math.ceil((data?.totalCount || 0) / (data?.size || 20)) || 1,
+          hasNext: data?.hasNext ?? (data?.page < data?.totalPages),
+          hasPrev: data?.hasPrev ?? (data?.page > 1),
+        };
       }
       throw new Error(response?.informations?.[0]?.message || 'Failed to fetch reports');
     } catch (error) {

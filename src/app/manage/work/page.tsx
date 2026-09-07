@@ -3,8 +3,6 @@
 import React, { useState, useMemo } from 'react';
 import { 
   FileText, 
-  Calendar, 
-  CheckCircle2, 
   FileDown,
   Image as ImageIcon,
   ClipboardCheck,
@@ -23,6 +21,7 @@ import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
 import SearchInput from '@/components/common/SearchInput';
 import StatusBadge, { STATUS_LABEL_MAP } from '@/components/common/StatusBadge';
+import DataTable, { ColumnDef } from '@/components/common/DataTable';
 import AdminService from '@/api/service/AdminService';
 import '../ManageLayout.scss';
 
@@ -31,41 +30,23 @@ dayjs.locale('ko');
 export default function ManageWorkPage() {
   const { enqueueSnackbar } = useSnackbar();
 
-  // Master Reports Data
-  const [reports, setReports] = useState<WorkReport[]>([]);
-  const [sites, setSites] = useState<SiteDetail[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Load from Backend API
-  const loadData = React.useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const [reportList, siteList] = await Promise.all([
-        AdminService.getReportList().catch(err => {
-          console.error('[ManageWorkPage] getReportList error', err);
-          return [];
-        }),
-        AdminService.getSiteList().catch(err => {
-          console.error('[ManageWorkPage] getSiteList error', err);
-          return [];
-        }),
-      ]);
-      setReports(reportList || []);
-      setSites(siteList || []);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    loadData();
-  }, [loadData]);
-
   // Region State for Common RegionSelector (Global Shared State)
   const { region, setRegion } = useManageRegion();
 
+  // Paged Reports Data
+  const [reports, setReports] = useState<WorkReport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(30);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [batchPrintReports, setBatchPrintReports] = useState<WorkReport[]>([]);
+
   // Regional Batch Print Dialog State
   const [isRegionalBatchDialogOpen, setIsRegionalBatchDialogOpen] = useState(false);
+
+  // Summary Metrics (권역 단위 종합 통계)
+  const [metrics, setMetrics] = useState({ total: 0, pending: 0, needsFix: 0 });
 
   // Applied Filter States (실제 목록에 적용되는 상태)
   const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | 'PENDING' | 'REJECTED' | 'COMPLETED'>('ALL');
@@ -158,6 +139,7 @@ export default function ManageWorkPage() {
     setAppliedInstallEndDate(draftInstallEndDate);
     setAppliedReportStartDate(draftReportStartDate);
     setAppliedReportEndDate(draftReportEndDate);
+    setPage(1);
     setIsFilterDialogOpen(false);
     enqueueSnackbar('필터 조건이 적용되었습니다.', { variant: 'info' });
   };
@@ -174,6 +156,7 @@ export default function ManageWorkPage() {
     setDraftInstallEndDate('');
     setDraftReportStartDate('');
     setDraftReportEndDate('');
+    setPage(1);
     enqueueSnackbar('필터 조건이 초기화되었습니다.', { variant: 'info' });
   };
 
@@ -200,49 +183,151 @@ export default function ManageWorkPage() {
     fixReason: '',
   });
 
-  // Filtered Reports
-  const filteredReports = useMemo(() => {
-    return reports.filter(rep => {
-      // Region Match
-      const matchSido = region.sido === 'ALL' || rep.sido === region.sido;
-      const matchSigungu = region.sigungu === 'ALL' || rep.sigungu === region.sigungu;
-      const matchEup = region.eupmyeondong === 'ALL' || (rep.eupmyeondong && rep.eupmyeondong.includes(region.eupmyeondong));
-      const matchRegion = matchSido && matchSigungu && matchEup;
+  // Load Paged Reports from Backend API
+  const loadData = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const regionParam = region.regionId ? { regionId: region.regionId } : {};
+      const searchParam: AdminReportSearchReq = {
+        ...regionParam,
+        status: appliedStatusFilter !== 'ALL' ? appliedStatusFilter : undefined,
+        installStartDate: appliedInstallStartDate || undefined,
+        installEndDate: appliedInstallEndDate || undefined,
+        reportStartDate: appliedReportStartDate || undefined,
+        reportEndDate: appliedReportEndDate || undefined,
+        query: searchQuery.trim() || undefined,
+        page,
+        size: pageSize,
+      };
 
-      // Status Match
-      const matchStatus = appliedStatusFilter === 'ALL' || rep.status === appliedStatusFilter;
+      const [pagedRes, summaryRes] = await Promise.all([
+        AdminService.getReportListPaged(searchParam).catch(err => {
+          console.error('[ManageWorkPage] getReportListPaged error', err);
+          return { list: [], totalCount: 0, page: 1, size: 30, totalPages: 0, hasNext: false, hasPrev: false };
+        }),
+        AdminService.getDashboardSummary(regionParam).catch(() => null),
+      ]);
 
-      // Install Date Range Match (rep.installDate: 'YYYY-MM-DD')
-      let matchInstallDate = true;
-      if (appliedInstallStartDate && rep.installDate < appliedInstallStartDate) matchInstallDate = false;
-      if (appliedInstallEndDate && rep.installDate > appliedInstallEndDate) matchInstallDate = false;
+      setReports(pagedRes?.list || []);
+      setTotalCount(pagedRes?.totalCount || 0);
 
-      // Report Date Range Match (rep.reportTime: 'YYYY-MM-DD HH:mm')
-      const reportDateOnly = rep.reportTime ? rep.reportTime.slice(0, 10) : '';
-      let matchReportDate = true;
-      if (appliedReportStartDate && reportDateOnly < appliedReportStartDate) matchReportDate = false;
-      if (appliedReportEndDate && reportDateOnly > appliedReportEndDate) matchReportDate = false;
+      if (summaryRes) {
+        setMetrics({
+          total: summaryRes.totalReports || 0,
+          pending: summaryRes.pendingReports || 0,
+          needsFix: summaryRes.rejectedReports || 0,
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [region, appliedStatusFilter, appliedInstallStartDate, appliedInstallEndDate, appliedReportStartDate, appliedReportEndDate, searchQuery, page, pageSize]);
 
-      // Search Query Match (Site name, dong/ho, installerName)
-      const query = searchQuery.trim().toLowerCase();
-      const matchSearch =
-        !query ||
-        rep.siteName.toLowerCase().includes(query) ||
-        `${rep.dong}동`.includes(query) ||
-        `${rep.ho}호`.includes(query) ||
-        rep.reporterName.toLowerCase().includes(query);
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-      return matchRegion && matchStatus && matchInstallDate && matchReportDate && matchSearch;
-    });
-  }, [reports, region, appliedStatusFilter, appliedInstallStartDate, appliedInstallEndDate, appliedReportStartDate, appliedReportEndDate, searchQuery]);
+  // 지역 또는 검색어 변경 시 1페이지로 리셋
+  React.useEffect(() => {
+    setPage(1);
+  }, [region, searchQuery]);
 
-  // Metrics
-  const metrics = useMemo(() => {
-    const total = reports.length;
-    const pending = reports.filter(r => r.status === 'PENDING').length;
-    const needsFix = reports.filter(r => r.status === 'REJECTED').length;
-    return { total, pending, needsFix };
-  }, [reports]);
+  // 엑셀 다운로드 핸들러
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      const regionParam = region.regionId ? { regionId: region.regionId } : {};
+      await AdminService.exportReportsExcel({
+        ...regionParam,
+        status: appliedStatusFilter !== 'ALL' ? appliedStatusFilter : undefined,
+        installStartDate: appliedInstallStartDate || undefined,
+        installEndDate: appliedInstallEndDate || undefined,
+        reportStartDate: appliedReportStartDate || undefined,
+        reportEndDate: appliedReportEndDate || undefined,
+        query: searchQuery.trim() || undefined,
+      });
+      enqueueSnackbar('보고서 목록이 엑셀 파일로 다운로드되었습니다.', { variant: 'success' });
+    } catch (err) {
+      console.error('Failed to export reports excel:', err);
+      enqueueSnackbar('엑셀 다운로드 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // DataTable 컬럼 정의
+  const columns: ColumnDef<WorkReport>[] = useMemo(() => [
+    {
+      key: 'num',
+      header: '순번',
+      width: '60px',
+      align: 'center',
+      render: (_report, idx, startIdx) => (
+        <span className="row-index">{startIdx + idx + 1}</span>
+      ),
+    },
+    {
+      key: 'date',
+      header: '설치일자 / 보고일시',
+      width: '180px',
+      render: (report) => {
+        const installDateStr = report.installDateFormatted || (report.installDate ? (dayjs(report.installDate).isValid() ? dayjs(report.installDate).format('YYYY.MM.DD') : report.installDate) : '—');
+        const reportTimeStr = report.reportTime ? (dayjs(report.reportTime).isValid() ? dayjs(report.reportTime).format('YYYY.MM.DD HH:mm') : report.reportTime) : '';
+        return (
+          <div className="report-dates-cluster">
+            <span className="install-date-text">{installDateStr}</span>
+            {reportTimeStr && <span className="report-time-sub">{reportTimeStr}</span>}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'site',
+      header: '현장명 (아파트)',
+      render: (report) => (
+        <div className="site-name-wrap">
+          <strong className="site-title">{report.siteName}</strong>
+          <span className="site-addr-sub">{report.sigungu} {report.eupmyeondong}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'unit',
+      header: '동 / 호수',
+      width: '130px',
+      render: (report) => (
+        <strong className="unit-badge">{report.dong}동 {report.ho}호</strong>
+      ),
+    },
+    {
+      key: 'installer',
+      header: '보고자',
+      width: '120px',
+      render: (report) => (
+        <span className="installer-name">{report.reporterName}</span>
+      ),
+    },
+    {
+      key: 'photos',
+      header: '현장사진',
+      width: '100px',
+      align: 'center',
+      render: (report) => (
+        <span className="photo-count-text">
+          {[report.photoDoor, report.photoBefore1, report.photoAfter1, report.photoBefore2, report.photoAfter2].filter(Boolean).length}장
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: '상태',
+      width: '110px',
+      align: 'center',
+      render: (report) => (
+        <StatusBadge status={report.status} />
+      ),
+    },
+  ], []);
 
   // Open Status Change Dialog
   const handleOpenStatusModal = (report: WorkReport, e?: React.MouseEvent) => {
@@ -304,14 +389,24 @@ export default function ManageWorkPage() {
   }, [region]);
 
   // Handle Batch Print Dialog Open
-  const handleBatchPrint = () => {
-    if (region.sido === 'ALL' || region.sigungu === 'ALL') {
-      enqueueSnackbar('지역별 일괄 출력을 위해 시/도 및 시/군/구 지역을 먼저 지정해 주세요.', {
+  const handleBatchPrint = async () => {
+    if (!region.regionId) {
+      enqueueSnackbar('지역별 일괄 출력을 위해 관할 소방서(지역)를 먼저 지정해 주세요.', {
         variant: 'warning',
       });
       return;
     }
-    setIsRegionalBatchDialogOpen(true);
+    try {
+      const list = await AdminService.getReportList({
+        regionId: region.regionId,
+      });
+      setBatchPrintReports(list || []);
+      setIsRegionalBatchDialogOpen(true);
+    } catch (err) {
+      console.error('Failed to load batch print reports:', err);
+      setBatchPrintReports(reports);
+      setIsRegionalBatchDialogOpen(true);
+    }
   };
 
   // Handle Print (Single)
@@ -340,7 +435,7 @@ export default function ManageWorkPage() {
           >
             <FileDown size={15} />
             <span>지역별 일괄 PDF 출력</span>
-            <span className="batch-badge">{filteredReports.length}건</span>
+            <span className="batch-badge">{totalCount}건</span>
           </button>
         </div>
       </div>
@@ -414,70 +509,29 @@ export default function ManageWorkPage() {
         </div>
       </div>
 
-      {/* ── 3. WORK REPORTS TABLE LIST (세대주 컬럼 제외) ── */}
-      <div className="work-table-wrapper">
-        <table className="work-reports-table">
-          <thead>
-            <tr>
-              <th className="col-num">순번</th>
-              <th className="col-date">설치일자 / 보고일시</th>
-              <th className="col-site">현장명 (아파트)</th>
-              <th className="col-unit">동 / 호수</th>
-              <th className="col-installer">보고자</th>
-              <th className="col-photos">현장사진</th>
-              <th className="col-status">상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredReports.length > 0 ? (
-              filteredReports.map((report, idx) => (
-                <tr 
-                  key={report.reportId || `${report.siteId}_${report.dong}_${report.ho}_${idx}`} 
-                  className="report-table-row"
-                  onClick={() => setSelectedReport(report)}
-                >
-                  <td className="col-num">
-                    <span className="row-index">{idx + 1}</span>
-                  </td>
-                  <td className="col-date">
-                    <div className="report-dates-cluster">
-                      <span className="install-date-text">{report.installDateFormatted}</span>
-                      <span className="report-time-sub">{report.reportTime}</span>
-                    </div>
-                  </td>
-                  <td className="col-site">
-                    <div className="site-name-wrap">
-                      <strong className="site-title">{report.siteName}</strong>
-                      <span className="site-addr-sub">{report.sigungu} {report.eupmyeondong}</span>
-                    </div>
-                  </td>
-                  <td className="col-unit">
-                    <strong className="unit-badge">{report.dong}동 {report.ho}호</strong>
-                  </td>
-                  <td className="col-installer">
-                    <span className="installer-name">{report.reporterName}</span>
-                  </td>
-                  <td className="col-photos">
-                    <span className="photo-count-text">
-                      {[report.photoDoor, report.photoBefore1, report.photoAfter1, report.photoBefore2, report.photoAfter2].filter(Boolean).length}장
-                    </span>
-                  </td>
-                  <td className="col-status">
-                    <StatusBadge status={report.status} />
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr key="empty-reports" className="empty-table-row">
-                <td colSpan={7} className="empty-table-cell">
-                  <FileText size={36} className="empty-icon" />
-                  <p>선택된 날짜 및 조건에 일치하는 작업 보고서가 없습니다.</p>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* ── 3. WORK REPORTS DATA TABLE ── */}
+      <DataTable<WorkReport>
+        columns={columns}
+        data={reports}
+        rowKey={(report, idx) => report.reportId || `report_${idx}`}
+        totalCount={totalCount}
+        page={page}
+        pageSize={pageSize}
+        pageSizeOptions={[30, 50, 100]}
+        onPageChange={setPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setPage(1);
+        }}
+        isLoading={isLoading}
+        loadingMessage="작업 보고서 목록을 불러오는 중입니다..."
+        emptyMessage="선택된 조건에 일치하는 작업 보고서가 없습니다."
+        onRowClick={(report) => setSelectedReport(report)}
+        excelAction={{
+          onExport: handleExportExcel,
+          isExporting,
+        }}
+      />
 
       {/* ── 4. 단독경보형감지기 보급지원확인서 상세 뷰어 모달 (공통 컴포넌트) ── */}
       <WorkReportDetailDialog
@@ -612,8 +666,7 @@ export default function ManageWorkPage() {
           {/* 1. 설치일자 기간 선택 (언제부터 언제까지) */}
           <div className="filter-field-block">
             <label className="field-block-title">
-              <Calendar size={15} />
-              <span>설치일자 기간 선택</span>
+              <span>설치일자</span>
             </label>
             <div className="filter-tab-buttons-grid preset-grid">
               <button
@@ -679,8 +732,7 @@ export default function ManageWorkPage() {
           {/* 2. 보고일시 기간 선택 (언제부터 언제까지) */}
           <div className="filter-field-block">
             <label className="field-block-title">
-              <Calendar size={15} />
-              <span>보고일시 기간 선택</span>
+              <span>보고일시</span>
             </label>
             <div className="filter-tab-buttons-grid preset-grid">
               <button
@@ -746,7 +798,6 @@ export default function ManageWorkPage() {
           {/* 3. 작업 상태 선택 */}
           <div className="filter-field-block">
             <label className="field-block-title">
-              <CheckCircle2 size={15} />
               <span>작업 상태</span>
             </label>
             <div className="filter-tab-buttons-grid status-grid">
@@ -788,8 +839,7 @@ export default function ManageWorkPage() {
         isOpen={isRegionalBatchDialogOpen}
         onClose={() => setIsRegionalBatchDialogOpen(false)}
         region={region}
-        reports={reports}
-        sites={sites}
+        reports={batchPrintReports}
       />
     </div>
   );

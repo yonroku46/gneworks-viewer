@@ -1,5 +1,5 @@
 import { normalizeSidoName } from '@/utils/addressUtils';
-import { KOREA_ADMIN_REGIONS, KOREA_OFFICIAL_ADMIN_REGIONS } from '@/constants/regions';
+import { KOREA_ADMIN_REGIONS } from '@/constants/regions';
 
 /**
  * 시/군/구 명칭 정규화 (끝의 '시', '군', '구' 접미사 제거 및 공백 정리)
@@ -11,9 +11,9 @@ export const normalizeSigungu = (sigungu?: string): string => {
 };
 
 /**
- * 시/도 및 시/군/구 명칭 유연 매칭
+ * 시/도 및 시/군/구 명칭 정확 매칭
  * - 시/도 일치 여부 확인 ("경기" <-> "경기도", "서울" <-> "서울특별시" 호환)
- * - DB 등록 소방관할명("안산")과 프론트엔드 행정구역명("안산시") 간의 호환 매칭 지원
+ * - DB 등록 소방관할명과 프론트엔드 행정구역명 간의 완전 일치 검증
  */
 export const isRegionMatch = (
   rSido?: string,
@@ -31,7 +31,7 @@ export const isRegionMatch = (
   const cleanR = normalizeSigungu(rSigungu);
   const cleanT = normalizeSigungu(targetSigungu);
 
-  return cleanR === cleanT || cleanR.startsWith(cleanT) || cleanT.startsWith(cleanR);
+  return cleanR === cleanT;
 };
 
 /**
@@ -63,24 +63,6 @@ export function getEupmyeondongList(sidoName: string, sigunguName: string): stri
     sg.name + '군' === sigunguName ||
     sg.name + '구' === sigunguName
   );
-  return sigungu ? sigungu.eupmyeondongs : [];
-}
-
-/**
- * 표준 행정구역(공식) 시/군/구 목록 반환
- */
-export function getOfficialSigunguList(sidoName: string): string[] {
-  const sido = KOREA_OFFICIAL_ADMIN_REGIONS.find(s => s.name === sidoName || s.shortName === sidoName);
-  return sido ? sido.sigungus.map(sg => sg.name) : [];
-}
-
-/**
- * 표준 행정구역(공식) 읍/면/동 목록 반환
- */
-export function getOfficialEupmyeondongList(sidoName: string, sigunguName: string): string[] {
-  const sido = KOREA_OFFICIAL_ADMIN_REGIONS.find(s => s.name === sidoName || s.shortName === sidoName);
-  if (!sido) return [];
-  const sigungu = sido.sigungus.find(sg => sg.name === sigunguName);
   return sigungu ? sigungu.eupmyeondongs : [];
 }
 

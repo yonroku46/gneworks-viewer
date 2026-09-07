@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { KOREA_ADMIN_REGIONS } from '@/constants/regions';
-import { getSigunguList } from '@/common/utils/regionUtils';
+import { getSigunguList, findRegionId } from '@/common/utils/regionUtils';
 import CustomSelect from './CustomSelect';
 import './RegionSelector.scss';
 
@@ -20,11 +20,12 @@ export default function RegionSelector({
   className = '',
   showActiveBadge = true,
 }: RegionSelectorProps) {
-  const { sido, sigungu, eupmyeondong } = value;
+  const { regionId, sido, sigungu, eupmyeondong } = value;
 
   // Handle Sido change -> reset lower levels
   const handleSidoChange = (newSido: string) => {
     onChange({
+      regionId: undefined,
       sido: newSido,
       sigungu: 'ALL',
       eupmyeondong: 'ALL',
@@ -33,7 +34,9 @@ export default function RegionSelector({
 
   // Handle Sigungu change -> reset lowest level
   const handleSigunguChange = (newSigungu: string) => {
+    const foundRegionId = newSigungu !== 'ALL' ? findRegionId(sido, newSigungu) : undefined;
     onChange({
+      regionId: foundRegionId,
       sido,
       sigungu: newSigungu,
       eupmyeondong: 'ALL',
@@ -43,6 +46,7 @@ export default function RegionSelector({
   // Handle Eupmyeondong change
   const handleEupmyeondongChange = (newEup: string) => {
     onChange({
+      regionId,
       sido,
       sigungu,
       eupmyeondong: newEup,

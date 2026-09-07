@@ -1,8 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { findRegionId } from '@/common/utils/regionUtils';
 
 export const DEFAULT_MANAGE_REGION: SelectedRegion = {
+  regionId: undefined,
   sido: 'ALL',
   sigungu: 'ALL',
   eupmyeondong: 'ALL',
@@ -34,9 +36,13 @@ export function ManageRegionProvider({ children }: { children: React.ReactNode }
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed.sido === 'string') {
+          const loadedSido = parsed.sido || 'ALL';
+          const loadedSigungu = parsed.sigungu || 'ALL';
+          const loadedRegionId = parsed.regionId || (loadedSido !== 'ALL' && loadedSigungu !== 'ALL' ? findRegionId(loadedSido, loadedSigungu) : undefined);
           setRegionState({
-            sido: parsed.sido || 'ALL',
-            sigungu: parsed.sigungu || 'ALL',
+            regionId: loadedRegionId,
+            sido: loadedSido,
+            sigungu: loadedSigungu,
             eupmyeondong: parsed.eupmyeondong || 'ALL',
           });
         }
