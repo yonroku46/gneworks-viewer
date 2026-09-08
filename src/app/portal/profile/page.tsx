@@ -134,7 +134,7 @@ export default function ProfilePage() {
     setIsTestingPush(true);
     try {
       await sendTestNotification();
-      enqueueSnackbar('테스트 알림이 발송되었습니다. 잠시 후 OS 팝업을 확인하세요.', { variant: 'success' });
+      enqueueSnackbar('테스트 알림이 발송되었습니다.', { variant: 'success' });
     } catch (err) {
       console.error(err);
       enqueueSnackbar('테스트 알림 발송 중 오류가 발생했습니다.', { variant: 'error' });

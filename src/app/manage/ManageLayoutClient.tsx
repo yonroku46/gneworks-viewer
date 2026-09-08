@@ -9,6 +9,10 @@ import { useAuth, servicePrefix } from '@/providers/AuthProvider';
 import { useSnackbar } from 'notistack';
 import { LayoutDashboard, ClipboardCheck, Building2, MessageSquare, ShieldCheck, Settings, LogOut, Bell, Menu, X } from 'lucide-react';
 import { ManageRegionProvider } from '@/providers/ManageRegionProvider';
+import { useNotification } from '@/providers/NotificationProvider';
+import SlideDialog from '@/components/dialog/SlideDialog';
+import NotificationList from '@/components/contents/NotificationList';
+import SseStatus from '@/components/contents/SseStatus';
 import './ManageLayout.scss';
 
 function ManageLayoutInner({ children }: { children: React.ReactNode }) {
@@ -16,8 +20,10 @@ function ManageLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
+  const { unreadCount } = useNotification();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && user && !user.mngFlg) {
@@ -134,8 +140,14 @@ function ManageLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
           
           <div className="header-right">
-            <button className="notification-btn">
+            <button 
+              type="button"
+              className="notification-btn"
+              onClick={() => setIsNotificationOpen(true)}
+              title="알림 확인"
+            >
               <Bell size={20} />
+              {unreadCount > 0 && <span className="unread-dot" />}
             </button>
           </div>
         </header>
@@ -214,6 +226,17 @@ function ManageLayoutInner({ children }: { children: React.ReactNode }) {
         className={`manage-mobile-drawer-backdrop ${isMobileMenuOpen ? 'active' : ''}`}
         onClick={() => setIsMobileMenuOpen(false)}
       />
+
+      {/* ── 관리자 알림 슬라이드 다이얼로그 ── */}
+      <SlideDialog
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+        title="알림"
+        rightElement={<SseStatus />}
+        noPadding
+      >
+        <NotificationList />
+      </SlideDialog>
     </div>
   );
 }
