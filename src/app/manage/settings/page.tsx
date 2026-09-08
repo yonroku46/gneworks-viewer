@@ -5,9 +5,14 @@ import {
   Phone,
   Mail,
   RotateCcw,
-  Save
+  Save,
+  Bell,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
+import { useWebPush } from '@/hooks/useWebPush';
 import '../ManageLayout.scss';
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -49,6 +54,53 @@ export default function ManageSettings() {
     }
     return DEFAULT_SETTINGS;
   });
+
+  const {
+    permission,
+    isSubscribed,
+    isLoading: isPushLoading,
+    subscribe,
+    unsubscribe,
+    sendTestNotification,
+  } = useWebPush();
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleWebPushMasterToggle = async () => {
+    const nextVal = !settings.notifyWebPush;
+    if (nextVal) {
+      try {
+        const success = await subscribe();
+        if (success) {
+          handleToggle('notifyWebPush', '웹 브라우저 푸시 알림');
+        } else {
+          enqueueSnackbar('푸시 알림 권한이 허용되지 않았습니다. 브라우저 주소창에서 권한을 확인해주세요.', { variant: 'warning' });
+        }
+      } catch (err: any) {
+        enqueueSnackbar(err?.message || '푸시 알림 구독 중 오류가 발생했습니다.', { variant: 'error' });
+      }
+    } else {
+      try {
+        await unsubscribe();
+        handleToggle('notifyWebPush', '웹 브라우저 푸시 알림');
+      } catch (err) {
+        console.error(err);
+        handleToggle('notifyWebPush', '웹 브라우저 푸시 알림');
+      }
+    }
+  };
+
+  const handleTestPush = async () => {
+    setIsTesting(true);
+    try {
+      await sendTestNotification();
+      enqueueSnackbar('테스트 알림이 성공적으로 발송되었습니다. 잠시 후 OS 팝업을 확인하세요.', { variant: 'success' });
+    } catch (err) {
+      console.error(err);
+      enqueueSnackbar('테스트 알림 발송 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const handleToggle = (key: keyof SystemSettings, label?: string) => {
     setSettings(prev => {
@@ -177,29 +229,58 @@ export default function ManageSettings() {
 
           {/* ── RIGHT COLUMN: WEB PUSH NOTIFICATION SETTINGS (TREE HIERARCHY) ── */}
           <div className="settings-card notification-settings-card">
-            <h3>
-              <span>웹 푸시 알림 설정</span>
-            </h3>
+            <div className="card-header-with-badge">
+              <h3>
+                <span>웹 푸시 알림 설정</span>
+              </h3>
+              {permission === 'granted' && (
+                <span className="push-status-badge granted" title="실시간 웹 푸시를 수신할 수 있습니다.">
+                  <CheckCircle2 size={12} /> 권한 허용됨
+                </span>
+              )}
+              {permission === 'denied' && (
+                <span className="push-status-badge denied" title="브라우저 설정에서 알림이 차단되어 있습니다.">
+                  <XCircle size={12} /> 권한 차단됨
+                </span>
+              )}
+              {permission === 'default' && (
+                <span className="push-status-badge default" title="토글을 켜면 브라우저 권한을 요청합니다.">
+                  <AlertTriangle size={12} /> 권한 미설정
+                </span>
+              )}
+              {permission === 'unsupported' && (
+                <span className="push-status-badge unsupported">
+                  미지원 브라우저
+                </span>
+              )}
+            </div>
+
+            {permission === 'denied' && (
+              <div className="push-denied-guide">
+                <strong>알림 권한 차단됨</strong>: 브라우저 주소창 좌측의 설정/자물쇠 아이콘을 클릭하여 알림 권한을 '허용'으로 변경한 후 페이지를 새로고침해 주세요.
+              </div>
+            )}
 
             <div className="setting-toggle-list">
               {/* 상위 마스터 스위치 */}
               <div className="setting-toggle-item">
                 <div className="toggle-info">
                   <strong>웹 브라우저 푸시 알림 활성화</strong>
-                  <p>관리자 대시보드 접속 중 실시간 웹 푸시 알림을 수신합니다.</p>
+                  <p>관리자 대시보드 접속 중 및 백그라운드 환경에서 실시간 웹 푸시 알림을 수신합니다.</p>
                 </div>
                 <label className="custom-switch-label">
                   <input 
                     type="checkbox" 
-                    checked={settings.notifyWebPush} 
-                    onChange={() => handleToggle('notifyWebPush', '웹 브라우저 푸시')} 
+                    checked={settings.notifyWebPush && isSubscribed} 
+                    onChange={handleWebPushMasterToggle}
+                    disabled={isPushLoading || permission === 'denied' || permission === 'unsupported'}
                   />
                   <span className="switch-slider" />
                 </label>
               </div>
 
               {/* 하위 종속 알림 그룹 */}
-              <div className={`setting-sub-group ${!settings.notifyWebPush ? 'is-disabled' : ''}`}>
+              <div className={`setting-sub-group ${!settings.notifyWebPush || !isSubscribed ? 'is-disabled' : ''}`}>
                 <div className="setting-toggle-item">
                   <div className="toggle-info">
                     <strong>신규 작업 보고서 제출 알림</strong>
@@ -210,7 +291,7 @@ export default function ManageSettings() {
                       type="checkbox" 
                       checked={settings.notifyNewReport} 
                       onChange={() => handleToggle('notifyNewReport', '신규 보고서 제출 알림')} 
-                      disabled={!settings.notifyWebPush}
+                      disabled={!settings.notifyWebPush || !isSubscribed}
                     />
                     <span className="switch-slider" />
                   </label>
@@ -226,11 +307,28 @@ export default function ManageSettings() {
                       type="checkbox" 
                       checked={settings.notifyNewInquiry} 
                       onChange={() => handleToggle('notifyNewInquiry', '신규 문의 접수 알림')} 
-                      disabled={!settings.notifyWebPush}
+                      disabled={!settings.notifyWebPush || !isSubscribed}
                     />
                     <span className="switch-slider" />
                   </label>
                 </div>
+              </div>
+
+              {/* 테스트 알림 발송 영역 */}
+              <div className="test-push-block">
+                <button
+                  type="button"
+                  className="btn-test-push"
+                  onClick={handleTestPush}
+                  disabled={isTesting || !settings.notifyWebPush || !isSubscribed}
+                  title={!isSubscribed ? '웹 푸시 알림 활성화 후 테스트가 가능합니다.' : '현재 브라우저로 테스트 알림 발송'}
+                >
+                  <Bell size={14} />
+                  <span>{isTesting ? '발송 중...' : '테스트 알림 발송'}</span>
+                </button>
+                <span className="test-push-desc">
+                  현재 브라우저로 실제 웹 푸시를 발송하여 Windows/OS 알림창 수신을 점검합니다.
+                </span>
               </div>
             </div>
           </div>

@@ -106,6 +106,14 @@ export default function ManageDashboard() {
 
   // 현장 상세 정보 다이얼로그 상태 (아파트 클릭 시 현장 세대/지역담당자 관리 열람)
   const [selectedDetailSite, setSelectedDetailSite] = useState<SiteDetail>();
+  const [fireRegions, setFireRegions] = useState<FireRegion[]>([]);
+
+  // 소방관할(FireRegion) 목록 로드 (지역 필터 정합성 보장)
+  useEffect(() => {
+    AdminService.getFireRegions()
+      .then(list => setFireRegions(list || []))
+      .catch(err => console.error('[Dashboard] getFireRegions error:', err));
+  }, []);
 
   // 1. 백엔드 API에서 답변 대기 문의 요약 경량 조회 (건수 + 최신 1건 미리보기)
   const loadPendingInquirySummary = useCallback(async () => {
@@ -125,7 +133,16 @@ export default function ManageDashboard() {
   // 2. Initial Load from Backend API (API 단에서 10건 한도 적용 및 전체 집계 취득)
   const loadDashboardData = useCallback(async () => {
     try {
-      const regionParam = region.regionId ? { regionId: region.regionId } : {};
+      const matchedFireRegion = fireRegions.find(fr => 
+        (region.sido === 'ALL' || fr.sidoName === region.sido) &&
+        (region.sigungu !== 'ALL' && (fr.name === region.sigungu || fr.name.replace(/(소방서|센터)$/, '').trim() === region.sigungu))
+      );
+      const selectedRegionId = region.regionId || matchedFireRegion?.regionId;
+
+      const regionParam: { regionId?: string } = {};
+      if (selectedRegionId) {
+        regionParam.regionId = selectedRegionId;
+      }
 
       const [summaryRes, siteRes, workerRes, issueRes, recentRes] = await Promise.all([
         AdminService.getDashboardSummary(regionParam).catch(err => {
@@ -183,11 +200,28 @@ export default function ManageDashboard() {
     } catch (e) {
       console.error('[Dashboard] loadDashboardData error', e);
     }
-  }, [region.sido, region.sigungu, region.eupmyeondong]);
+  }, [region.sido, region.sigungu, region.eupmyeondong, region.regionId, fireRegions]);
 
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
+
+  // 현장 상세 다이얼로그 오픈 (세대 목록 및 배정 작업자 정보 온전하게 로드)
+  const handleOpenSiteDetail = async (site: SiteDetail) => {
+    try {
+      const detail = await AdminService.getSiteDetail(site.siteId);
+      if (!detail.assignedWorkers || detail.assignedWorkers.length === 0) {
+        if (site.regionId) {
+          const workers = await AdminService.getRegionWorkers({ regionId: site.regionId }).catch(() => []);
+          detail.assignedWorkers = workers;
+        }
+      }
+      setSelectedDetailSite(detail);
+    } catch (e) {
+      console.error('[Dashboard] handleOpenSiteDetail error', e);
+      setSelectedDetailSite(site);
+    }
+  };
 
   // Region Label Display
   const regionLabel = useMemo(() => {
@@ -359,7 +393,7 @@ export default function ManageDashboard() {
               ) : (
                 sites.map((site, idx) => {
                   const total = site.totalHouseholds ?? site.households?.length ?? 0;
-                  const completed = site.completedHouseholds || site.households?.filter(h => h.installStatus === 'INSTALLED' || (h.installStatus as any) === '설치완료').length || 0;
+                  const completed = site.completedHouseholds || 0;
                   const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
                   const isDone = rate >= 100;
 
@@ -367,7 +401,7 @@ export default function ManageDashboard() {
                     <div 
                       key={site.siteId || `site_${idx}`} 
                       className="site-progress-item clickable"
-                      onClick={() => setSelectedDetailSite(site)}
+                      onClick={() => handleOpenSiteDetail(site)}
                       role="button"
                       tabIndex={0}
                       title={`${site.name} 현장 상세 관리 열람`}

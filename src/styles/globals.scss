@@ -43,6 +43,8 @@
   --danger-bg: #fee2e2;
   --danger-light: rgba(239, 68, 68, 0.05);
   --danger-border: rgba(239, 68, 68, 0.2);
+  --error: var(--danger);
+  --error-bg: var(--danger-bg);
   --warning: #f59e0b;
   --warning-text: #d97706;
   --warning-bg: #fef3c7;
