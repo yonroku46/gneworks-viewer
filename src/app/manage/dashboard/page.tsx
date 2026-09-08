@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   AlertTriangle, 
-  CheckCircle2, 
   Clock, 
   TrendingUp, 
   ChevronRight, 
@@ -463,7 +462,7 @@ export default function ManageDashboard() {
             <div className="dash-card-header">
               <div className="header-title-group">
                 <h4>특이사항 확인서</h4>
-                <span className="count-pill danger">{totalIssueCount.toLocaleString()}건</span>
+                <span className="count-pill">{totalIssueCount.toLocaleString()}건</span>
               </div>
               <Link href="/manage/work" className="link-all">
                 <span>전체보기</span>
@@ -522,8 +521,7 @@ export default function ManageDashboard() {
               return (
                 <div className="report-feed-list issue-feed-list">
                   {issueReports.length === 0 ? (
-                    <div key="empty-issues" className="dash-empty-state clean">
-                      <CheckCircle2 size={32} className="clean-icon" />
+                    <div key="empty-issues" className="dash-empty-state">
                       <p>현재 접수된 특이사항 확인서가 없습니다.</p>
                     </div>
                   ) : (

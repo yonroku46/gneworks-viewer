@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  FileText, 
   FileDown,
   Image as ImageIcon,
   ClipboardCheck,
@@ -330,11 +329,14 @@ export default function ManageWorkPage() {
   ], []);
 
   // Open Status Change Dialog
-  const handleOpenStatusModal = (report: WorkReport, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+  const handleOpenStatusModal = (report: WorkReport, e?: React.MouseEvent | ReportStatus, defaultStatus?: ReportStatus) => {
+    if (e && typeof (e as any).stopPropagation === 'function') {
+      (e as React.MouseEvent).stopPropagation();
+    }
+    const initialStatus = typeof e === 'string' ? e : (defaultStatus || report.status);
     setTargetReport(report);
     setStatusFormData({
-      status: report.status,
+      status: initialStatus,
       fixReason: report.fixReason || '',
     });
     setIsStatusModalOpen(true);
@@ -538,7 +540,7 @@ export default function ManageWorkPage() {
         isOpen={!!selectedReport && !isStatusModalOpen}
         report={selectedReport}
         onClose={() => setSelectedReport(undefined)}
-        onOpenStatusModal={(rep) => handleOpenStatusModal(rep)}
+        onOpenStatusModal={(rep, defaultStatus) => handleOpenStatusModal(rep, defaultStatus)}
         onReportUpdated={(updated) => {
           setSelectedReport(updated);
           setReports(prev => prev.map(r => r.reportId === updated.reportId ? updated : r));

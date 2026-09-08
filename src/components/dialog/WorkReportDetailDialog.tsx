@@ -7,6 +7,10 @@ import {
   Download,
   Loader2,
   ArrowRight,
+  Check,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import jsPDF from 'jspdf';
@@ -23,7 +27,7 @@ export interface WorkReportDetailDialogProps {
   report?: WorkReport;
   onClose: () => void;
   onReportUpdated?: (updated: WorkReport) => void;
-  onOpenStatusModal?: (report: WorkReport) => void;
+  onOpenStatusModal?: (report: WorkReport, defaultStatus?: ReportStatus) => void;
 }
 
 export default function WorkReportDetailDialog({
@@ -39,6 +43,7 @@ export default function WorkReportDetailDialog({
   const [isReviewEditing, setIsReviewEditing] = useState(false);
   const [isDocEditing, setIsDocEditing] = useState(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   // 자체 내장 상태 변경 팝업 상태 (대시보드 / 보고서관리 공통 지원)
   const [isInternalStatusModalOpen, setIsInternalStatusModalOpen] = useState(false);
@@ -97,15 +102,57 @@ export default function WorkReportDetailDialog({
 
   if (!report) return null;
 
+  // 원클릭 확인완료(승인) 즉시 처리
+  const handleApprove = async () => {
+    if (!report || isApproving) return;
+    setIsApproving(true);
+    try {
+      await AdminService.updateReportStatus(report.reportId, {
+        status: 'COMPLETED',
+        fixReason: '',
+      });
+
+      const updated: WorkReport = {
+        ...report,
+        status: 'COMPLETED',
+        fixReason: '',
+      };
+
+      if (onReportUpdated) {
+        onReportUpdated(updated);
+      }
+      enqueueSnackbar('작업 보고서가 확인완료되었습니다.', { variant: 'success' });
+    } catch (err: any) {
+      console.error('[WorkReportDetailDialog] handleApprove error:', err);
+      enqueueSnackbar(err?.message || '확인완료 처리 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  // 반려 (사유작성) 모달 오픈
+  const handleOpenRejectModal = () => {
+    if (!report) return;
+    setStatusFormData({
+      status: 'REJECTED',
+      fixReason: report.fixReason || '',
+    });
+    if (onOpenStatusModal) {
+      onOpenStatusModal(report, 'REJECTED');
+    } else {
+      setIsInternalStatusModalOpen(true);
+    }
+  };
+
   const handleOpenStatusModal = () => {
     if (!report) return;
+    setStatusFormData({
+      status: report.status,
+      fixReason: report.fixReason || '',
+    });
     if (onOpenStatusModal) {
       onOpenStatusModal(report);
     } else {
-      setStatusFormData({
-        status: report.status,
-        fixReason: report.fixReason || '',
-      });
       setIsInternalStatusModalOpen(true);
     }
   };
@@ -389,15 +436,49 @@ export default function WorkReportDetailDialog({
                   className="btn-status-action btn-edit-trigger btn-flex-secondary"
                   onClick={() => setIsReviewEditing(true)}
                 >
-                  <span>정보 수정</span>
+                  <span>보고서 수정</span>
                 </button>
-                <button
-                  type="button"
-                  className="btn-status-action btn-flex-primary"
-                  onClick={handleOpenStatusModal}
-                >
-                  <span>상태 변경 ({report.status === 'COMPLETED' ? '확인완료' : report.status === 'REJECTED' ? '수정필요' : '검토대기'})</span>
-                </button>
+                {report.status !== 'COMPLETED' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-status-action btn-reject-action btn-flex-secondary"
+                      onClick={handleOpenRejectModal}
+                    >
+                      <XCircle size={14} />
+                      <span>반려</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-status-action btn-approve-action btn-flex-primary"
+                      onClick={handleApprove}
+                      disabled={isApproving}
+                    >
+                      {isApproving ? (
+                        <Loader2 size={15} className="mask-spinner" />
+                      ) : (
+                        <Check size={15} />
+                      )}
+                      <span>{isApproving ? '처리 중...' : '확인완료'}</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-status-action btn-edit-trigger btn-flex-secondary"
+                      onClick={handleOpenStatusModal}
+                      title="상태를 다시 변경하려면 클릭하세요"
+                    >
+                      <RotateCcw size={14} />
+                      <span>상태 변경</span>
+                    </button>
+                    <div className="btn-approved-badge btn-flex-primary">
+                      <CheckCircle2 size={15} />
+                      <span>확인완료됨</span>
+                    </div>
+                  </>
+                )}
               </>
             )
           ) : (
@@ -410,7 +491,7 @@ export default function WorkReportDetailDialog({
                   setIsReviewEditing(true);
                 }}
               >
-                <span>정보 수정</span>
+                <span>보고서 수정</span>
               </button>
               <button 
                 type="button" 
