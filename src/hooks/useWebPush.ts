@@ -26,11 +26,25 @@ function arrayBufferToBase64(buffer: ArrayBuffer | null): string {
 
 export type PushPermissionStatus = 'default' | 'granted' | 'denied' | 'unsupported';
 
+let cachedVapidPublicKey: string | null = null;
+
 export function useWebPush() {
   const [permission, setPermission] = useState<PushPermissionStatus>('default');
   const [isSubscribed, setIsSubscribed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSupported, setIsSupported] = useState<boolean>(false);
+
+  // VAPID 키 미리 로드 (캐싱)
+  const prefetchVapidKey = useCallback(async () => {
+    if (cachedVapidPublicKey) return cachedVapidPublicKey;
+    try {
+      const key = await AppNotificationService.getVapidPublicKey();
+      if (key) cachedVapidPublicKey = key;
+      return key;
+    } catch {
+      return null;
+    }
+  }, []);
 
   // 초기 상태 확인
   const checkStatus = useCallback(async () => {
@@ -47,6 +61,9 @@ export function useWebPush() {
 
     setPermission(Notification.permission);
 
+    // 지원 브라우저인 경우 백그라운드에서 VAPID 키 미리 캐싱
+    prefetchVapidKey();
+
     try {
       const reg = await navigator.serviceWorker.getRegistration('/sw.js');
       if (reg) {
@@ -59,7 +76,7 @@ export function useWebPush() {
       console.error('[useWebPush] Error checking subscription:', e);
       setIsSubscribed(false);
     }
-  }, []);
+  }, [prefetchVapidKey]);
 
   useEffect(() => {
     checkStatus();
@@ -83,17 +100,21 @@ export function useWebPush() {
         return false;
       }
 
-      // 2. 서비스 워커 등록 확인
+      // 2. VAPID 공개키 조회 (캐시 우선 확인)
+      let vapidPublicKey = cachedVapidPublicKey;
+      if (!vapidPublicKey) {
+        vapidPublicKey = await AppNotificationService.getVapidPublicKey();
+        if (vapidPublicKey) cachedVapidPublicKey = vapidPublicKey;
+      }
+      if (!vapidPublicKey) {
+        throw new Error('VAPID 공개키를 가져오지 못했습니다.');
+      }
+
+      // 3. 서비스 워커 등록 확인
       let reg = await navigator.serviceWorker.getRegistration('/sw.js');
       if (!reg) {
         reg = await navigator.serviceWorker.register('/sw.js');
         await navigator.serviceWorker.ready;
-      }
-
-      // 3. 서버에서 VAPID 공개키 조회
-      const vapidPublicKey = await AppNotificationService.getVapidPublicKey();
-      if (!vapidPublicKey) {
-        throw new Error('VAPID 공개키를 가져오지 못했습니다.');
       }
 
       // 4. PushManager 구독

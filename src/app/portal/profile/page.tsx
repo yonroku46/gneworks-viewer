@@ -31,9 +31,9 @@ interface WorkerPushSettings {
 const WORKER_PUSH_STORAGE_KEY = 'gneworks_worker_push_settings';
 
 const DEFAULT_WORKER_PUSH_SETTINGS: WorkerPushSettings = {
-  enabled: true,
-  notifyReportStatus: true,
-  notifyInquiryAnswer: true,
+  enabled: false,
+  notifyReportStatus: false,
+  notifyInquiryAnswer: false,
 };
 
 export default function ProfilePage() {
@@ -54,7 +54,14 @@ export default function ProfilePage() {
       try {
         const stored = localStorage.getItem(WORKER_PUSH_STORAGE_KEY);
         if (stored) {
-          return { ...DEFAULT_WORKER_PUSH_SETTINGS, ...JSON.parse(stored) };
+          const parsed = JSON.parse(stored);
+          return {
+            ...DEFAULT_WORKER_PUSH_SETTINGS,
+            ...parsed,
+            enabled: parsed.enabled ?? DEFAULT_WORKER_PUSH_SETTINGS.enabled,
+            notifyReportStatus: parsed.notifyReportStatus ?? DEFAULT_WORKER_PUSH_SETTINGS.notifyReportStatus,
+            notifyInquiryAnswer: parsed.notifyInquiryAnswer ?? DEFAULT_WORKER_PUSH_SETTINGS.notifyInquiryAnswer,
+          };
         }
       } catch (e) {
         console.error(e);
@@ -64,16 +71,30 @@ export default function ProfilePage() {
   });
   const [isTestingPush, setIsTestingPush] = useState(false);
 
+  const isMasterActive = Boolean(pushSettings.enabled && isSubscribed);
+
   const handleWorkerPushToggle = async () => {
-    const nextVal = !pushSettings.enabled;
+    const nextVal = !isMasterActive;
     if (nextVal) {
       try {
         const success = await subscribe();
         if (success) {
-          const updated = { ...pushSettings, enabled: true };
-          setPushSettings(updated);
-          localStorage.setItem(WORKER_PUSH_STORAGE_KEY, JSON.stringify(updated));
-          enqueueSnackbar('웹 브라우저 푸시 알림이 활성화되었습니다.', { variant: 'success' });
+          setPushSettings(prev => {
+            const needTurnOnSub = !prev.notifyReportStatus && !prev.notifyInquiryAnswer;
+            const updated = {
+              ...prev,
+              enabled: true,
+              notifyReportStatus: needTurnOnSub ? true : prev.notifyReportStatus,
+              notifyInquiryAnswer: needTurnOnSub ? true : prev.notifyInquiryAnswer,
+            };
+            try {
+              localStorage.setItem(WORKER_PUSH_STORAGE_KEY, JSON.stringify(updated));
+            } catch (e) {
+              console.error(e);
+            }
+            return updated;
+          });
+          enqueueSnackbar('웹 브라우저 푸시 알림이 활성화되었습니다.', { variant: 'success', autoHideDuration: 2000 });
         } else {
           enqueueSnackbar('알림 권한이 허용되지 않았습니다. 브라우저 설정에서 권한을 확인해주세요.', { variant: 'warning' });
         }
@@ -83,12 +104,19 @@ export default function ProfilePage() {
     } else {
       try {
         await unsubscribe();
-        const updated = { ...pushSettings, enabled: false };
-        setPushSettings(updated);
-        localStorage.setItem(WORKER_PUSH_STORAGE_KEY, JSON.stringify(updated));
-        enqueueSnackbar('웹 브라우저 푸시 알림이 비활성화되었습니다.', { variant: 'info' });
       } catch (err) {
         console.error(err);
+      } finally {
+        setPushSettings(prev => {
+          const updated = { ...prev, enabled: false };
+          try {
+            localStorage.setItem(WORKER_PUSH_STORAGE_KEY, JSON.stringify(updated));
+          } catch (e) {
+            console.error(e);
+          }
+          return updated;
+        });
+        enqueueSnackbar('웹 브라우저 푸시 알림이 비활성화되었습니다.', { variant: 'info', autoHideDuration: 2000 });
       }
     }
   };
@@ -373,7 +401,7 @@ export default function ProfilePage() {
             <label className="custom-switch-label">
               <input
                 type="checkbox"
-                checked={pushSettings.enabled && isSubscribed}
+                checked={isMasterActive}
                 onChange={handleWorkerPushToggle}
                 disabled={isPushLoading || permission === 'denied' || permission === 'unsupported'}
               />
@@ -381,7 +409,7 @@ export default function ProfilePage() {
             </label>
           </div>
 
-          <div className={`sub-toggle-group ${!pushSettings.enabled || !isSubscribed ? 'is-disabled' : ''}`}>
+          <div className={`sub-toggle-group ${!isMasterActive ? 'is-disabled' : ''}`}>
             <div className="toggle-item">
               <div className="toggle-text">
                 <strong>보고서 상태 변경 알림</strong>
@@ -390,9 +418,9 @@ export default function ProfilePage() {
               <label className="custom-switch-label">
                 <input
                   type="checkbox"
-                  checked={pushSettings.notifyReportStatus}
+                  checked={isMasterActive && pushSettings.notifyReportStatus}
                   onChange={() => handleSubToggle('notifyReportStatus', '보고서 상태 변경 알림')}
-                  disabled={!pushSettings.enabled || !isSubscribed}
+                  disabled={!isMasterActive}
                 />
                 <span className="switch-slider" />
               </label>
@@ -406,9 +434,9 @@ export default function ProfilePage() {
               <label className="custom-switch-label">
                 <input
                   type="checkbox"
-                  checked={pushSettings.notifyInquiryAnswer}
+                  checked={isMasterActive && pushSettings.notifyInquiryAnswer}
                   onChange={() => handleSubToggle('notifyInquiryAnswer', '문의사항 답변 알림')}
-                  disabled={!pushSettings.enabled || !isSubscribed}
+                  disabled={!isMasterActive}
                 />
                 <span className="switch-slider" />
               </label>
@@ -421,8 +449,8 @@ export default function ProfilePage() {
             type="button"
             className="btn-test-push"
             onClick={handleTestPush}
-            disabled={isTestingPush || !pushSettings.enabled || !isSubscribed}
-            title={!isSubscribed ? '웹 푸시 알림 활성화 후 테스트가 가능합니다.' : '현재 브라우저로 테스트 알림 발송'}
+            disabled={isTestingPush || !isMasterActive}
+            title={!isMasterActive ? '웹 푸시 알림 활성화 후 테스트가 가능합니다.' : '현재 브라우저로 테스트 알림 발송'}
           >
             <Bell size={14} />
             <span>{isTestingPush ? '발송 중...' : '테스트 알림 발송'}</span>

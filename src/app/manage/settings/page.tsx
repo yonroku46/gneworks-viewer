@@ -18,9 +18,9 @@ import '../ManageLayout.scss';
 const DEFAULT_SETTINGS: SystemSettings = {
   contactPhone: '010-6761-7665',
   contactEmail: 'minkyu0026@nate.com',
-  notifyWebPush: true,
-  notifyNewReport: true,
-  notifyNewInquiry: true,
+  notifyWebPush: false,
+  notifyNewReport: false,
+  notifyNewInquiry: false,
   noticeVisible: true,
   noticeTitle: '현장 사진 촬영 및 보고서 작성 지침 안내',
   noticeContent: '작업 전/후 사진은 가이드라인 안내선에 맞추어 선명하게 촬영해 주시기 바라며, 작업 확인 완료된 세대는 임의 수정이 불가하오니 제출 전 확인자 서명 및 기재사항을 꼼꼼히 확인 바랍니다.',
@@ -41,11 +41,13 @@ export default function ManageSettings() {
           return {
             ...DEFAULT_SETTINGS,
             ...parsed,
+            notifyWebPush: parsed.notifyWebPush ?? DEFAULT_SETTINGS.notifyWebPush,
+            notifyNewReport: parsed.notifyNewReport ?? DEFAULT_SETTINGS.notifyNewReport,
+            notifyNewInquiry: parsed.notifyNewInquiry ?? parsed.notifyFixReport ?? DEFAULT_SETTINGS.notifyNewInquiry,
             noticeVisible: parsed.noticeVisible ?? DEFAULT_SETTINGS.noticeVisible,
             noticeTitle: parsed.noticeTitle ?? DEFAULT_SETTINGS.noticeTitle,
             noticeContent: parsed.noticeContent ?? DEFAULT_SETTINGS.noticeContent,
             noticeDate: parsed.noticeDate ?? DEFAULT_SETTINGS.noticeDate,
-            notifyNewInquiry: parsed.notifyNewInquiry ?? parsed.notifyFixReport ?? true,
           };
         }
       } catch (e) {
@@ -65,13 +67,30 @@ export default function ManageSettings() {
   } = useWebPush();
   const [isTesting, setIsTesting] = useState(false);
 
+  const isMasterActive = Boolean(settings.notifyWebPush && isSubscribed);
+
   const handleWebPushMasterToggle = async () => {
-    const nextVal = !settings.notifyWebPush;
+    const nextVal = !isMasterActive;
     if (nextVal) {
       try {
         const success = await subscribe();
         if (success) {
-          handleToggle('notifyWebPush', '웹 브라우저 푸시 알림');
+          setSettings(prev => {
+            const needTurnOnSub = !prev.notifyNewReport && !prev.notifyNewInquiry;
+            const updated = {
+              ...prev,
+              notifyWebPush: true,
+              notifyNewReport: needTurnOnSub ? true : prev.notifyNewReport,
+              notifyNewInquiry: needTurnOnSub ? true : prev.notifyNewInquiry,
+            };
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            } catch (e) {
+              console.error(e);
+            }
+            return updated;
+          });
+          enqueueSnackbar('웹 브라우저 푸시 알림이 활성화되었습니다.', { variant: 'success', autoHideDuration: 2000 });
         } else {
           enqueueSnackbar('푸시 알림 권한이 허용되지 않았습니다. 브라우저 주소창에서 권한을 확인해주세요.', { variant: 'warning' });
         }
@@ -81,10 +100,19 @@ export default function ManageSettings() {
     } else {
       try {
         await unsubscribe();
-        handleToggle('notifyWebPush', '웹 브라우저 푸시 알림');
       } catch (err) {
         console.error(err);
-        handleToggle('notifyWebPush', '웹 브라우저 푸시 알림');
+      } finally {
+        setSettings(prev => {
+          const updated = { ...prev, notifyWebPush: false };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+          } catch (e) {
+            console.error(e);
+          }
+          return updated;
+        });
+        enqueueSnackbar('웹 브라우저 푸시 알림이 비활성화되었습니다.', { variant: 'info', autoHideDuration: 2000 });
       }
     }
   };
@@ -93,7 +121,7 @@ export default function ManageSettings() {
     setIsTesting(true);
     try {
       await sendTestNotification();
-      enqueueSnackbar('테스트 알림이 성공적으로 발송되었습니다. 잠시 후 OS 팝업을 확인하세요.', { variant: 'success' });
+      enqueueSnackbar('테스트 알림이 성공적으로 발송되었습니다.', { variant: 'success' });
     } catch (err) {
       console.error(err);
       enqueueSnackbar('테스트 알림 발송 중 오류가 발생했습니다.', { variant: 'error' });
@@ -271,7 +299,7 @@ export default function ManageSettings() {
                 <label className="custom-switch-label">
                   <input 
                     type="checkbox" 
-                    checked={settings.notifyWebPush && isSubscribed} 
+                    checked={isMasterActive} 
                     onChange={handleWebPushMasterToggle}
                     disabled={isPushLoading || permission === 'denied' || permission === 'unsupported'}
                   />
@@ -280,7 +308,7 @@ export default function ManageSettings() {
               </div>
 
               {/* 하위 종속 알림 그룹 */}
-              <div className={`setting-sub-group ${!settings.notifyWebPush || !isSubscribed ? 'is-disabled' : ''}`}>
+              <div className={`setting-sub-group ${!isMasterActive ? 'is-disabled' : ''}`}>
                 <div className="setting-toggle-item">
                   <div className="toggle-info">
                     <strong>신규 작업 보고서 제출 알림</strong>
@@ -289,9 +317,9 @@ export default function ManageSettings() {
                   <label className="custom-switch-label">
                     <input 
                       type="checkbox" 
-                      checked={settings.notifyNewReport} 
+                      checked={isMasterActive && settings.notifyNewReport} 
                       onChange={() => handleToggle('notifyNewReport', '신규 보고서 제출 알림')} 
-                      disabled={!settings.notifyWebPush || !isSubscribed}
+                      disabled={!isMasterActive}
                     />
                     <span className="switch-slider" />
                   </label>
@@ -305,9 +333,9 @@ export default function ManageSettings() {
                   <label className="custom-switch-label">
                     <input 
                       type="checkbox" 
-                      checked={settings.notifyNewInquiry} 
+                      checked={isMasterActive && settings.notifyNewInquiry} 
                       onChange={() => handleToggle('notifyNewInquiry', '신규 문의 접수 알림')} 
-                      disabled={!settings.notifyWebPush || !isSubscribed}
+                      disabled={!isMasterActive}
                     />
                     <span className="switch-slider" />
                   </label>
@@ -320,8 +348,8 @@ export default function ManageSettings() {
                   type="button"
                   className="btn-test-push"
                   onClick={handleTestPush}
-                  disabled={isTesting || !settings.notifyWebPush || !isSubscribed}
-                  title={!isSubscribed ? '웹 푸시 알림 활성화 후 테스트가 가능합니다.' : '현재 브라우저로 테스트 알림 발송'}
+                  disabled={isTesting || !isMasterActive}
+                  title={!isMasterActive ? '웹 푸시 알림 활성화 후 테스트가 가능합니다.' : '현재 브라우저로 테스트 알림 발송'}
                 >
                   <Bell size={14} />
                   <span>{isTesting ? '발송 중...' : '테스트 알림 발송'}</span>
