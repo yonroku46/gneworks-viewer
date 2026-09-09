@@ -233,10 +233,8 @@ export default function ManageDashboard() {
 
   // Region Label Display
   const regionLabel = useMemo(() => {
-    if (!region.sido || region.sido === 'ALL') return '';
-    const sg = region.sigungu && region.sigungu !== 'ALL' ? region.sigungu : '';
-    return sg ? `${region.sido} ${sg}` : region.sido;
-  }, [region]);
+    return region.sido && region.sigungu ? `${region.sido} ${region.sigungu}` : (region.sido || '');
+  }, [region.sido, region.sigungu]);
 
   // 선택된 작업자의 전체 보고서 및 필터링된 보고서 (계정 상세 다이얼로그용)
   const handleOpenWorkerHistory = async (workerId?: string, workerName?: string, workerPhone?: string) => {

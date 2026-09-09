@@ -41,37 +41,21 @@ export default function RegionalBatchPrintDialog({
 
   // ── Fire Station Name (소방서명) ──
   const [fireStationName, setFireStationName] = useState<string>(() => {
-    if (region.sigungu && region.sigungu !== 'ALL') {
-      return `${region.sigungu}소방서`;
-    }
-    if (region.sido && region.sido !== 'ALL') {
-      return `${region.sido}소방서`;
-    }
-    return '';
+    return region.sigungu ? `${region.sigungu}소방서` : `${region.sido}소방서`;
   });
 
   // Update default station name if region changes
   React.useEffect(() => {
-    if (region.sigungu && region.sigungu !== 'ALL') {
-      setFireStationName(`${region.sigungu}소방서`);
-    } else if (region.sido && region.sido !== 'ALL') {
-      setFireStationName(`${region.sido}소방서`);
-    } else {
-      setFireStationName('');
-    }
-  }, [region]);
+    setFireStationName(region.sigungu ? `${region.sigungu}소방서` : `${region.sido}소방서`);
+  }, [region.sido, region.sigungu]);
 
   // ── Number of Preview Items to Show (화면 렉 방지용 페이지네이션/토글) ──
   const [showAllInPreview, setShowAllInPreview] = useState(false);
 
   // ── Region Label ──
   const regionLabel = useMemo(() => {
-    const parts = [];
-    if (region.sido && region.sido !== 'ALL') parts.push(region.sido);
-    if (region.sigungu && region.sigungu !== 'ALL') parts.push(region.sigungu);
-    if (region.eupmyeondong && region.eupmyeondong !== 'ALL') parts.push(region.eupmyeondong);
-    return parts.length > 0 ? parts.join(' ') : '전체 지역';
-  }, [region]);
+    return region.sido && region.sigungu ? `${region.sido} ${region.sigungu}` : (region.sido || '');
+  }, [region.sido, region.sigungu]);
 
   // ── Target Reports: 오직 '확인완료(COMPLETED)' 보고서만 엄격 필터링 ──
   const completedReportsInRegion = useMemo(() => {
@@ -82,19 +66,16 @@ export default function RegionalBatchPrintDialog({
       }
 
       // 2. 지역 매칭
-      if (region.sido && region.sido !== 'ALL' && r.sido !== region.sido) {
+      if (region.sido && r.sido !== region.sido) {
         return false;
       }
-      if (region.sigungu && region.sigungu !== 'ALL' && r.sigungu !== region.sigungu) {
-        return false;
-      }
-      if (region.eupmyeondong && region.eupmyeondong !== 'ALL' && r.eupmyeondong !== region.eupmyeondong) {
+      if (region.sigungu && r.sigungu !== region.sigungu) {
         return false;
       }
 
       return true;
     });
-  }, [reports, region]);
+  }, [reports, region.sido, region.sigungu]);
 
   // ── Date Filtered Reports ──
   const filteredReports = useMemo(() => {

@@ -66,12 +66,10 @@ export default function ManageCustomers() {
     try {
       setIsLoading(true);
 
-      // 선택된 시도 및 소방관할(sigungu)에 일치하는 FireRegion 찾기
-      const matchedFireRegion = fireRegions.find(fr => 
-        (region.sido === 'ALL' || fr.sidoName === region.sido) &&
-        (region.sigungu !== 'ALL' && (fr.name === region.sigungu || fr.name.replace(/(소방서|센터)$/, '').trim() === region.sigungu))
-      );
-      const selectedRegionId = region.regionId || matchedFireRegion?.regionId;
+      // 선택된 소방관할 regionId 채택
+      const selectedRegionId = (region.regionId && !region.regionId.startsWith('REG_'))
+        ? region.regionId
+        : fireRegions.find(fr => fr.name === region.sigungu || fr.sidoName === region.sido)?.regionId;
 
       const res = await AdminService.getSiteListPaged({
         regionId: selectedRegionId,

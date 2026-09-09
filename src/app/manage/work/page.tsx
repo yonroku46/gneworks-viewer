@@ -408,11 +408,8 @@ export default function ManageWorkPage() {
 
   // Region Label Display
   const regionLabel = useMemo(() => {
-    if (region.sido === 'ALL') return '전국';
-    if (region.sigungu === 'ALL') return region.sido;
-    if (region.eupmyeondong === 'ALL') return `${region.sido} ${region.sigungu}`;
-    return `${region.sido} ${region.sigungu} ${region.eupmyeondong}`;
-  }, [region]);
+    return region.sido && region.sigungu ? `${region.sido} ${region.sigungu}` : (region.sido || '');
+  }, [region.sido, region.sigungu]);
 
   // Handle Batch Print Dialog Open
   const handleBatchPrint = async () => {
@@ -453,11 +450,7 @@ export default function ManageWorkPage() {
             type="button"
             className="btn-batch-pdf-action"
             onClick={handleBatchPrint}
-            title={
-              region.sido === 'ALL' || region.sigungu === 'ALL'
-                ? '지역을 먼저 지정해 주세요. (시/도 및 시/군/구 선택 필요)'
-                : `${regionLabel} 지역의 모든 보고서를 대지와 함께 일괄 PDF로 출력합니다.`
-            }
+            title={`${regionLabel} 지역의 모든 보고서를 대지와 함께 일괄 PDF로 출력합니다.`}
           >
             <FileDown size={15} />
             <span>지역별 일괄 PDF 출력</span>

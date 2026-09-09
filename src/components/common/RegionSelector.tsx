@@ -45,7 +45,7 @@ export default function RegionSelector({
 
   // 현재 유효한 시/도 (기본값: 목록의 첫 번째 시도, 보통 '경기도')
   const currentSido = useMemo(() => {
-    if (sido && sido !== 'ALL' && sidoList.includes(sido)) {
+    if (sido && sidoList.includes(sido)) {
       return sido;
     }
     return sidoList[0] || '경기도';
@@ -67,7 +67,7 @@ export default function RegionSelector({
     return availableFireRegions[0]?.regionId || '';
   }, [regionId, sigungu, availableFireRegions]);
 
-  // 마운트 및 로드 완료 시 '전국'이나 유효하지 않은 관할서 상태를 첫 번째 유효 관할서로 자동 동기화
+  // 마운트 및 로드 완료 시 유효하지 않은 관할서 상태를 첫 번째 유효 관할서로 자동 동기화
   useEffect(() => {
     if (isLoaded && availableFireRegions.length > 0) {
       const selectedFr = availableFireRegions.find(fr => fr.regionId === currentFireRegionId) || availableFireRegions[0];
@@ -76,7 +76,7 @@ export default function RegionSelector({
           regionId: selectedFr.regionId,
           sido: currentSido,
           sigungu: selectedFr.name,
-          eupmyeondong: 'ALL',
+          eupmyeondong: '',
         });
       }
     }
@@ -91,7 +91,7 @@ export default function RegionSelector({
       regionId: firstFr?.regionId,
       sido: newSido,
       sigungu: firstFr?.name || '',
-      eupmyeondong: 'ALL',
+      eupmyeondong: '',
     });
   };
 
@@ -102,7 +102,7 @@ export default function RegionSelector({
       regionId: newRegionId,
       sido: currentSido,
       sigungu: selectedFr?.name || newRegionId,
-      eupmyeondong: 'ALL',
+      eupmyeondong: '',
     });
   };
 
@@ -111,7 +111,7 @@ export default function RegionSelector({
     const selectedFr = availableFireRegions.find(fr => fr.regionId === currentFireRegionId);
     const sgName = selectedFr?.name || sigungu;
     const parts = [currentSido];
-    if (sgName && sgName !== 'ALL') {
+    if (sgName) {
       parts.push(sgName);
     }
     return parts;

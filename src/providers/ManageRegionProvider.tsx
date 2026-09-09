@@ -5,9 +5,9 @@ import { findRegionId } from '@/common/utils/regionUtils';
 
 export const DEFAULT_MANAGE_REGION: SelectedRegion = {
   regionId: undefined,
-  sido: 'ALL',
-  sigungu: 'ALL',
-  eupmyeondong: 'ALL',
+  sido: '경기도',
+  sigungu: '수원',
+  eupmyeondong: '',
 };
 
 const MANAGE_REGION_STORAGE_KEY = 'gneworks_manage_selected_region';
@@ -36,13 +36,13 @@ export function ManageRegionProvider({ children }: { children: React.ReactNode }
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed.sido === 'string') {
-          const loadedSido = parsed.sido || 'ALL';
-          const loadedSigungu = parsed.sigungu || 'ALL';
+          const loadedSido = parsed.sido || DEFAULT_MANAGE_REGION.sido;
+          const loadedSigungu = parsed.sigungu || DEFAULT_MANAGE_REGION.sigungu;
           let loadedRegionId = parsed.regionId;
           if (loadedRegionId && loadedRegionId.startsWith('REG_')) {
             loadedRegionId = undefined;
           }
-          if (!loadedRegionId && loadedSido !== 'ALL' && loadedSigungu !== 'ALL') {
+          if (!loadedRegionId) {
             const foundId = findRegionId(loadedSido, loadedSigungu);
             if (foundId && !foundId.startsWith('REG_')) {
               loadedRegionId = foundId;
@@ -52,7 +52,7 @@ export function ManageRegionProvider({ children }: { children: React.ReactNode }
             regionId: loadedRegionId,
             sido: loadedSido,
             sigungu: loadedSigungu,
-            eupmyeondong: parsed.eupmyeondong || 'ALL',
+            eupmyeondong: parsed.eupmyeondong || '',
           });
         }
       }

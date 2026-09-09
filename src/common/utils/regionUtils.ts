@@ -194,7 +194,7 @@ export function getDbSidoList(): string[] {
  * 특정 시도에 속한 소방관할 목록 반환 (DB 캐시 기반 O(1))
  */
 export function getFireRegionsBySido(sidoName: string): FireRegion[] {
-  if (!sidoName || sidoName === 'ALL') return [];
+  if (!sidoName) return [];
   const direct = regionsBySidoCache.get(sidoName);
   if (direct && direct.length > 0) return direct;
 
@@ -221,7 +221,7 @@ export function getFireRegionById(regionId: string): FireRegion | undefined {
  * 시도명과 소방관할명으로 regionId 찾기 (DB 캐시 우선, 없을 시 정적 데이터)
  */
 export function findRegionId(sidoName: string, sigunguName: string): string | undefined {
-  if (!sidoName || !sigunguName || sidoName === 'ALL' || sigunguName === 'ALL') {
+  if (!sidoName || !sigunguName) {
     return undefined;
   }
 
@@ -261,7 +261,7 @@ export function findActualFireRegion(
   eupmyeondong?: string
 ): FireRegion | undefined {
   const regions = (fireRegions && fireRegions.length > 0) ? fireRegions : getCachedFireRegions();
-  if (!regions || regions.length === 0 || !sido || sido === 'ALL') {
+  if (!regions || regions.length === 0 || !sido) {
     return undefined;
   }
 
@@ -270,7 +270,7 @@ export function findActualFireRegion(
   if (sidoRegions.length === 0) return undefined;
 
   // 1순위: 읍/면/동이 명시되어 있고, 소방서의 관할 읍면동(eupmyeondongs)에 포함된 경우
-  if (eupmyeondong && eupmyeondong !== 'ALL') {
+  if (eupmyeondong) {
     const matchedByEup = sidoRegions.find(fr => {
       if (!fr.eupmyeondongs) return false;
       return fr.eupmyeondongs.includes(eupmyeondong);
@@ -279,7 +279,7 @@ export function findActualFireRegion(
   }
 
   // 2순위: 시/군/구(소방서명)가 일치하는 경우
-  if (sigungu && sigungu !== 'ALL') {
+  if (sigungu) {
     const cleanSg = cleanRegionName(sigungu);
     const exactMatch = sidoRegions.find(fr => {
       const cleanFr = cleanRegionName(fr.name);

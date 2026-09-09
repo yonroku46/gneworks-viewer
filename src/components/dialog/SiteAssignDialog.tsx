@@ -24,22 +24,21 @@ export default function SiteAssignDialog({
 }: SiteAssignDialogProps) {
   const [region, setRegion] = useState<SelectedRegion>({
     sido: '경기도',
-    sigungu: '연천군',
-    eupmyeondong: 'ALL',
+    sigungu: '수원',
+    eupmyeondong: '',
   });
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredSites = useMemo(() => {
     return sites.filter(site => {
-      const matchSido = region.sido === 'ALL' || site.sido === region.sido;
-      const matchSigungu = region.sigungu === 'ALL' || site.sigungu === region.sigungu;
-      const matchEup = region.eupmyeondong === 'ALL' || (site.eupmyeondong && site.eupmyeondong.includes(region.eupmyeondong));
+      const matchSido = !region.sido || site.sido === region.sido;
+      const matchSigungu = !region.sigungu || site.sigungu === region.sigungu;
       const matchSearch =
         !searchQuery.trim() ||
         site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         site.address.toLowerCase().includes(searchQuery.toLowerCase());
 
-      return matchSido && matchSigungu && matchEup && matchSearch;
+      return matchSido && matchSigungu && matchSearch;
     });
   }, [sites, region, searchQuery]);
 
