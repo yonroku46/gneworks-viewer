@@ -363,45 +363,102 @@ export default function WorkReportDetailDialog({
       const ho = (report.ho || '').trim();
       const pdfFileName = `${siteName}_${dong}동_${ho}호_보급지원확인서.pdf`;
 
-      // 1. 블러가 서식을 완전히 덮어 깜빡임을 사전에 100% 가리기 위한 시작 전 여유
-      await new Promise(resolve => setTimeout(resolve, 400));
+      // 1. 서식 내 모든 이미지가 완전히 로드될 때까지 대기
+      const imgElements = Array.from(docElement.querySelectorAll<HTMLImageElement>('img'));
+      await Promise.all(
+        imgElements.map(img => {
+          if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
+          return new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve;
+            setTimeout(resolve, 2000);
+          });
+        })
+      );
 
-      // PDF 캡처/저장 시에만 외곽 테두리(와꾸) 및 그림자 완전 제거 (오버레이도 숨겨짐)
+      // 2. Next.js rewrite 경로(/report/...)를 통해 S3 이미지를 CORS 없이 동일 오리진으로 fetch -> DataURL 변환
+      const s3Prefix = process.env.NEXT_PUBLIC_S3_PREFIX;
+      const toSameOriginUrl = (url: string) => {
+        if (!url) return '';
+        if (s3Prefix && url.includes(s3Prefix)) {
+          const idx = url.indexOf(s3Prefix);
+          return url.substring(idx + s3Prefix.length);
+        }
+        return url;
+      };
+
+      const originalSources = new Map<HTMLImageElement, string>();
+      await Promise.all(
+        imgElements.map(async (img) => {
+          const src = img.src;
+          if (!src || src.startsWith('data:')) return;
+          try {
+            const proxyUrl = toSameOriginUrl(src);
+            const res = await fetch(proxyUrl);
+            if (res.ok) {
+              const blob = await res.blob();
+              const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+              originalSources.set(img, src);
+              img.src = dataUrl;
+            }
+          } catch {
+            // fetch 실패 시 기존 src 유지
+          }
+        })
+      );
+
+      // 3. 서식 캡처 준비 (스타일 안정화 대기)
       docElement.classList.add('capturing-for-pdf');
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       let canvas: HTMLCanvasElement;
       try {
         canvas = await html2canvas(docElement, {
-          windowWidth: 1200,
-          scale: 2.5,
+          scale: 2,
           useCORS: true,
-          allowTaint: true,
+          allowTaint: false,
           backgroundColor: '#ffffff',
           logging: false,
+          scrollX: 0,
+          scrollY: 0,
         });
       } finally {
         docElement.classList.remove('capturing-for-pdf');
+        // 임시 DataURL 이미지 원상 복원
+        originalSources.forEach((origSrc, img) => {
+          img.src = origSrc;
+        });
       }
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = 210;
       const pdfHeight = 297;
 
       const imgProps = pdf.getImageProperties(imgData);
-      const imgWidth = 180;
-      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-      const topMargin = Math.max(10, (pdfHeight - imgHeight) / 2);
-      const leftMargin = (pdfWidth - imgWidth) / 2;
 
-      pdf.addImage(imgData, 'JPEG', leftMargin, topMargin, imgWidth, imgHeight);
+      // A4 용지 내 여백을 기존의 절반인 약 7mm 수준으로 최적화하여 꽉 찬 서식 인쇄
+      const maxWidth = 196; // 좌우 여백 각 약 7mm
+      const maxHeight = 282; // 상하 여백 각 약 7.5mm
 
-      // 브라우저 다운로드 큐에 파일 자동 저장 (우측 상단 ⬇️에 다운로드 기록)
+      let renderWidth = maxWidth;
+      let renderHeight = (imgProps.height * renderWidth) / imgProps.width;
+
+      if (renderHeight > maxHeight) {
+        renderHeight = maxHeight;
+        renderWidth = (imgProps.width * renderHeight) / imgProps.height;
+      }
+
+      const leftMargin = (pdfWidth - renderWidth) / 2;
+      const topMargin = (pdfHeight - renderHeight) / 2;
+
+      pdf.addImage(imgData, 'JPEG', leftMargin, topMargin, renderWidth, renderHeight);
       pdf.save(pdfFileName);
-
-      // 2. 저장이 끝나고 스타일이 원상복귀될 때까지의 깜빡임을 가려주는 완료 후 여유
-      await new Promise(resolve => setTimeout(resolve, 600));
 
       enqueueSnackbar('PDF가 다운로드되었습니다.', { variant: 'success' });
     } catch (err) {

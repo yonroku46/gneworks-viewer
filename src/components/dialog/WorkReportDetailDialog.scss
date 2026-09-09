@@ -443,29 +443,19 @@
     box-sizing: border-box;
     margin: 0 auto;
     &.capturing-for-pdf {
-      width: 182mm !important;
-      max-width: 182mm !important;
-      padding: 7mm 10mm !important;
       border: none !important;
       box-shadow: none !important;
       outline: none !important;
+      margin: 0 auto !important;
       .doc-header-row {
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: center !important;
-        min-height: 20mm !important;
+        min-height: 22mm !important;
         .confirmer-stamp-table {
           position: absolute !important;
           right: 0 !important;
-          top: 50% !important;
-          transform: translateY(-50%) !important;
-        }
-      }
-      .doc-six-cards-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 3mm !important;
-        .doc-grid-card {
-          height: 55mm !important;
+          top: 0 !important;
+          bottom: 0 !important;
+          margin: auto 0 !important;
+          transform: none !important;
         }
       }
     }
@@ -527,7 +517,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 20mm;
+      min-height: 22mm;
       margin-bottom: 2.5mm;
       .doc-title-box {
         width: 100%;
@@ -544,8 +534,10 @@
       .confirmer-stamp-table {
         position: absolute;
         right: 0;
-        top: 50%;
-        transform: translateY(-50%);
+        top: 0;
+        bottom: 0;
+        margin: auto 0;
+        transform: none;
         border-collapse: collapse;
         border: 1px solid var(--slate-900);
         background: var(--white);

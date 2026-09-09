@@ -78,13 +78,11 @@ const NotificationList = () => {
                   className={`notification-item ${!item.isRead ? 'unread' : ''}`}
                   onClick={() => markAsRead(item.appNotificationId)}
                 >
-                  <div className="icon-area">
+                  <div className={`icon-area ${item.iconType === 'LOGO' ? 'is-logo' : 'is-user'}`}>
                     {item.iconType === 'LOGO' ? (
-                      <Bell className="logo-icon" />
+                      <Bell size={15} />
                     ) : (
-                      <div className="default-avatar">
-                        <User size={24} />
-                      </div>
+                      <User size={15} />
                     )}
                   </div>
                   <div className="content-area">
