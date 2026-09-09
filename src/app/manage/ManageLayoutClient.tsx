@@ -235,7 +235,7 @@ function ManageLayoutInner({ children }: { children: React.ReactNode }) {
         rightElement={<SseStatus />}
         noPadding
       >
-        <NotificationList />
+        <NotificationList onClose={() => setIsNotificationOpen(false)} />
       </SlideDialog>
     </div>
   );

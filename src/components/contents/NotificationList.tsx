@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bell, User } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
@@ -11,7 +12,20 @@ import './NotificationList.scss';
 
 dayjs.locale('ko');
 
-const NotificationList = () => {
+interface NotificationListProps {
+  onClose?: () => void;
+}
+
+const parseNotificationMessage = (rawMessage?: string) => {
+  if (!rawMessage) return { text: '', url: null };
+  const linkMatch = rawMessage.match(/<!--link:(.*?)-->/);
+  const url = linkMatch ? linkMatch[1] : null;
+  const text = rawMessage.replace(/\n?<!--link:.*?-->/g, '').trim();
+  return { text, url };
+};
+
+const NotificationList = ({ onClose }: NotificationListProps) => {
+  const router = useRouter();
   const { notifications, isLoading, markAsRead, markAllAsRead } = useNotification();
 
   // Group and sort notifications
@@ -55,6 +69,25 @@ const NotificationList = () => {
     return targetDate.format('M월 D일');
   };
 
+  const handleItemClick = (item: AppNotification) => {
+    markAsRead(item.appNotificationId);
+
+    const { url } = parseNotificationMessage(item.message);
+    let targetUrl = url;
+    if (!targetUrl) {
+      if (item.title?.includes('보고서') || item.message?.includes('보고서')) {
+        targetUrl = '/manage/work';
+      } else if (item.title?.includes('문의') || item.message?.includes('문의')) {
+        targetUrl = '/manage/inquiries';
+      }
+    }
+
+    if (targetUrl) {
+      onClose?.();
+      router.push(targetUrl);
+    }
+  };
+
   if (isLoading) return <LoadingSpinner />;
 
   return (
@@ -72,31 +105,36 @@ const NotificationList = () => {
           <div key={date} className="date-group">
             <h3 className="group-date">{getDisplayDate(date)}</h3>
             <div className="notification-items">
-              {items.map((item) => (
-                <div 
-                  key={item.appNotificationId} 
-                  className={`notification-item ${!item.isRead ? 'unread' : ''}`}
-                  onClick={() => markAsRead(item.appNotificationId)}
-                >
-                  <div className={`icon-area ${item.iconType === 'LOGO' ? 'is-logo' : 'is-user'}`}>
-                    {item.iconType === 'LOGO' ? (
-                      <Bell size={15} />
-                    ) : (
-                      <User size={15} />
-                    )}
-                  </div>
-                  <div className="content-area">
-                    <div className="header-row">
-                      <div className="title-group">
-                        <span className="item-title">{item.title}</span>
-                        <span className="item-time">{dayjs(item.createTime).format('A h:mm')}</span>
-                      </div>
+              {items.map((item) => {
+                const { text: cleanMessage } = parseNotificationMessage(item.message);
+                return (
+                  <div 
+                    key={item.appNotificationId} 
+                    className={`notification-item ${!item.isRead ? 'unread' : ''}`}
+                    onClick={() => handleItemClick(item)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className={`icon-area ${item.iconType === 'LOGO' ? 'is-logo' : 'is-user'}`}>
+                      {item.iconType === 'LOGO' ? (
+                        <Bell size={15} />
+                      ) : (
+                        <User size={15} />
+                      )}
                     </div>
-                    <p className="item-message">{item.message}</p>
-                    {item.centerName && <span className="item-footer">{item.centerName}</span>}
+                    <div className="content-area">
+                      <div className="header-row">
+                        <div className="title-group">
+                          <span className="item-title">{item.title}</span>
+                          <span className="item-time">{dayjs(item.createTime).format('A h:mm')}</span>
+                        </div>
+                      </div>
+                      <p className="item-message">{cleanMessage}</p>
+                      {item.centerName && <span className="item-footer">{item.centerName}</span>}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))

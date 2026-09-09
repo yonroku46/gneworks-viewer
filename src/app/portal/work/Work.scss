@@ -561,6 +561,7 @@
             line-height: 1.2;
             .status-text {
               font-weight: 700;
+              flex-shrink: 0;
               &.completed {
                 color: var(--success);
               }

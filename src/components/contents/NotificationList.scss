@@ -49,7 +49,7 @@
     align-items: flex-start;
     gap: 10px;
     position: relative;
-    cursor: default;
+    cursor: pointer;
     transition: all 0.2s ease;
     .icon-area {
       width: 26px;
@@ -138,9 +138,14 @@
     .list-header .mark-all-read:hover {
       color: var(--slate-800);
     }
+    .notification-item:hover {
+      background-color: var(--slate-100);
+      border-color: var(--slate-300);
+      transform: translateY(-1px);
+    }
     .notification-item.unread:hover {
       background-color: var(--slate-50);
-      border-color: var(--slate-300);
+      border-color: var(--slate-400);
     }
   }
 }

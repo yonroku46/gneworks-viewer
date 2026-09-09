@@ -51,7 +51,7 @@ const Header = () => {
         rightElement={<SseStatus />}
         noPadding
       >
-        <NotificationList />
+        <NotificationList onClose={() => setIsNotificationOpen(false)} />
       </SlideDialog>
     </>
   );

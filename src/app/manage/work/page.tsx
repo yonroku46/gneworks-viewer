@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { 
   FileDown,
   Image as ImageIcon,
@@ -29,7 +30,7 @@ import '../ManageLayout.scss';
 
 dayjs.locale('ko');
 
-export default function ManageWorkPage() {
+function ManageWorkContent() {
   const { enqueueSnackbar } = useSnackbar();
 
   // Region State for Common RegionSelector (Global Shared State)
@@ -194,6 +195,43 @@ export default function ManageWorkPage() {
 
   // Confirmation Sheet Viewer Dialog
   const [selectedReport, setSelectedReport] = useState<WorkReport>();
+
+  const searchParams = useSearchParams();
+  const reportIdParam = searchParams.get('reportId');
+
+  // URL 파라미터(reportId) 존재 시 해당 보고서 상세 모달 자동 오픈 및 정확한 현장 정보 기반 지역 동기화
+  useEffect(() => {
+    if (!reportIdParam) return;
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const reportDetail = await AdminService.getReportDetail(reportIdParam);
+        if (!isMounted || !reportDetail) return;
+
+        setSelectedReport(reportDetail);
+
+        // 현장 API를 호출하여 DB에 등록된 정확한 regionId, sido, region 조회
+        if (reportDetail.siteId) {
+          const site = await AdminService.getSiteDetail(reportDetail.siteId);
+          if (isMounted && site && site.regionId && site.regionId !== region.regionId) {
+            setRegion({
+              sido: site.sido,
+              sigungu: site.region,
+              eupmyeondong: '',
+              regionId: site.regionId,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[ManageWorkPage] getReportDetail/getSiteDetail error', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [reportIdParam, region.regionId, setRegion]);
 
   // Status Change Dialog State
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -911,5 +949,13 @@ export default function ManageWorkPage() {
         regionId={region.regionId}
       />
     </div>
+  );
+}
+
+export default function ManageWorkPage() {
+  return (
+    <Suspense fallback={null}>
+      <ManageWorkContent />
+    </Suspense>
   );
 }
