@@ -426,6 +426,8 @@ export default function WorkReportDetailDialog({
           logging: false,
           scrollX: 0,
           scrollY: 0,
+          width: docElement.offsetWidth,
+          height: docElement.offsetHeight,
         });
       } finally {
         docElement.classList.remove('capturing-for-pdf');
