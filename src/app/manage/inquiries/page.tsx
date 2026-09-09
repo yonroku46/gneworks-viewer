@@ -99,6 +99,15 @@ export default function ManageInquiriesPage() {
   useEffect(() => {
     loadInquiries();
     loadPendingCount();
+
+    const handleRealtimeNotification = () => {
+      loadInquiries();
+      loadPendingCount();
+    };
+    window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
+    return () => {
+      window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
+    };
   }, [loadInquiries, loadPendingCount]);
 
   // Detail & Answer Modal State

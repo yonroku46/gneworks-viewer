@@ -32,7 +32,20 @@ self.addEventListener('push', function(event) {
     renotify: true
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // 열려있는 모든 브라우저 탭(창)에 실시간 알림 수신 브로드캐스트 전송
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+        clientList.forEach(function(client) {
+          client.postMessage({
+            type: 'GNEWORKS_PUSH_NOTIFICATION',
+            payload: data
+          });
+        });
+      })
+    ])
+  );
 });
 
 self.addEventListener('notificationclick', function(event) {

@@ -248,6 +248,14 @@ export default function ManageWorkPage() {
 
   React.useEffect(() => {
     loadData();
+
+    const handleRealtimeNotification = () => {
+      loadData();
+    };
+    window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
+    return () => {
+      window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
+    };
   }, [loadData]);
 
   // 지역 또는 검색어 변경 시 1페이지로 리셋

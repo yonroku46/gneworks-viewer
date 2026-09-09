@@ -63,8 +63,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       };
 
       eventSourceRef.current.addEventListener('notification', (event: any) => {
-        console.log('[SSE] New notification received');
+        console.log('[SSE] New notification received', event?.data);
+        let parsedData = event?.data;
+        try {
+          if (typeof event?.data === 'string') parsedData = JSON.parse(event.data);
+        } catch {
+          // ignore
+        }
         fetchNotifications();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('gneworks-notification-received', { detail: parsedData }));
+        }
       });
 
       eventSourceRef.current.addEventListener('connect', (event: any) => {
@@ -96,6 +105,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       };
     };
 
+    // Service Worker로부터 Web Push 도착 메시지 수신 처리
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'GNEWORKS_PUSH_NOTIFICATION') {
+        console.log('[Push] Message from SW received:', event.data.payload);
+        fetchNotifications();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('gneworks-notification-received', { detail: event.data.payload }));
+        }
+      }
+    };
+
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    }
+
     if (user) {
       fetchNotifications();
       setupSSE();
@@ -104,12 +128,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setSseStatus('disconnected');
     }
 
+    // 30초 주기 백그라운드 안전 폴링 -> SSE/네트워크 이상 시에도 알림 유실 방지
+    const pollInterval = setInterval(() => {
+      if (user) {
+        fetchNotifications();
+      }
+    }, 30000);
+
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
       if (retryTimeout) {
         clearTimeout(retryTimeout);
+      }
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
       }
       setSseStatus('disconnected');
     };

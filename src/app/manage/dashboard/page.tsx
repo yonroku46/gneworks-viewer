@@ -127,10 +127,6 @@ export default function ManageDashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    loadPendingInquirySummary();
-  }, [loadPendingInquirySummary]);
-
   // 2. Initial Load from Backend API (API 단에서 10건 한도 적용 및 전체 집계 취득)
   const loadDashboardData = useCallback(async () => {
     try {
@@ -210,9 +206,33 @@ export default function ManageDashboard() {
     }
   }, [region.sido, region.sigungu, region.eupmyeondong, region.regionId, fireRegions]);
 
+  // 대시보드 데이터 및 문의 요약 로드 & 실시간 알림 이벤트 연동
   useEffect(() => {
+    loadPendingInquirySummary();
     loadDashboardData();
-  }, [loadDashboardData]);
+
+    // 1. 실시간 알림(SSE / Web Push) 수신 시 답변 대기 문의 요약 및 대시보드 실시간 갱신
+    const handleRealtimeNotification = () => {
+      loadPendingInquirySummary();
+      loadDashboardData();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
+    }
+
+    // 2. 대시보드 화면 체류 시 30초 주기 안전 폴링 (실시간성 보장)
+    const intervalId = setInterval(() => {
+      loadPendingInquirySummary();
+    }, 30000);
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
+      }
+      clearInterval(intervalId);
+    };
+  }, [loadPendingInquirySummary, loadDashboardData]);
 
   // 현장 상세 다이얼로그 오픈 (세대 목록 및 배정 작업자 정보 온전하게 로드)
   const handleOpenSiteDetail = async (site: SiteDetail) => {

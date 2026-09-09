@@ -146,10 +146,6 @@ function PortalWorkContent() {
     }
   }, []);
 
-  useEffect(() => {
-    loadSitesSummary();
-  }, [loadSitesSummary]);
-
   // 2. 특정 현장 상세 로드
   const loadSiteDetail = useCallback(async (targetSiteId: string) => {
     try {
@@ -164,6 +160,21 @@ function PortalWorkContent() {
       setIsDetailLoading(false);
     }
   }, [enqueueSnackbar]);
+
+  useEffect(() => {
+    loadSitesSummary();
+
+    const handleRealtimeNotification = () => {
+      loadSitesSummary();
+      if (siteId) {
+        loadSiteDetail(siteId);
+      }
+    };
+    window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
+    return () => {
+      window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
+    };
+  }, [loadSitesSummary, siteId, loadSiteDetail]);
 
   // URL 쿼리 파라미터(siteId) 변경 시 상세 데이터 동기화
   useEffect(() => {

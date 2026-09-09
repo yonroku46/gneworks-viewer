@@ -101,7 +101,16 @@ export default function PortalPage() {
 
       updateNoticeFromStorage();
       window.addEventListener('storage', updateNoticeFromStorage);
-      return () => window.removeEventListener('storage', updateNoticeFromStorage);
+
+      const handleRealtimeNotification = () => {
+        loadPortalData();
+      };
+      window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
+
+      return () => {
+        window.removeEventListener('storage', updateNoticeFromStorage);
+        window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
+      };
     }
   }, [loadPortalData]);
 
