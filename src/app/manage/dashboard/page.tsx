@@ -18,6 +18,7 @@ import Link from 'next/link';
 import AdminService from '@/api/service/AdminService';
 import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
+import { findActualFireRegion } from '@/common/utils/regionUtils';
 import StatusBadge from '@/components/common/StatusBadge';
 import UserAvatar from '@/components/common/UserAvatar';
 import AccountDetailDialog from '@/components/dialog/AccountDetailDialog';
@@ -133,15 +134,22 @@ export default function ManageDashboard() {
   // 2. Initial Load from Backend API (API 단에서 10건 한도 적용 및 전체 집계 취득)
   const loadDashboardData = useCallback(async () => {
     try {
-      const matchedFireRegion = fireRegions.find(fr => 
-        (region.sido === 'ALL' || fr.sidoName === region.sido) &&
-        (region.sigungu !== 'ALL' && (fr.name === region.sigungu || fr.name.replace(/(소방서|센터)$/, '').trim() === region.sigungu))
+      // 실제 DB에서 로드된 fireRegions 목록에서 현재 선택된 지역에 일치하는 실제 regionId 탐색
+      const matchedFireRegion = findActualFireRegion(
+        fireRegions,
+        region.sido,
+        region.sigungu,
+        region.eupmyeondong
       );
-      const selectedRegionId = region.regionId || matchedFireRegion?.regionId;
+
+      // 가짜 정적 ID('REG_...')는 제외하고, 실제 DB의 regionId만 적용
+      const validRegionId = (region.regionId && !region.regionId.startsWith('REG_'))
+        ? region.regionId
+        : matchedFireRegion?.regionId;
 
       const regionParam: { regionId?: string } = {};
-      if (selectedRegionId) {
-        regionParam.regionId = selectedRegionId;
+      if (validRegionId) {
+        regionParam.regionId = validRegionId;
       }
 
       const [summaryRes, siteRes, workerRes, issueRes, recentRes] = await Promise.all([
@@ -225,10 +233,9 @@ export default function ManageDashboard() {
 
   // Region Label Display
   const regionLabel = useMemo(() => {
-    if (region.sido === 'ALL') return '전체 지역';
-    if (region.sigungu === 'ALL') return region.sido;
-    if (region.eupmyeondong === 'ALL') return `${region.sido} ${region.sigungu}`;
-    return `${region.sido} ${region.sigungu} ${region.eupmyeondong}`;
+    if (!region.sido || region.sido === 'ALL') return '';
+    const sg = region.sigungu && region.sigungu !== 'ALL' ? region.sigungu : '';
+    return sg ? `${region.sido} ${sg}` : region.sido;
   }, [region]);
 
   // 선택된 작업자의 전체 보고서 및 필터링된 보고서 (계정 상세 다이얼로그용)
@@ -650,6 +657,15 @@ export default function ManageDashboard() {
         }}
         onReportUpdated={(updated) => {
           setSelectedReport(updated);
+          loadDashboardData();
+        }}
+        onDeleteSuccess={(deletedId) => {
+          setSelectedReport(undefined);
+          if (previousWorkerUserRef.current) {
+            setSelectedWorkerUser(previousWorkerUserRef.current);
+            previousWorkerUserRef.current = undefined;
+          }
+          setWorkerReports(prev => prev.filter(r => r.reportId !== deletedId));
           loadDashboardData();
         }}
       />

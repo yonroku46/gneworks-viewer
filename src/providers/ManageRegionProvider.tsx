@@ -38,7 +38,16 @@ export function ManageRegionProvider({ children }: { children: React.ReactNode }
         if (parsed && typeof parsed.sido === 'string') {
           const loadedSido = parsed.sido || 'ALL';
           const loadedSigungu = parsed.sigungu || 'ALL';
-          const loadedRegionId = parsed.regionId || (loadedSido !== 'ALL' && loadedSigungu !== 'ALL' ? findRegionId(loadedSido, loadedSigungu) : undefined);
+          let loadedRegionId = parsed.regionId;
+          if (loadedRegionId && loadedRegionId.startsWith('REG_')) {
+            loadedRegionId = undefined;
+          }
+          if (!loadedRegionId && loadedSido !== 'ALL' && loadedSigungu !== 'ALL') {
+            const foundId = findRegionId(loadedSido, loadedSigungu);
+            if (foundId && !foundId.startsWith('REG_')) {
+              loadedRegionId = foundId;
+            }
+          }
           setRegionState({
             regionId: loadedRegionId,
             sido: loadedSido,
