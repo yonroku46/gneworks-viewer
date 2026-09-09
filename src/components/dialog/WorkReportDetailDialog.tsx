@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Building2, 
   CameraOff, 
@@ -11,6 +11,10 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
+  MoreVertical,
+  Trash2,
+  Edit3,
+  AlertTriangle,
 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import jsPDF from 'jspdf';
@@ -28,6 +32,7 @@ export interface WorkReportDetailDialogProps {
   onClose: () => void;
   onReportUpdated?: (updated: WorkReport) => void;
   onOpenStatusModal?: (report: WorkReport, defaultStatus?: ReportStatus) => void;
+  onDeleteSuccess?: (reportId: string) => void;
 }
 
 export default function WorkReportDetailDialog({
@@ -36,6 +41,7 @@ export default function WorkReportDetailDialog({
   onClose,
   onReportUpdated,
   onOpenStatusModal,
+  onDeleteSuccess,
 }: WorkReportDetailDialogProps) {
   const { enqueueSnackbar } = useSnackbar();
 
@@ -44,6 +50,35 @@ export default function WorkReportDetailDialog({
   const [isDocEditing, setIsDocEditing] = useState(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+
+  // 헤더 더보기(More) 메뉴 및 삭제 확인 모달 상태
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const QUICK_DELETE_REASONS = [
+    '오등록/중복 세대',
+    '작업자 오입력 요청',
+    '세대 현장 취소',
+    '사진 오류/재작성 예정',
+  ];
+
+  // 더보기 메뉴 외부 클릭 감지
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    if (isMoreMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMoreMenuOpen]);
 
   // 자체 내장 상태 변경 팝업 상태 (대시보드 / 보고서관리 공통 지원)
   const [isInternalStatusModalOpen, setIsInternalStatusModalOpen] = useState(false);
@@ -97,10 +132,35 @@ export default function WorkReportDetailDialog({
       setIsReviewEditing(false);
       setIsDocEditing(false);
       setReportDialogMode('review');
+      setIsMoreMenuOpen(false);
+      setIsDeleteModalOpen(false);
+      setDeleteReason('');
     }
   }, [report]);
 
   if (!report) return null;
+
+  // 보고서 영구 삭제 확인 처리 (API 연동)
+  const handleConfirmDelete = async () => {
+    if (!report || isDeleting) return;
+    if (!deleteReason.trim() || deleteReason.trim().length < 5) {
+      enqueueSnackbar('삭제 사유를 최소 5자 이상 구체적으로 입력해주세요.', { variant: 'warning' });
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await AdminService.deleteReport(report.reportId, deleteReason.trim());
+      enqueueSnackbar('보고서가 영구 삭제되었습니다.', { variant: 'success' });
+      setIsDeleteModalOpen(false);
+      onDeleteSuccess?.(report.reportId);
+      onClose();
+    } catch (err: any) {
+      console.error('[WorkReportDetailDialog] deleteReport error:', err);
+      enqueueSnackbar('보고서 삭제 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // 원클릭 확인완료(승인) 즉시 처리
   const handleApprove = async () => {
@@ -407,97 +467,123 @@ export default function WorkReportDetailDialog({
       <SlideDialog
         isOpen={isOpen && !isInternalStatusModalOpen}
         onClose={onClose}
-      title={`${report.siteName} (${report.dong}동 ${report.ho}호) 보고서`}
-      className="manage-page manage-dashboard-report-dialog confirmation-dialog"
-      footer={
-        <div className="confirmation-modal-footer-actions">
-          {reportDialogMode === 'review' ? (
-            isReviewEditing ? (
-              <>
+        title={`${report.siteName} (${report.dong}동 ${report.ho}호) 보고서`}
+        className="manage-page manage-dashboard-report-dialog confirmation-dialog"
+        rightElement={
+          <div className="report-detail-more-menu-wrap" ref={moreMenuRef}>
+            <button
+              type="button"
+              className={`btn-more-menu-trigger ${isMoreMenuOpen ? 'active' : ''}`}
+              onClick={() => setIsMoreMenuOpen(prev => !prev)}
+              aria-label="추가 작업 메뉴"
+              title="더보기"
+            >
+              <MoreVertical size={19} />
+            </button>
+            {isMoreMenuOpen && (
+              <div className="report-detail-dropdown-menu">
                 <button
                   type="button"
-                  className="btn-close-action btn-flex-tertiary"
-                  onClick={handleCancelReviewEdit}
+                  className="dropdown-item"
+                  onClick={() => {
+                    setIsMoreMenuOpen(false);
+                    if (reportDialogMode !== 'review') {
+                      setReportDialogMode('review');
+                    }
+                    setIsReviewEditing(true);
+                  }}
                 >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  className="btn-status-action btn-save-action btn-flex-primary"
-                  onClick={handleSaveReviewForm}
-                >
-                  <span>수정 완료</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="btn-status-action btn-edit-trigger btn-flex-secondary"
-                  onClick={() => setIsReviewEditing(true)}
-                >
+                  <Edit3 size={15} />
                   <span>보고서 수정</span>
                 </button>
-                {report.status !== 'COMPLETED' ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn-status-action btn-reject-action btn-flex-secondary"
-                      onClick={handleOpenRejectModal}
-                    >
-                      <XCircle size={14} />
-                      <span>반려</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-status-action btn-approve-action btn-flex-primary"
-                      onClick={handleApprove}
-                      disabled={isApproving}
-                    >
-                      {isApproving ? (
-                        <Loader2 size={15} className="mask-spinner" />
-                      ) : (
-                        <Check size={15} />
-                      )}
-                      <span>{isApproving ? '처리 중...' : '확인완료'}</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="btn-status-action btn-edit-trigger btn-flex-secondary"
-                      onClick={handleOpenStatusModal}
-                      title="상태를 다시 변경하려면 클릭하세요"
-                    >
-                      <RotateCcw size={14} />
-                      <span>상태 변경</span>
-                    </button>
-                    <div className="btn-approved-badge btn-flex-primary">
-                      <CheckCircle2 size={15} />
-                      <span>확인완료됨</span>
-                    </div>
-                  </>
-                )}
-              </>
-            )
-          ) : (
-            <>
-              <button
-                type="button"
-                className="btn-status-action btn-edit-trigger btn-flex-secondary"
-                onClick={() => {
-                  setReportDialogMode('review');
-                  setIsReviewEditing(true);
-                }}
-              >
-                <span>보고서 수정</span>
-              </button>
+                <div className="dropdown-divider" />
+                <button
+                  type="button"
+                  className="dropdown-item danger"
+                  onClick={() => {
+                    setIsMoreMenuOpen(false);
+                    setIsDeleteModalOpen(true);
+                  }}
+                >
+                  <Trash2 size={15} />
+                  <span>보고서 삭제</span>
+                </button>
+              </div>
+            )}
+          </div>
+        }
+        footer={
+          <div className="confirmation-modal-footer-actions">
+            {reportDialogMode === 'review' ? (
+              isReviewEditing ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn-close-action btn-flex-tertiary"
+                    onClick={handleCancelReviewEdit}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-status-action btn-save-action btn-flex-primary"
+                    onClick={handleSaveReviewForm}
+                  >
+                    <span>수정 완료</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {report.status !== 'COMPLETED' ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-status-action btn-reject-action btn-flex-secondary"
+                        onClick={handleOpenRejectModal}
+                      >
+                        <XCircle size={14} />
+                        <span>반려</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-status-action btn-approve-action btn-flex-primary"
+                        onClick={handleApprove}
+                        disabled={isApproving}
+                      >
+                        {isApproving ? (
+                          <Loader2 size={15} className="mask-spinner" />
+                        ) : (
+                          <Check size={15} />
+                        )}
+                        <span>{isApproving ? '처리 중...' : '확인완료'}</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-status-action btn-edit-trigger btn-flex-secondary"
+                        onClick={handleOpenStatusModal}
+                        title="상태를 다시 변경하려면 클릭하세요"
+                      >
+                        <RotateCcw size={14} />
+                        <span>상태 변경</span>
+                      </button>
+                      <div className="btn-approved-badge btn-flex-primary">
+                        <CheckCircle2 size={15} />
+                        <span>확인완료됨</span>
+                      </div>
+                    </>
+                  )}
+                </>
+              )
+            ) : (
               <button 
                 type="button" 
                 className="btn-print-action btn-flex-primary" 
                 onClick={handleDownloadPdf}
                 disabled={isPdfGenerating}
+                style={{ width: '100%' }}
               >
                 {isPdfGenerating ? (
                   <>
@@ -511,11 +597,10 @@ export default function WorkReportDetailDialog({
                   </>
                 )}
               </button>
-            </>
-          )}
-        </div>
-      }
-    >
+            )}
+          </div>
+        }
+      >
       <div className="dashboard-dialog-content">
         {/* ── MODE SWITCH TOGGLE (검토용 / 제출용) ── */}
         <div className={`dialog-mode-switch-bar ${isEditingAny ? 'is-disabled' : ''}`}>
@@ -1129,6 +1214,95 @@ export default function WorkReportDetailDialog({
           </div>
         )}
       </form>
+    </SlideDialog>
+
+    {/* ── 보고서 영구 삭제 확인 모달 ── */}
+    <SlideDialog
+      isOpen={isDeleteModalOpen}
+      onClose={() => { if (!isDeleting) setIsDeleteModalOpen(false); }}
+      title="보고서 영구 삭제"
+      className="report-delete-slide-dialog manage-page"
+      disableBackdropClick={isDeleting}
+      hideCloseButton={isDeleting}
+      footer={
+        <div className="dialog-btn-group">
+          <button
+            type="button"
+            className="btn-cancel"
+            onClick={() => setIsDeleteModalOpen(false)}
+            disabled={isDeleting}
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            className="btn-confirm-delete"
+            onClick={handleConfirmDelete}
+            disabled={deleteReason.trim().length < 5 || isDeleting}
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 size={16} className="mask-spinner" />
+                <span>삭제 처리 중...</span>
+              </>
+            ) : (
+              <>
+                <span>영구 삭제 진행</span>
+              </>
+            )}
+          </button>
+        </div>
+      }
+    >
+      <div className="report-delete-dialog-content">
+        <div className="delete-warning-banner">
+          <AlertTriangle size={20} className="warning-icon" />
+          <div className="warning-text">
+            <strong>주의: 삭제 시 복구할 수 없습니다.</strong>
+            <p>보고서 원본 및 S3 사진들이 즉시 영구 삭제되며, 해당 세대({report.dong}동 {report.ho}호)는 &apos;미설치&apos; 상태로 자동 원복됩니다.</p>
+          </div>
+        </div>
+
+        <div className="delete-target-card">
+          <div className="target-item">
+            <span className="lbl">현장명</span>
+            <strong className="val">{report.siteName}</strong>
+          </div>
+          <div className="target-item">
+            <span className="lbl">동/호수</span>
+            <strong className="val">{report.dong}동 {report.ho}호 ({report.headName || '세대주 미상'})</strong>
+          </div>
+          <div className="target-item">
+            <span className="lbl">작업자</span>
+            <span className="val">{report.reporterName || '-'} (시공일: {report.installDateFormatted || report.installDate || '-'})</span>
+          </div>
+        </div>
+
+        <div className="delete-reason-section">
+          <label className="reason-label">
+            <span>삭제 사유 <span className="req">*</span></span>
+          </label>
+          <div className="quick-reason-chips">
+            {QUICK_DELETE_REASONS.map(r => (
+              <button
+                key={r}
+                type="button"
+                className="quick-chip"
+                onClick={() => setDeleteReason(r)}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <textarea
+            className="reason-textarea"
+            placeholder="구체적인 삭제 사유를 입력하세요 (예: 오등록 중복 세대, 재작성 요청 등 최소 5자 이상)"
+            value={deleteReason}
+            onChange={e => setDeleteReason(e.target.value)}
+            rows={5}
+          />
+        </div>
+      </div>
     </SlideDialog>
   </>
   );

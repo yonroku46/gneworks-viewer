@@ -743,6 +743,44 @@ class AdminService {
       throw error;
     }
   }
+
+  /**
+   * 시공 보고서 영구 삭제 (관리자 필수 사유 기록 및 감사 로그 저장)
+   * DELETE /admin/report/{reportId}
+   */
+  async deleteReport(reportId: string, deleteReason: string): Promise<ActionRes> {
+    try {
+      const response: ApiResponse = await ApiInstance.delete(ApiRoutes.ADMIN_REPORT_DELETE(reportId), {
+        data: { deleteReason },
+      });
+      if (response && !response.hasErrors) {
+        return response.responseData as ActionRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to delete report');
+    } catch (error) {
+      console.error('[AdminService] deleteReport', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 시공 보고서 삭제 이력 페이징 조회
+   * GET /admin/report/deleted
+   */
+  async getDeletedReports(params?: AdminDeletionLogSearchReq): Promise<PageRes<WorkReportDeletionLog>> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_REPORT_DELETED_PAGED, {
+        params,
+      });
+      if (response && !response.hasErrors) {
+        return response.responseData as PageRes<WorkReportDeletionLog>;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch deleted reports');
+    } catch (error) {
+      console.error('[AdminService] getDeletedReports', error);
+      throw error;
+    }
+  }
   /**
    * 엑셀 파일 업로드 → site/household 일괄 임포트
    * POST /admin/data/import-excel (multipart/form-data)

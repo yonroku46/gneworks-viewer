@@ -140,6 +140,9 @@
           tr.data-table-row {
             border-bottom: 1px solid var(--border);
             transition: background-color 0.15s ease;
+            &:last-child {
+              border-bottom: none;
+            }
             &.clickable {
               cursor: pointer;
             }

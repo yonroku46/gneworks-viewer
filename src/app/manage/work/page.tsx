@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   FileDown,
   Image as ImageIcon,
   ClipboardCheck,
   Filter,
   RotateCcw,
-  ArrowRight
+  ArrowRight,
+  MoreVertical,
+  History,
 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
@@ -15,6 +17,7 @@ import 'dayjs/locale/ko';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import WorkReportDetailDialog from '@/components/dialog/WorkReportDetailDialog';
 import RegionalBatchPrintDialog from '@/components/dialog/RegionalBatchPrintDialog';
+import WorkReportTrashDialog from '@/components/dialog/WorkReportTrashDialog';
 import CustomSelect from '@/components/common/CustomSelect';
 import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
@@ -43,6 +46,27 @@ export default function ManageWorkPage() {
 
   // Regional Batch Print Dialog State
   const [isRegionalBatchDialogOpen, setIsRegionalBatchDialogOpen] = useState(false);
+
+  // Trash (Deletion Log) Dialog State
+  const [isTrashDialogOpen, setIsTrashDialogOpen] = useState(false);
+
+  // Header More Menu Dropdown State
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    if (isMoreMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMoreMenuOpen]);
 
   // Summary Metrics (권역 단위 종합 통계)
   const [metrics, setMetrics] = useState({ total: 0, pending: 0, needsFix: 0 });
@@ -393,7 +417,7 @@ export default function ManageWorkPage() {
   // Handle Batch Print Dialog Open
   const handleBatchPrint = async () => {
     if (!region.regionId) {
-      enqueueSnackbar('지역별 일괄 출력을 위해 관할 소방서(지역)를 먼저 지정해 주세요.', {
+      enqueueSnackbar('지역별 일괄 출력을 위해 지역(시/도, 시/군/구)를 먼저 지정해 주세요.', {
         variant: 'warning',
       });
       return;
@@ -439,6 +463,35 @@ export default function ManageWorkPage() {
             <span>지역별 일괄 PDF 출력</span>
             <span className="batch-badge">{totalCount}건</span>
           </button>
+
+          {/* 추가 옵션 더보기 메뉴 */}
+          <div className="header-more-menu-wrap" ref={moreMenuRef}>
+            <button
+              type="button"
+              className={`btn-more-menu-trigger ${isMoreMenuOpen ? 'active' : ''}`}
+              onClick={() => setIsMoreMenuOpen(prev => !prev)}
+              title="추가 메뉴"
+              aria-label="추가 메뉴"
+            >
+              <MoreVertical size={16} />
+            </button>
+
+            {isMoreMenuOpen && (
+              <div className="header-more-dropdown-menu">
+                <button
+                  type="button"
+                  className="dropdown-item"
+                  onClick={() => {
+                    setIsMoreMenuOpen(false);
+                    setIsTrashDialogOpen(true);
+                  }}
+                >
+                  <History size={14} />
+                  <span>보고서 삭제 이력</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -544,6 +597,12 @@ export default function ManageWorkPage() {
         onReportUpdated={(updated) => {
           setSelectedReport(updated);
           setReports(prev => prev.map(r => r.reportId === updated.reportId ? updated : r));
+        }}
+        onDeleteSuccess={(deletedId) => {
+          setReports(prev => prev.filter(r => r.reportId !== deletedId));
+          setTotalCount(prev => Math.max(0, prev - 1));
+          setSelectedReport(undefined);
+          loadData();
         }}
       />
 
@@ -842,6 +901,13 @@ export default function ManageWorkPage() {
         onClose={() => setIsRegionalBatchDialogOpen(false)}
         region={region}
         reports={batchPrintReports}
+      />
+
+      {/* ── WORK REPORT TRASH DIALOG (삭제 이력 & 감사 로그 모달) ── */}
+      <WorkReportTrashDialog
+        isOpen={isTrashDialogOpen}
+        onClose={() => setIsTrashDialogOpen(false)}
+        regionId={region.regionId}
       />
     </div>
   );

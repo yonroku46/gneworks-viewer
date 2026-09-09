@@ -62,6 +62,8 @@ const ADMIN_REPORT_LIST_PAGED = `${ADMIN_ROOT}/report/paged`;
 const ADMIN_REPORT_EXPORT_EXCEL = `${ADMIN_ROOT}/report/export/excel`;
 const ADMIN_REPORT_DETAIL = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}`;
 const ADMIN_REPORT_STATUS = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}/status`;
+const ADMIN_REPORT_DELETE = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}`;
+const ADMIN_REPORT_DELETED_PAGED = `${ADMIN_ROOT}/report/deleted`;
 
 // admin (dashboard)
 const ADMIN_WORKER_RANKING = `${ADMIN_ROOT}/worker/ranking`;
@@ -129,6 +131,8 @@ const ApiRoutes = {
   ADMIN_REPORT_EXPORT_EXCEL,
   ADMIN_REPORT_DETAIL,
   ADMIN_REPORT_STATUS,
+  ADMIN_REPORT_DELETE,
+  ADMIN_REPORT_DELETED_PAGED,
   ADMIN_WORKER_RANKING,
   ADMIN_DASHBOARD_SUMMARY,
   ADMIN_IMPORT_EXCEL,

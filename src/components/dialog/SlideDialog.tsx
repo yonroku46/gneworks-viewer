@@ -16,6 +16,7 @@ interface SlideDialogProps {
   className?: string;
   disableBackdropClick?: boolean;
   disableHistoryBack?: boolean;
+  hideCloseButton?: boolean;
 }
 
 // 전역 다이얼로그 열림 스택 카운터 (모달 중첩 시에도 스크롤 락 유지 및 위치 보존)
@@ -70,6 +71,7 @@ export default function SlideDialog({
   className,
   disableBackdropClick = false,
   disableHistoryBack = false,
+  hideCloseButton = false,
 }: SlideDialogProps) {
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [active, setActive] = useState(false);
@@ -192,7 +194,7 @@ export default function SlideDialog({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !hideCloseButton) {
         // 최상단 다이얼로그만 ESC로 닫기
         if (activeDialogStack[activeDialogStack.length - 1] === dialogId) {
           e.stopPropagation();
@@ -237,9 +239,13 @@ export default function SlideDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <header className="dialog-header">
-          <button className="back-btn" onClick={onClose} aria-label="닫기">
-            <X size={22} />
-          </button>
+          {!hideCloseButton ? (
+            <button className="back-btn" onClick={onClose} aria-label="닫기">
+              <X size={22} />
+            </button>
+          ) : (
+            <div className="back-btn-placeholder" style={{ width: '1.75rem', height: '1.75rem' }} />
+          )}
           <h2 className="dialog-title">{title}</h2>
           <div className="header-right">
             {rightElement}

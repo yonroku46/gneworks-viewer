@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Upload, FileSpreadsheet, X, CheckCircle2, AlertCircle, Loader2, ChevronDown } from 'lucide-react';
+import SlideDialog from './SlideDialog';
 import AdminService from '@/api/service/AdminService';
 import './ExcelImportDialog.scss';
 
@@ -43,21 +44,6 @@ export default function ExcelImportDialog({ isOpen, onClose, fireRegions, onImpo
     setError(null);
     onClose();
   }, [isLoading, onClose]);
-
-  // 업로드 도중 ESC 닫기 방지
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (step !== 'loading') {
-          handleClose();
-        }
-      }
-    };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, step, handleClose]);
 
   // 업로드 도중 브라우저 창 닫기 / 새로고침 방지
   useEffect(() => {
@@ -124,177 +110,166 @@ export default function ExcelImportDialog({ isOpen, onClose, fireRegions, onImpo
   const selectedRegion = fireRegions.find(fr => fr.regionId === selectedRegionId);
 
   return (
-    <div
-      className={`excel-import-overlay ${isLoading ? 'is-uploading' : ''}`}
-      onClick={() => { if (!isLoading) handleClose(); }}
+    <SlideDialog
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="엑셀데이터 일괄 임포트"
+      className="excel-import-slide-dialog manage-page"
+      disableBackdropClick={isLoading}
+      disableHistoryBack
+      hideCloseButton={isLoading}
+      rightElement={isLoading ? <span className="eid-loading-badge">처리 중...</span> : null}
     >
-      <div className="excel-import-dialog" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="eid-header">
-          <div className="eid-header-title">
-            <FileSpreadsheet size={20} />
-            <span>엑셀 데이터 임포트</span>
-            {isLoading && <span className="eid-loading-badge">처리 중...</span>}
-          </div>
-          {!isLoading && (
-            <button className="eid-close-btn" onClick={handleClose} title="닫기">
-              <X size={18} />
+      <div className="excel-import-body">
+        {/* STEP 1: 파일 선택 */}
+        {step === 'select' && (
+          <div className="eid-step-select">
+            <p className="eid-desc">
+              소방서에서 제공한 <strong>보급대상 세대 파악</strong> 엑셀 파일을 업로드하면<br />
+              현장 및 세대 데이터가 자동으로 등록됩니다.
+            </p>
+            <button
+              type="button"
+              className="eid-upload-btn"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={22} />
+              <span>파일 선택</span>
+              <small>.xlsx 형식만 지원</small>
             </button>
-          )}
-        </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
+          </div>
+        )}
 
-        {/* Body */}
-        <div className="eid-body">
-          {/* STEP 1: 파일 선택 */}
-          {step === 'select' && (
-            <div className="eid-step-select">
-              <p className="eid-desc">
-                소방서에서 제공한 <strong>보급대상 세대 파악</strong> 엑셀 파일을 업로드하면<br />
-                현장 및 세대 데이터가 자동으로 등록됩니다.
-              </p>
-              <button
-                className="eid-upload-btn"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload size={22} />
-                <span>엑셀 파일 선택</span>
-                <small>.xlsx 형식만 지원</small>
+        {/* STEP 2: 확인 */}
+        {step === 'confirm' && selectedFile && (
+          <div className="eid-step-confirm">
+            <div className="eid-file-card">
+              <FileSpreadsheet size={18} />
+              <div className="eid-file-info">
+                <span className="eid-file-name">{selectedFile.name}</span>
+                <span className="eid-file-size">{(selectedFile.size / 1024).toFixed(0)} KB</span>
+              </div>
+              <button type="button" className="eid-file-remove" onClick={handleReset} aria-label="파일 삭제">
+                <X size={14} />
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                style={{ display: 'none' }}
-                onChange={handleFileChange}
-              />
             </div>
-          )}
 
-          {/* STEP 2: 확인 */}
-          {step === 'confirm' && selectedFile && (
-            <div className="eid-step-confirm">
-              <div className="eid-file-card">
-                <FileSpreadsheet size={18} />
-                <div className="eid-file-info">
-                  <span className="eid-file-name">{selectedFile.name}</span>
-                  <span className="eid-file-size">{(selectedFile.size / 1024).toFixed(0)} KB</span>
-                </div>
-                <button className="eid-file-remove" onClick={handleReset}>
-                  <X size={14} />
-                </button>
+            {error && (
+              <div className="eid-error-msg">
+                <AlertCircle size={15} />
+                <span>{error}</span>
               </div>
+            )}
 
-              {error && (
-                <div className="eid-error-msg">
-                  <AlertCircle size={15} />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <div className="eid-region-section">
-                <label className="eid-region-label">
-                  소방관할 배정
-                  {autoDetectedName && (
-                    <span className="eid-auto-badge">
-                      파일명에서 &quot;{autoDetectedName}&quot; 자동 감지
-                    </span>
-                  )}
-                </label>
-                <div className="eid-select-wrap">
-                  <select
-                    value={selectedRegionId}
-                    onChange={e => setSelectedRegionId(e.target.value)}
-                    className="eid-region-select"
-                  >
-                    <option value="">소방관할 미지정 (NULL)</option>
-                    {fireRegions.map(fr => (
-                      <option key={fr.regionId} value={fr.regionId}>
-                        {fr.name}소방서
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown size={15} className="eid-select-icon" />
-                </div>
-                {selectedRegion && (
-                  <p className="eid-region-hint">
-                    ✓ {selectedRegion.name}소방서 관할로 현장이 등록됩니다.
-                  </p>
+            <div className="eid-region-section">
+              <label className="eid-region-label">
+                소방관할 배정
+                {autoDetectedName && (
+                  <span className="eid-auto-badge">
+                    파일명에서 &quot;{autoDetectedName}&quot; 자동 감지
+                  </span>
                 )}
+              </label>
+              <div className="eid-select-wrap">
+                <select
+                  value={selectedRegionId}
+                  onChange={e => setSelectedRegionId(e.target.value)}
+                  className="eid-region-select"
+                >
+                  <option value="">소방관할 미지정 (NULL)</option>
+                  {fireRegions.map(fr => (
+                    <option key={fr.regionId} value={fr.regionId}>
+                      {fr.name}소방서
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={15} className="eid-select-icon" />
               </div>
-
-              <div className="eid-confirm-actions">
-                <button className="eid-btn-cancel" onClick={handleReset}>
-                  다시 선택
-                </button>
-                <button className="eid-btn-import" onClick={handleImport}>
-                  <Upload size={15} />
-                  임포트 실행
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: 처리 중 */}
-          {step === 'loading' && (
-            <div className="eid-step-loading">
-              <div className="eid-spinner-wrapper">
-                <Loader2 size={44} className="eid-spinner" />
-                <FileSpreadsheet size={20} className="eid-spinner-icon" />
-              </div>
-              <div className="eid-loading-text">
-                <p className="eid-loading-title">데이터를 일괄 등록하고 있습니다</p>
-                <p className="eid-loading-sub">
-                  엑셀 행 파싱 및 현장/세대 중복을 실시간 검증 중입니다.
+              {selectedRegion && (
+                <p className="eid-region-hint">
+                  ✓ {selectedRegion.name}소방서 관할로 현장이 등록됩니다.
                 </p>
-              </div>
-              <div className="eid-loading-notice">
-                <AlertCircle size={14} />
-                <span>데이터 정합성을 위해 작업이 끝날 때까지 창을 닫거나 이동하지 마세요.</span>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 4: 결과 */}
-          {step === 'result' && result && (
-            <div className="eid-step-result">
-              <div className="eid-result-icon">
-                <CheckCircle2 size={40} />
-              </div>
-              <p className="eid-result-title">임포트 완료!</p>
-              {result.regionName && (
-                <p className="eid-result-region">{result.regionName}소방서 관할</p>
               )}
-              <div className="eid-result-grid">
-                <div className="eid-result-card inserted">
-                  <span className="eid-result-num">{result.siteInserted}</span>
-                  <span className="eid-result-lbl">현장 신규 등록</span>
-                </div>
-                <div className="eid-result-card skipped">
-                  <span className="eid-result-num">{result.siteSkipped}</span>
-                  <span className="eid-result-lbl">현장 중복 skip</span>
-                </div>
-                <div className="eid-result-card inserted">
-                  <span className="eid-result-num">{result.householdInserted.toLocaleString()}</span>
-                  <span className="eid-result-lbl">세대 신규 등록</span>
-                </div>
-                <div className="eid-result-card skipped">
-                  <span className="eid-result-num">{result.householdSkipped.toLocaleString()}</span>
-                  <span className="eid-result-lbl">세대 중복 skip</span>
-                </div>
+            </div>
+
+            <div className="eid-confirm-actions">
+              <button type="button" className="eid-btn-cancel" onClick={handleReset}>
+                다시 선택
+              </button>
+              <button type="button" className="eid-btn-import" onClick={handleImport}>
+                <Upload size={15} />
+                임포트 실행
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: 처리 중 */}
+        {step === 'loading' && (
+          <div className="eid-step-loading">
+            <div className="eid-spinner-wrapper">
+              <Loader2 size={44} className="eid-spinner" />
+              <FileSpreadsheet size={20} className="eid-spinner-icon" />
+            </div>
+            <div className="eid-loading-text">
+              <p className="eid-loading-title">데이터를 일괄 등록하고 있습니다</p>
+              <p className="eid-loading-sub">
+                엑셀 행 파싱 및 현장/세대 중복을 실시간 검증 중입니다.
+              </p>
+            </div>
+            <div className="eid-loading-notice">
+              <AlertCircle size={14} />
+              <span>데이터 정합성을 위해 작업이 끝날 때까지 창을 닫거나 이동하지 마세요.</span>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: 결과 */}
+        {step === 'result' && result && (
+          <div className="eid-step-result">
+            <div className="eid-result-icon">
+              <CheckCircle2 size={40} />
+            </div>
+            <p className="eid-result-title">임포트 완료!</p>
+            {result.regionName && (
+              <p className="eid-result-region">{result.regionName}소방서 관할</p>
+            )}
+            <div className="eid-result-grid">
+              <div className="eid-result-card inserted">
+                <span className="eid-result-num">{result.siteInserted}</span>
+                <span className="eid-result-lbl">현장 신규 등록</span>
               </div>
-              <div className="eid-result-actions">
-                <button className="eid-btn-another" onClick={handleReset}>
-                  다른 파일 임포트
-                </button>
-                <button className="eid-btn-done" onClick={handleClose}>
-                  완료
-                </button>
+              <div className="eid-result-card skipped">
+                <span className="eid-result-num">{result.siteSkipped}</span>
+                <span className="eid-result-lbl">현장 중복 skip</span>
+              </div>
+              <div className="eid-result-card inserted">
+                <span className="eid-result-num">{result.householdInserted.toLocaleString()}</span>
+                <span className="eid-result-lbl">세대 신규 등록</span>
+              </div>
+              <div className="eid-result-card skipped">
+                <span className="eid-result-num">{result.householdSkipped.toLocaleString()}</span>
+                <span className="eid-result-lbl">세대 중복 skip</span>
               </div>
             </div>
-          )}
-        </div>
+            <div className="eid-result-actions">
+              <button type="button" className="eid-btn-another" onClick={handleReset}>
+                다른 파일 임포트
+              </button>
+              <button type="button" className="eid-btn-done" onClick={handleClose}>
+                완료
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </SlideDialog>
   );
 }
-

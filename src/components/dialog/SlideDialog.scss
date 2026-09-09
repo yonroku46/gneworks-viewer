@@ -161,6 +161,26 @@
       width: 480px;
       max-width: 92vw;
     }
+    &.excel-import-slide-dialog,
+    &.report-delete-slide-dialog {
+      width: 500px;
+      max-width: 92vw;
+    }
+    &.work-report-trash-slide-dialog {
+      width: 1100px;
+      max-width: 96vw;
+      .dialog-body {
+        padding: 1.25rem 1.5rem;
+        background: var(--card-bg);
+      }
+    }
+    &.trash-detail-slide-dialog {
+      width: 560px;
+      max-width: 92vw;
+      .dialog-body {
+        background: var(--card-bg);
+      }
+    }
     &.open {
       transform: translateY(0) scale(1);
       opacity: 1;

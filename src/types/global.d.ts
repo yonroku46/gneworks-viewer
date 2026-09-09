@@ -88,6 +88,40 @@ declare global {
     remarks?: string;
     createTime?: string;
   }
+  interface WorkReportDeletionLog {
+    logId: string;
+    reportId: string;
+    householdId?: string;
+    siteId?: string;
+    userId?: string;
+    dong?: string;
+    ho?: string;
+    headName?: string;
+    installDate?: string;
+    reportTime?: string;
+    reporterName?: string;
+    confirmerName?: string;
+    confirmerSignature?: string;
+    photoDoor?: string;
+    photoBefore1?: string;
+    photoAfter1?: string;
+    photoBefore2?: string;
+    photoAfter2?: string;
+    status?: ReportStatus;
+    remarks?: string;
+    fixReason?: string;
+    createTime?: string;
+    siteName: string;
+    regionId?: string;
+    sido?: string;
+    sigungu?: string;
+    eupmyeondong?: string;
+    address?: string;
+    deleteReason: string;
+    deletedBy: string;
+    deletedByName?: string;
+    deletedTime: string;
+  }
   // API
   interface ApiResponse {
     resultCode: number;
@@ -194,6 +228,16 @@ declare global {
     photoAfter2?: string;
     status?: ReportStatus;
     remarks?: string;
+  }
+  interface AdminDeletionLogSearchReq {
+    regionId?: string;
+    sido?: string;
+    sigungu?: string;
+    query?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    size?: number;
   }
   interface AdminInquiryPendingSummary {
     pendingCount: number;

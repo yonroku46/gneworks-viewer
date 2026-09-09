@@ -57,9 +57,9 @@
         transition: all 0.15s ease;
         font-variant-numeric: tabular-nums;
         &.active {
-          background: var(--manage-primary);
+          background: var(--manage-primary-light);
+          color: var(--manage-primary);
           border-color: var(--manage-primary);
-          color: var(--white);
           font-weight: 700;
         }
       }
