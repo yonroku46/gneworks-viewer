@@ -126,22 +126,40 @@
     .eid-region-section {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-      .eid-region-label {
+      gap: 0.625rem;
+      .eid-region-header {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 0.5rem;
+      }
+      .eid-region-label {
         font-size: 0.8125rem;
         font-weight: 600;
         color: var(--text-primary);
-        .eid-auto-badge {
-          font-size: 0.6875rem;
-          font-weight: 500;
-          color: var(--manage-primary);
-          background: var(--manage-primary-light);
-          padding: 0.125rem 0.5rem;
-          border-radius: 9999px;
-        }
+      }
+      .eid-auto-badge {
+        font-size: 0.6875rem;
+        font-weight: 500;
+        color: var(--manage-primary);
+        background: var(--manage-primary-light);
+        padding: 0.125rem 0.5rem;
+        border-radius: 9999px;
+      }
+      .eid-region-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+      }
+      .eid-region-col {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+      }
+      .eid-field-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--slate-500);
       }
       .eid-select-wrap {
         position: relative;
@@ -167,10 +185,6 @@
           color: var(--slate-400);
           pointer-events: none;
         }
-      }
-      .eid-region-hint {
-        font-size: 0.75rem;
-        color: var(--slate-500);
       }
     }
     .eid-confirm-actions {
@@ -389,6 +403,19 @@
 @include mobile {
   .excel-import-body {
     padding: 0;
+    .eid-step-confirm {
+      .eid-region-section {
+        .eid-region-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.25rem;
+        }
+        .eid-region-grid {
+          grid-template-columns: 1fr;
+          gap: 0.5rem;
+        }
+      }
+    }
   }
 }
 
