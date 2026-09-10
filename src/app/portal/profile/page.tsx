@@ -137,7 +137,14 @@ export default function ProfilePage() {
   // Sites & Regions state synchronized with Backend API
   const [allSites, setAllSites] = useState<SiteDetail[]>([]);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
-  const [reports] = useState<WorkReport[]>([]);
+  const [reportSummary, setReportSummary] = useState<WorkerReportSummary>({
+    totalReports: 0,
+    todayReports: 0,
+    pendingReports: 0,
+    rejectedReports: 0,
+    completedReports: 0,
+    issueReportsCount: 0,
+  });
 
   const fetchAssignedRegions = useCallback(async () => {
     try {
@@ -157,14 +164,27 @@ export default function ProfilePage() {
     }
   }, []);
 
+  const fetchReportSummary = useCallback(async () => {
+    try {
+      const data = await PortalService.getMyReportSummary();
+      if (data) {
+        setReportSummary(data);
+      }
+    } catch (error) {
+      console.error('[ProfilePage] getMyReportSummary error', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAssignedRegions();
     fetchSites();
-  }, [fetchAssignedRegions, fetchSites]);
+    fetchReportSummary();
+  }, [fetchAssignedRegions, fetchSites, fetchReportSummary]);
 
-  const completedCount = reports.filter(r => r.status === 'COMPLETED').length;
-  const pendingCount = reports.filter(r => r.status === 'PENDING').length;
-  const reviseCount = reports.filter(r => r.status === 'REJECTED').length;
+  const completedCount = reportSummary.completedReports;
+  const pendingCount = reportSummary.pendingReports;
+  const reviseCount = reportSummary.rejectedReports;
+  const totalReportsCount = reportSummary.totalReports;
 
   const displayName = user?.userName || '사용자';
 
@@ -252,7 +272,7 @@ export default function ProfilePage() {
           <div className="stats-main-block">
             <span className="stats-label">총 작업건수</span>
             <div className="stats-total-num">
-              <span className="num-val">{reports.length}</span>
+              <span className="num-val">{totalReportsCount}</span>
               <span className="num-unit">건</span>
             </div>
           </div>

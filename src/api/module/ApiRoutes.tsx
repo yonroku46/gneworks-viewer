@@ -89,6 +89,7 @@ const PORTAL_SITE_DETAIL = (siteId: string) => `${PORTAL_ROOT}/sites/${siteId}`;
 const PORTAL_REPORT_SUBMIT = `${PORTAL_ROOT}/report`;
 const PORTAL_REPORT_BY_HOUSEHOLD = (householdId: string) => `${PORTAL_ROOT}/report/${householdId}`;
 const PORTAL_REPORTS = `${PORTAL_ROOT}/reports`;
+const PORTAL_REPORTS_SUMMARY = `${PORTAL_ROOT}/reports/summary`;
 const PORTAL_INQUIRIES = `${PORTAL_ROOT}/inquiries`;
 const PORTAL_NOTICE = `${PORTAL_ROOT}/notice`;
 
@@ -154,6 +155,7 @@ const ApiRoutes = {
   PORTAL_REPORT_SUBMIT,
   PORTAL_REPORT_BY_HOUSEHOLD,
   PORTAL_REPORTS,
+  PORTAL_REPORTS_SUMMARY,
   PORTAL_INQUIRIES,
   PORTAL_NOTICE,
 };

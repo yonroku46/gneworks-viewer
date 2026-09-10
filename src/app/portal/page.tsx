@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import dayjs from 'dayjs';
 import { useAuth } from '@/providers/AuthProvider';
 import {
   ClipboardCheck,
@@ -17,7 +16,6 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import PortalService from '@/api/service/PortalService';
-import { isRegionMatch } from '@/common/utils/regionUtils';
 
 import WorkReportDialog from '@/components/dialog/WorkReportDialog';
 import WorkHistoryDialog from '@/components/dialog/WorkHistoryDialog';
@@ -34,9 +32,15 @@ export default function PortalPage() {
 
   // Loading & API states
   const [loading, setLoading] = useState(true);
-  const [allSites, setAllSites] = useState<SiteDetail[]>([]);
-  const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [reports, setReports] = useState<WorkReport[]>([]);
+  const [reportSummary, setReportSummary] = useState<WorkerReportSummary>({
+    totalReports: 0,
+    todayReports: 0,
+    pendingReports: 0,
+    rejectedReports: 0,
+    completedReports: 0,
+    issueReportsCount: 0,
+  });
 
   // Dialog state for viewing report & history
   const [selectedReport, setSelectedReport] = useState<WorkReport>();
@@ -48,18 +52,14 @@ export default function PortalPage() {
   const loadPortalData = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [regions, sites, reps, notice] = await Promise.all([
-        PortalService.getAssignedRegions().catch(err => {
-          console.error('[PortalPage] getAssignedRegions error', err);
-          return [];
-        }),
-        PortalService.getSites({ includeHouseholds: true }).catch(err => {
-          console.error('[PortalPage] getSites error', err);
-          return [];
-        }),
-        PortalService.getReports().catch(err => {
+      const [reps, summary, notice] = await Promise.all([
+        PortalService.getReports({ page: 1, size: 5 }).catch(err => {
           console.error('[PortalPage] getReports error', err);
           return { list: [] } as any;
+        }),
+        PortalService.getMyReportSummary().catch(err => {
+          console.error('[PortalPage] getMyReportSummary error', err);
+          return null;
         }),
         PortalService.getNotice().catch(err => {
           console.error('[PortalPage] getNotice error', err);
@@ -67,10 +67,11 @@ export default function PortalPage() {
         }),
       ]);
 
-      setAssignedRegions(regions || []);
-      setAllSites(sites || []);
       const repList = (reps as any)?.list || (Array.isArray(reps) ? reps : []);
       setReports(repList);
+      if (summary) {
+        setReportSummary(summary);
+      }
       if (notice) {
         setSystemNotice(notice);
       }
@@ -94,61 +95,25 @@ export default function PortalPage() {
     }
   }, [loadPortalData]);
 
-  // 담당 지역의 현장들 (regionId 및 관할서 명칭 정확 매칭)
-  const assignedSites = useMemo(() => {
-    if (assignedRegions.length === 0) return [];
-    return allSites.filter(site =>
-      assignedRegions.some(reg => {
-        if (reg.regionId || site.regionId) return Boolean(reg.regionId && site.regionId && site.regionId === reg.regionId);
-        if (site.region) return isRegionMatch(site.sido, site.region, reg.sido, reg.sigungu);
-        return isRegionMatch(site.sido, site.sigungu, reg.sido, reg.sigungu);
-      })
-    );
-  }, [allSites, assignedRegions]);
-
-  // 담당 지역의 전체 세대 수
-  const totalAssignedHouseholds = useMemo(() => {
-    return assignedSites.reduce((acc, site) => acc + (site.households?.length || 0), 0);
-  }, [assignedSites]);
-
-  // 실시간 통계 계산
+  // 실시간 통계 계산 (초경량 요약 통계 기반)
   const stats = useMemo(() => {
-    let completed = 0;
-    let pending = 0;
-    let revise = 0;
-    let todayCount = 0;
-
-    const todayStr = dayjs().format('YYYY-MM-DD');
-
-    reports.forEach(r => {
-      if (r.status === 'COMPLETED') completed += 1;
-      else if (r.status === 'PENDING') pending += 1;
-      else if (r.status === 'REJECTED') revise += 1;
-
-      if (r.installDate === todayStr || (r.reportTime && r.reportTime.startsWith(todayStr))) {
-        todayCount += 1;
-      }
-    });
-
-    const completionRate =
-      totalAssignedHouseholds > 0
-        ? Math.round((completed / totalAssignedHouseholds) * 100)
-        : 0;
-
     return {
-      completed,
-      pending,
-      revise,
-      todayCount,
-      completionRate,
-      totalAssignedHouseholds,
+      completed: reportSummary.completedReports,
+      pending: reportSummary.pendingReports,
+      revise: reportSummary.rejectedReports,
+      todayCount: reportSummary.todayReports,
     };
-  }, [reports, totalAssignedHouseholds]);
+  }, [reportSummary]);
 
-  // 최근 작업 이력 (최신순 5건)
+  // 최근 작업 이력 (최근 5건, 보완필요 건 최우선 배치)
   const recentReports = useMemo(() => {
     return [...reports]
       .sort((a, b) => {
+        // 보완요청(REJECTED) 건 최우선 노출
+        const aIsRevise = a.status === 'REJECTED' ? 1 : 0;
+        const bIsRevise = b.status === 'REJECTED' ? 1 : 0;
+        if (aIsRevise !== bIsRevise) return bIsRevise - aIsRevise;
+
         const timeA = a.reportTime || a.installDate || '';
         const timeB = b.reportTime || b.installDate || '';
         return timeB.localeCompare(timeA);
@@ -273,7 +238,10 @@ export default function PortalPage() {
             onClick={() => setIsHistoryDialogOpen(true)}
           >
             <Search size={13} />
-            <span>전체 이력 조회</span>
+            <span>
+              전체 이력 조회
+              {reportSummary.totalReports > 0 && ` (${reportSummary.totalReports})`}
+            </span>
           </button>
         </div>
 
@@ -379,7 +347,6 @@ export default function PortalPage() {
       <WorkHistoryDialog
         isOpen={isHistoryDialogOpen}
         onClose={() => setIsHistoryDialogOpen(false)}
-        sites={allSites}
         onSelectReport={report => {
           handleOpenReportFromHistory(report);
         }}

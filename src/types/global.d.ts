@@ -408,6 +408,14 @@ declare global {
     householdSkipped: number;
     regionName?: string;
   }
+  interface WorkerReportSummary {
+    totalReports: number;
+    todayReports: number;
+    pendingReports: number;
+    rejectedReports: number;
+    completedReports: number;
+    issueReportsCount: number;
+  }
 }
 
 export {};

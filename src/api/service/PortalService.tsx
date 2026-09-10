@@ -280,6 +280,37 @@ class PortalService {
   }
 
   /**
+   * 본인의 시공 보고서 요약 통계 조회 (초경량)
+   * GET /portal/reports/summary
+   */
+  async getMyReportSummary(): Promise<WorkerReportSummary> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_REPORTS_SUMMARY);
+      if (response && !response.hasErrors) {
+        return (response.responseData as WorkerReportSummary) || {
+          totalReports: 0,
+          todayReports: 0,
+          pendingReports: 0,
+          rejectedReports: 0,
+          completedReports: 0,
+          issueReportsCount: 0,
+        };
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch report summary');
+    } catch (error) {
+      console.error('[PortalService] getMyReportSummary', error);
+      return {
+        totalReports: 0,
+        todayReports: 0,
+        pendingReports: 0,
+        rejectedReports: 0,
+        completedReports: 0,
+        issueReportsCount: 0,
+      };
+    }
+  }
+
+  /**
    * 본인의 문의 및 답변 내역 목록 조회
    * GET /portal/inquiries
    */
