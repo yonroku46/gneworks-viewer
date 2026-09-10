@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Search, 
   AlertCircle
@@ -20,12 +20,14 @@ export interface WorkReportTrashDialogProps {
   isOpen: boolean;
   onClose: () => void;
   regionId?: string;
+  regionLabel?: string;
 }
 
 export default function WorkReportTrashDialog({
   isOpen,
   onClose,
   regionId,
+  regionLabel = '',
 }: WorkReportTrashDialogProps) {
   const { enqueueSnackbar } = useSnackbar();
 
@@ -155,7 +157,7 @@ export default function WorkReportTrashDialog({
       <SlideDialog
         isOpen={isOpen}
         onClose={onClose}
-        title="보고서 삭제 이력"
+        title={regionLabel ? `${regionLabel} 내 삭제 이력` : '보고서 삭제 이력'}
         className="work-report-trash-slide-dialog manage-page"
         footer={
           <div className="dialog-btn-group">
@@ -166,18 +168,6 @@ export default function WorkReportTrashDialog({
         }
       >
         <div className="trash-dialog-content">
-          {/* 상단 안내 바 */}
-          <div className="trash-info-banner">
-            <AlertCircle size={18} className="info-icon" />
-            <div className="info-text">
-              <strong>시공 보고서 영구 삭제 스냅샷 감사 로그</strong>
-              <p>관리자가 삭제한 보고서의 원본 메타데이터와 작성된 필수 삭제 사유가 영구 보존됩니다.</p>
-            </div>
-            <div className="trash-count-pill">
-              <span>총 <strong>{totalCount}</strong>건</span>
-            </div>
-          </div>
-
           {/* 검색 및 필터 바 */}
           <form className="trash-filter-bar" onSubmit={handleSearchSubmit}>
             <div className="search-input-wrap">
@@ -195,6 +185,7 @@ export default function WorkReportTrashDialog({
                 type="date"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
+                placeholder="시작일"
                 aria-label="삭제 시작일"
               />
               <span className="date-sep">~</span>
@@ -202,6 +193,7 @@ export default function WorkReportTrashDialog({
                 type="date"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
+                placeholder="종료일"
                 aria-label="삭제 종료일"
               />
             </div>

@@ -1,0 +1,334 @@
+@use '../../styles/mixins' as *;
+
+.confirmation-document-paper {
+  background: var(--white);
+  border: 1.5px solid var(--slate-900);
+  border-radius: 0;
+  padding: 6mm 9mm;
+  box-shadow: 0 4px 16px var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  width: 182mm;
+  min-width: 182mm;
+  max-width: 182mm;
+  height: 275mm;
+  min-height: 275mm;
+  max-height: 275mm;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin: 0 auto;
+  color: var(--slate-900);
+  position: relative;
+  font-family: 'Pretendard', sans-serif;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  &.capturing-for-pdf {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    margin: 0 auto !important;
+    .doc-header-row {
+      min-height: 19mm !important;
+      margin-bottom: 3.5mm !important;
+      .confirmer-stamp-table {
+        position: absolute !important;
+        right: 0 !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        margin: auto 0 !important;
+        transform: none !important;
+      }
+    }
+  }
+  .doc-header-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 19mm;
+    margin-bottom: 3.5mm;
+    flex-shrink: 0;
+    .doc-title-box {
+      width: 100%;
+      text-align: center;
+      .doc-main-title {
+        font-size: 1.45rem;
+        font-weight: 900;
+        color: var(--slate-900);
+        letter-spacing: -0.5px;
+        margin: 0;
+        text-align: center;
+      }
+    }
+    .confirmer-stamp-table {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      margin: auto 0;
+      transform: none;
+      border-collapse: collapse;
+      border: 1px solid var(--slate-900);
+      background: var(--white);
+      th {
+        background: var(--slate-100);
+        font-size: 0.65rem;
+        font-weight: 800;
+        color: var(--slate-900);
+        padding: 0.1rem 0.45rem;
+        border-bottom: 1px solid var(--slate-900);
+        text-align: center;
+      }
+      .name-row td {
+        border-bottom: 1px solid var(--slate-900);
+        padding: 0.1rem 0.35rem;
+        text-align: center;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--slate-900);
+        background: var(--white);
+        min-width: 3.8rem;
+        .doc-stamp-input {
+          width: 100%;
+          border: 1px dashed var(--slate-400);
+          border-radius: 0;
+          padding: 0.05rem 0.2rem;
+          font-size: 0.72rem;
+          text-align: center;
+          background: var(--slate-50);
+        }
+      }
+      .sign-row td {
+        padding: 0;
+        text-align: center;
+        background: var(--white);
+        width: 3.8rem;
+        height: 1.9rem;
+        vertical-align: middle;
+        overflow: hidden;
+        .stamp-signature-frame {
+          width: 100%;
+          height: 100%;
+          max-width: 100%;
+          max-height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          padding: 0.05rem;
+          box-sizing: border-box;
+          .stamp-signature-img, .confirmer-stamp-img {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+          }
+        }
+      }
+    }
+  }
+  .doc-privacy-consent-box {
+    background: var(--white);
+    border: 1px solid var(--slate-900);
+    border-radius: 0;
+    padding: 1.8mm 3mm;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin-bottom: 2mm;
+    flex-shrink: 0;
+    .privacy-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      .privacy-title {
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: var(--slate-900);
+        margin: 0 0 0.15rem;
+      }
+    }
+    .privacy-content-text {
+      font-size: 0.6rem;
+      color: var(--slate-700);
+      line-height: 1.25;
+      .privacy-terms-list {
+        margin: 0;
+        padding-left: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.08rem;
+        li {
+          font-size: 0.6rem;
+          color: var(--slate-700);
+          display: flex;
+          flex-direction: column;
+          gap: 0.02rem;
+          .term-num-title {
+            color: var(--slate-900);
+            font-weight: 800;
+            display: block;
+            font-size: 0.6rem;
+          }
+          .term-sub-desc {
+            margin: 0;
+            padding-left: 0.4rem;
+            color: var(--slate-600);
+            line-height: 1.22;
+          }
+        }
+      }
+    }
+  }
+  .doc-address-banner {
+    background: var(--slate-50);
+    border: 1px solid var(--slate-900);
+    border-radius: 0;
+    padding: 1.4mm 2.8mm;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 2.2mm;
+    flex-shrink: 0;
+    .addr-label {
+      background: var(--slate-900);
+      color: var(--white);
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 0.1rem 0.38rem;
+      border-radius: 0;
+      white-space: nowrap;
+    }
+    .addr-content {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--slate-900);
+    }
+    .doc-inline-input {
+      flex: 1;
+      border: 1px dashed var(--slate-400);
+      border-radius: 0;
+      padding: 0.1rem 0.25rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      background: var(--white);
+      color: var(--slate-900);
+    }
+  }
+  .doc-six-cards-grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2.5mm;
+    width: 100%;
+    .doc-grid-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--slate-900);
+      border-radius: 0;
+      overflow: hidden;
+      background: var(--white);
+      height: 100%;
+      min-height: 0;
+      .card-top-ribbon {
+        background: var(--slate-900);
+        color: var(--white);
+        font-size: 0.7rem;
+        font-weight: 800;
+        padding: 0.15rem 0.4rem;
+        text-align: center;
+        letter-spacing: -0.2px;
+        flex-shrink: 0;
+        border-radius: 0;
+      }
+      &.spec-grid-card {
+        .doc-official-spec-table {
+          flex: 1;
+          width: 100%;
+          height: 100%;
+          border-collapse: collapse;
+          border: none;
+          border-radius: 0;
+          background: var(--white);
+          tr {
+            height: 25%;
+            border-bottom: 1px solid var(--slate-900);
+            &:last-child {
+              border-bottom: none;
+            }
+          }
+          .spec-label-th {
+            width: 74px;
+            background: var(--slate-100);
+            border-right: 1px solid var(--slate-900);
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            padding: 0.15rem 0.4rem;
+            text-align: left;
+            vertical-align: middle;
+            white-space: nowrap;
+          }
+          .spec-value-td {
+            padding: 0.15rem 0.45rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--slate-900);
+            vertical-align: middle;
+            background: var(--white);
+            .dong-ho-input-group {
+              display: flex;
+              align-items: center;
+              gap: 0.2rem;
+              font-size: 0.72rem;
+            }
+            .doc-inline-input {
+              width: 100%;
+              border: 1px dashed var(--slate-400);
+              border-radius: 0;
+              padding: 0.05rem 0.2rem;
+              font-size: 0.72rem;
+              background: var(--slate-50);
+              color: var(--slate-900);
+              &.short {
+                width: 3rem;
+              }
+            }
+          }
+        }
+      }
+      &.photo-grid-card {
+        .card-photo-content {
+          flex: 1;
+          position: relative;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          overflow: hidden;
+          background: var(--slate-100);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          .doc-preview-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          }
+          .doc-photo-placeholder {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--slate-400);
+          }
+        }
+      }
+    }
+  }
+}

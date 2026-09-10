@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSnackbar } from 'notistack';
 import PortalService from '@/api/service/PortalService';
-import { isRegionMatch } from '@/common/utils/regionUtils';
 import WorkReportDialog from '@/components/dialog/WorkReportDialog';
 import Skeleton from '@/components/contents/Skeleton';
 import {
@@ -208,19 +207,11 @@ function PortalWorkContent() {
           r => r.assignedRegionId === selectedRegionId || r.regionId === selectedRegionId
         );
         if (!selectedRegion) return false;
-        if (selectedRegion.regionId || site.regionId) {
-          return Boolean(selectedRegion.regionId && site.regionId && site.regionId === selectedRegion.regionId);
-        }
-        if (site.region) return isRegionMatch(site.sido, site.region, selectedRegion.sido, selectedRegion.sigungu);
-        return isRegionMatch(site.sido, site.sigungu, selectedRegion.sido, selectedRegion.sigungu);
+        return Boolean(selectedRegion.regionId && site.regionId && site.regionId === selectedRegion.regionId);
       }
 
       return assignedRegions.some(r => {
-        if (r.regionId || site.regionId) {
-          return Boolean(r.regionId && site.regionId && site.regionId === r.regionId);
-        }
-        if (site.region) return isRegionMatch(site.sido, site.region, r.sido, r.sigungu);
-        return isRegionMatch(site.sido, site.sigungu, r.sido, r.sigungu);
+        return Boolean(r.regionId && site.regionId && site.regionId === r.regionId);
       });
     });
   }, [allSites, assignedRegions, selectedRegionId]);
@@ -366,9 +357,7 @@ function PortalWorkContent() {
                     </button>
                     {assignedRegions.map(reg => {
                       const sitesCount = allSites.filter(s => {
-                        if (reg.regionId || s.regionId) return Boolean(reg.regionId && s.regionId && s.regionId === reg.regionId);
-                        if (s.region) return isRegionMatch(s.sido, s.region, reg.sido, reg.sigungu);
-                        return isRegionMatch(s.sido, s.sigungu, reg.sido, reg.sigungu);
+                        return Boolean(reg.regionId && s.regionId && s.regionId === reg.regionId);
                       }).length;
 
                       return (

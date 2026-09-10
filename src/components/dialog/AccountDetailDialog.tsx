@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import AdminService from '@/api/service/AdminService';
-import { isRegionMatch } from '@/common/utils/regionUtils';
+import { fetchFireRegions, findRegionById } from '@/common/utils/regionUtils';
 import Pagination from '@/components/common/Pagination';
 import { formatPhoneNumber } from '@/utils/formatUtils';
 import './AccountDetailDialog.scss';
@@ -359,29 +359,25 @@ export default function AccountDetailDialog({
       if (!siteSido && !siteRegion) return;
 
       const matched = assignedList.find(reg => {
-        if (reg.regionId || siteRegionId) {
-          return Boolean(reg.regionId && siteRegionId && reg.regionId === siteRegionId);
-        }
-        return reg.sido === siteSido && reg.sigungu === siteRegion;
+        return Boolean(reg.regionId && siteRegionId && reg.regionId === siteRegionId);
       });
 
       if (matched) {
         matched.count += 1;
-      } else {
-        // 담당 지역 외 보고서의 경우 fallback 집계
-        const key = siteRegionId ? `reg_${siteRegionId}` : `${siteSido}_${siteRegion}`;
-        const label = `${siteSido} ${siteRegion}`.trim();
-        if (!unassignedMap.has(key)) {
-          unassignedMap.set(key, {
-            key,
+      } else if (siteRegionId) {
+        const fr = findRegionById(siteRegionId);
+        const label = fr ? `${fr.sidoName} ${fr.name}` : (site ? `${site.sido} ${site.region}` : '기타 지역');
+        if (!unassignedMap.has(siteRegionId)) {
+          unassignedMap.set(siteRegionId, {
+            key: `reg_${siteRegionId}`,
             label,
             count: 0,
-            sido: siteSido,
-            sigungu: siteRegion,
+            sido: fr?.sidoName || site?.sido || '',
+            sigungu: fr?.name || site?.region || '',
             regionId: siteRegionId,
           });
         }
-        unassignedMap.get(key)!.count += 1;
+        unassignedMap.get(siteRegionId)!.count += 1;
       }
     });
 
@@ -394,10 +390,7 @@ export default function AccountDetailDialog({
       enqueueSnackbar('작업자 정보를 찾을 수 없습니다.', { variant: 'error' });
       return;
     }
-    if (userAssignedRegions.some(r => {
-      if (regionId || r.regionId) return Boolean(regionId && r.regionId && r.regionId === regionId);
-      return isRegionMatch(r.sido, r.sigungu, sido, sigungu);
-    })) {
+    if (userAssignedRegions.some(r => Boolean(regionId && r.regionId && r.regionId === regionId))) {
       enqueueSnackbar('이미 배정된 지역입니다.', { variant: 'warning' });
       return;
     }
@@ -446,13 +439,7 @@ export default function AccountDetailDialog({
         const siteRegionId = site?.regionId;
         const siteSido = site?.sido || r.sido;
 
-        const isMatch = (() => {
-          if (siteRegionId || selectedRegion.regionId) {
-            return Boolean(siteRegionId && selectedRegion.regionId && siteRegionId === selectedRegion.regionId);
-          }
-          return selectedRegion.sido === siteSido && selectedRegion.sigungu === siteRegion;
-        })();
-
+        const isMatch = Boolean(siteRegionId && selectedRegion.regionId && siteRegionId === selectedRegion.regionId);
         if (!isMatch) return false;
       }
       const date = r.installDate || (r.reportTime ? r.reportTime.split(' ')[0] : '');
@@ -739,9 +726,7 @@ export default function AccountDetailDialog({
                   <div className="assigned-sites-list">
                     {userAssignedRegions.map((region, rIdx) => {
                       const sitesInRegion = sites.filter(s => {
-                        if (region.regionId || s.regionId) return Boolean(region.regionId && s.regionId && s.regionId === region.regionId);
-                        if (s.region) return isRegionMatch(s.sido, s.region, region.sido, region.sigungu);
-                        return isRegionMatch(s.sido, s.sigungu, region.sido, region.sigungu);
+                        return Boolean(region.regionId && s.regionId && s.regionId === region.regionId);
                       });
                       const totalHouseholds = sitesInRegion.reduce(
                         (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),

@@ -31,14 +31,13 @@ export default function SiteAssignDialog({
 
   const filteredSites = useMemo(() => {
     return sites.filter(site => {
-      const matchSido = !region.sido || site.sido === region.sido;
-      const matchSigungu = !region.sigungu || site.sigungu === region.sigungu;
+      const matchRegion = Boolean(region.regionId && site.regionId && site.regionId === region.regionId);
       const matchSearch =
         !searchQuery.trim() ||
         site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         site.address.toLowerCase().includes(searchQuery.toLowerCase());
 
-      return matchSido && matchSigungu && matchSearch;
+      return matchRegion && matchSearch;
     });
   }, [sites, region, searchQuery]);
 

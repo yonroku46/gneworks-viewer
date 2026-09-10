@@ -2,8 +2,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import SlideDialog from './SlideDialog';
-import { KOREA_ADMIN_REGIONS } from '@/constants/regions';
-import { isRegionMatch } from '@/common/utils/regionUtils';
 import CustomSelect from '@/components/common/CustomSelect';
 import { CheckCircle2, Building2, AlertCircle, X, ChevronDown, ChevronRight } from 'lucide-react';
 import AdminService from '@/api/service/AdminService';
@@ -58,7 +56,7 @@ export default function RegionAssignDialog({
   }, [isOpen, propFireRegions, isPortal]);
 
   const [selectedSido, setSelectedSido] = useState('경기도');
-  const [selectedSigungu, setSelectedSigungu] = useState('수원');
+  const [selectedRegionId, setSelectedRegionId] = useState('');
   const [isCurrentAssignedOpen, setIsCurrentAssignedOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -70,41 +68,62 @@ export default function RegionAssignDialog({
     }
   }, [isOpen]);
 
+  // DB 소방관할 데이터 기반 시/도 목록
+  const sidoList = useMemo(() => {
+    const set = new Set<string>();
+    fireRegions.forEach(fr => {
+      if (fr.sidoName) set.add(fr.sidoName);
+    });
+    const list = Array.from(set);
+    return list.length > 0 ? list : ['경기도'];
+  }, [fireRegions]);
+
   // 시/도 옵션 목록
   const sidoOptions = useMemo(() => {
-    return KOREA_ADMIN_REGIONS.map(s => ({
-      value: s.name,
-      label: s.name,
+    return sidoList.map(s => ({
+      value: s,
+      label: s,
     }));
-  }, []);
+  }, [sidoList]);
 
-  // 선택된 시/도에 따른 시/군/구 옵션 목록
-  const sigunguOptions = useMemo(() => {
-    const sido = KOREA_ADMIN_REGIONS.find(s => s.name === selectedSido);
-    if (!sido) return [];
-    return sido.sigungus.map(sg => ({
-      value: sg.name,
-      label: sg.name,
+  // 선택된 시/도의 DB 소방관할구역 목록
+  const availableFireRegions = useMemo(() => {
+    return fireRegions.filter(fr => fr.sidoName === selectedSido);
+  }, [fireRegions, selectedSido]);
+
+  // 소방관할구역 옵션 목록
+  const fireRegionOptions = useMemo(() => {
+    return availableFireRegions.map(fr => ({
+      value: fr.regionId,
+      label: fr.name,
     }));
-  }, [selectedSido]);
+  }, [availableFireRegions]);
 
-  // 선택된 소방관할구역의 FireRegion 정보 찾기
-  const targetFireRegion = useMemo(() => {
-    return fireRegions.find(fr => 
-      fr.sidoName === selectedSido && (fr.name === selectedSigungu || fr.name.replace(/(소방서|센터)$/, '').trim() === selectedSigungu)
-    );
-  }, [fireRegions, selectedSido, selectedSigungu]);
-
-  // 시/도 변경 시 시/군/구 자동 첫 항목 선택
+  // 시/도 변경 시 소방관할구역 자동 첫 항목 선택
   const handleSidoChange = (sido: string) => {
     setSelectedSido(sido);
-    const sidoObj = KOREA_ADMIN_REGIONS.find(s => s.name === sido);
-    if (sidoObj && sidoObj.sigungus.length > 0) {
-      setSelectedSigungu(sidoObj.sigungus[0].name);
+    const regions = fireRegions.filter(fr => fr.sidoName === sido);
+    if (regions.length > 0) {
+      setSelectedRegionId(regions[0].regionId);
     } else {
-      setSelectedSigungu('');
+      setSelectedRegionId('');
     }
   };
+
+  // 선택된 소방관할구역의 FireRegion 정보
+  const targetFireRegion = useMemo(() => {
+    if (!selectedRegionId) {
+      return availableFireRegions[0];
+    }
+    return availableFireRegions.find(fr => fr.regionId === selectedRegionId) || availableFireRegions[0];
+  }, [availableFireRegions, selectedRegionId]);
+
+  // 초기 selectedRegionId 설정
+  useEffect(() => {
+    if (availableFireRegions.length > 0 && !selectedRegionId) {
+      setSelectedRegionId(availableFireRegions[0].regionId);
+    }
+  }, [availableFireRegions, selectedRegionId]);
 
   // 배정 지역 변경 시 현재 담당 지역 섹션 자동 펼치기
   useEffect(() => {
@@ -113,14 +132,11 @@ export default function RegionAssignDialog({
     }
   }, [isOpen, assignedRegions.length]);
 
-  // 이미 배정된 지역 객체 찾기 (regionId 우선, 없으면 sido+sigungu 정확 매칭)
+  // 이미 배정된 지역 객체 찾기 (DB regionId 엄격 매칭)
   const currentAssignedItem = useMemo(() => {
-    if (targetFireRegion) {
-      const byId = assignedRegions.find(r => r.regionId && r.regionId === targetFireRegion.regionId);
-      if (byId) return byId;
-    }
-    return assignedRegions.find(r => isRegionMatch(r.sido, r.sigungu, selectedSido, selectedSigungu));
-  }, [assignedRegions, targetFireRegion, selectedSido, selectedSigungu]);
+    if (!targetFireRegion?.regionId) return undefined;
+    return assignedRegions.find(r => r.regionId && r.regionId === targetFireRegion.regionId);
+  }, [assignedRegions, targetFireRegion]);
 
   const isAlreadyAssigned = !!currentAssignedItem;
 
@@ -156,16 +172,15 @@ export default function RegionAssignDialog({
         });
     } else {
       Promise.all([
-        AdminService.getSiteList({ regionId, limit: 10 }),
+        AdminService.getSiteListPaged({ regionId, page: 1, size: 10 }),
         regionId ? AdminService.getDashboardSummary({ regionId }).catch(() => null) : Promise.resolve(null),
       ])
         .then(([sitesRes, summaryRes]) => {
           if (!isMounted) return;
           const list = sitesRes?.list || [];
-          const count = sitesRes?.totalCount ?? list.length;
           setDisplayedSites(list);
-          setTotalSites(summaryRes?.totalSites ?? count);
-          setTotalHouseholds(summaryRes?.totalTarget ?? 0);
+          setTotalSites(sitesRes?.totalCount || list.length);
+          setTotalHouseholds(summaryRes?.totalTarget || 0);
         })
         .catch(err => {
           if (!isMounted) return;
@@ -184,73 +199,74 @@ export default function RegionAssignDialog({
     };
   }, [isOpen, targetFireRegion?.regionId, isPortal]);
 
+  // 배정하기 제출 핸들러 (regionId 엄격 전달)
+  const handleAssignSubmit = async () => {
+    if (!targetFireRegion?.regionId || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await onAssignRegion(
+        targetFireRegion.sidoName,
+        targetFireRegion.name,
+        targetFireRegion.regionId
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 10건 초과 시 '외 N건' 표시 계산
   const remainingCount = Math.max(0, totalSites - displayedSites.length);
-
-  // 등록 제출
-  const handleSubmit = async () => {
-    if (!selectedSido || !selectedSigungu || isAlreadyAssigned || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      await onAssignRegion(selectedSido, selectedSigungu, targetFireRegion?.regionId);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // 해제 제출
-  const handleUnassignCurrent = async () => {
-    if (!currentAssignedItem || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      await onUnassignRegion(currentAssignedItem);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <SlideDialog
       isOpen={isOpen}
       onClose={onClose}
-      title="담당 지역 관리"
+      title="담당 소방관할 배정 관리"
       className="region-assign-slide-dialog"
       footer={
-        <div className="region-assign-dialog-footer">
-          <button type="button" className="btn-cancel" onClick={onClose} disabled={isSubmitting}>
+        <div className="dialog-action-buttons">
+          <button
+            type="button"
+            className="btn-cancel"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
             닫기
           </button>
           {isAlreadyAssigned ? (
             <button
               type="button"
-              className="btn-unassign"
-              disabled={isSubmitting}
-              onClick={handleUnassignCurrent}
+              className="btn-already-assigned"
+              disabled
             >
-              <span>{isSubmitting ? '해제 중...' : '이 지역 담당 해제'}</span>
+              <CheckCircle2 size={16} />
+              <span>이미 배정된 관할구역입니다</span>
             </button>
           ) : (
             <button
               type="button"
-              className="btn-submit"
-              disabled={!selectedSigungu || isSubmitting}
-              onClick={handleSubmit}
+              className="btn-submit-assign"
+              disabled={isSubmitting || !targetFireRegion}
+              onClick={handleAssignSubmit}
             >
-              <span>{isSubmitting ? '등록 중...' : '담당 지역으로 등록'}</span>
+              {isSubmitting ? '배정 등록 중...' : `[${targetFireRegion?.sidoName || selectedSido} ${targetFireRegion?.name || ''}] 배정 등록`}
             </button>
           )}
         </div>
       }
     >
-      <div className="region-assign-form">
+      <div className="region-assign-dialog-body">
+        {/* ── CURRENT ASSIGNED REGIONS (현재 담당 지역 - 아코디언) ── */}
         <div className="current-assigned-section">
           <div
-            className="section-label-row clickable"
-            onClick={() => setIsCurrentAssignedOpen(!isCurrentAssignedOpen)}
+            className="section-summary-toggle"
+            onClick={() => setIsCurrentAssignedOpen(prev => !prev)}
             role="button"
             tabIndex={0}
           >
             <div className="label-left">
-              <span className="section-label">현재 담당 지역</span>
+              <span className="section-label">현재 담당 소방관할</span>
               <span className="badge-total">{assignedRegions.length}개</span>
             </div>
             <ChevronDown
@@ -263,19 +279,17 @@ export default function RegionAssignDialog({
             assignedRegions.length > 0 ? (
               <div className="assigned-chips-row">
                 {assignedRegions.map(reg => {
-                  const isSelected = reg.regionId && targetFireRegion?.regionId
-                    ? reg.regionId === targetFireRegion.regionId
-                    : isRegionMatch(reg.sido, reg.sigungu, selectedSido, selectedSigungu);
+                  const isSelected = Boolean(
+                    reg.regionId && targetFireRegion?.regionId && reg.regionId === targetFireRegion.regionId
+                  );
 
                   return (
                     <div
-                      key={reg.assignedRegionId}
+                      key={reg.assignedRegionId || reg.regionId}
                       className={`assigned-chip ${isSelected ? 'selected' : ''}`}
                       onClick={() => {
-                        setSelectedSido(reg.sido);
-                        const sidoObj = KOREA_ADMIN_REGIONS.find(s => s.name === reg.sido);
-                        const matched = sidoObj?.sigungus.find(sg => isRegionMatch(reg.sido, reg.sigungu, reg.sido, sg.name))?.name;
-                        setSelectedSigungu(matched || reg.sigungu);
+                        if (reg.sido) setSelectedSido(reg.sido);
+                        if (reg.regionId) setSelectedRegionId(reg.regionId);
                       }}
                     >
                       <span className="chip-name">{reg.sido} {reg.sigungu}</span>
@@ -302,19 +316,19 @@ export default function RegionAssignDialog({
                 })}
               </div>
             ) : (
-              <p className="no-assigned-text">현재 배정된 담당 지역이 없습니다. 아래에서 지역을 선택하여 등록하세요.</p>
+              <p className="no-assigned-text">현재 배정된 담당 지역이 없습니다. 아래에서 소방관할을 선택하여 등록하세요.</p>
             )
           )}
         </div>
 
-        {/* ── REGION PICKER CARD (관리화면 스타일의 정돈된 필터 카드) ── */}
+        {/* ── REGION PICKER CARD ── */}
         <div className="region-picker-card">
           <div className="picker-header-row">
-            <span className="picker-title">지역 선택</span>
+            <span className="picker-title">소방관할구역 선택</span>
             <div className="picker-breadcrumb">
               <span className="crumb-sido">{selectedSido}</span>
               <ChevronRight size={13} className="crumb-arrow" />
-              <span className="crumb-sigungu">{selectedSigungu || '선택'}</span>
+              <span className="crumb-sigungu">{targetFireRegion?.name || '선택'}</span>
             </div>
           </div>
 
@@ -331,52 +345,46 @@ export default function RegionAssignDialog({
             </div>
 
             <div className="picker-field">
-              <span className="field-hint">시·군·구</span>
+              <span className="field-hint">소방관할서</span>
               <CustomSelect
                 fullWidth
                 sizeVariant="md"
-                value={selectedSigungu}
-                options={sigunguOptions}
-                disabled={sigunguOptions.length === 0}
-                onChange={e => setSelectedSigungu(e.target.value)}
+                value={targetFireRegion?.regionId || ''}
+                options={fireRegionOptions}
+                disabled={fireRegionOptions.length === 0}
+                onChange={e => setSelectedRegionId(e.target.value)}
               />
             </div>
           </div>
         </div>
 
-        {/* ── INCLUDED SITES TABLE (지역 요약과 현장 목록 헤더 통합) ── */}
+        {/* ── INCLUDED SITES TABLE ── */}
         <div className="included-sites-section">
           <div className="section-header-row">
             <div className="title-group">
-              <h3 className="section-title">
-                {selectedSido} {selectedSigungu}의 현장 목록
-              </h3>
-              <div className="region-counts-tag">
-                <span>{totalSites}개소</span>
-                <span className="dot">•</span>
-                <span>총 {totalHouseholds.toLocaleString()}세대</span>
-              </div>
+              <span className="section-title">관할 내 등록 현장</span>
+              <span className="site-count-badge">총 {totalSites}개소</span>
             </div>
 
-            <div className="header-badge-group">
-              {isAlreadyAssigned ? (
-                <span className="badge-assigned already">
-                  <AlertCircle size={13} /> 담당 중인 지역
-                </span>
-              ) : (
-                <span className="badge-assigned available">
-                  <CheckCircle2 size={13} /> 신규 배정 가능
-                </span>
-              )}
+            <div className="summary-inline-stats">
+              <div className="stat-pill">
+                <span className="pill-label">보급 세대</span>
+                <strong className="pill-val">{totalHouseholds.toLocaleString()}세대</strong>
+              </div>
             </div>
           </div>
 
-          {totalSites > 0 ? (
-            <div className="sites-table-container">
-              <table className="sites-table">
+          {isLoadingSites ? (
+            <div className="sites-loading-box">
+              <div className="loading-spinner-sm" />
+              <span>관할 현장 목록을 불러오는 중...</span>
+            </div>
+          ) : displayedSites.length > 0 ? (
+            <div className="sites-compact-table-wrap">
+              <table className="sites-compact-table">
                 <thead>
                   <tr>
-                    <th className="col-num">순번</th>
+                    <th className="col-num">#</th>
                     <th className="col-name">현장명 (단지)</th>
                     <th className="col-addr">읍/면/동 및 주소</th>
                     <th className="col-scale">단지 규모</th>
@@ -428,7 +436,7 @@ export default function RegionAssignDialog({
           ) : (
             <div className="no-sites-box">
               <Building2 size={24} className="no-sites-icon" />
-              <p className="no-sites-msg">현재 선택된 지역({selectedSido} {selectedSigungu})에 등록된 현장이 없습니다.</p>
+              <p className="no-sites-msg">현재 선택된 관할({selectedSido} {targetFireRegion?.name || ''})에 등록된 현장이 없습니다.</p>
               <p className="no-sites-sub">관리자가 현장을 등록하면 자동으로 연동됩니다.</p>
             </div>
           )}

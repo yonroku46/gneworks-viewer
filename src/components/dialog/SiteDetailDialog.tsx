@@ -8,8 +8,8 @@ import StatusBadge, { TARGET_TYPE_LABEL_MAP } from '@/components/common/StatusBa
 import CustomSelect from '@/components/common/CustomSelect';
 import AdminService from '@/api/service/AdminService';
 import { useDaumPostcodePopup, Address } from 'react-daum-postcode';
-import { normalizeSidoName } from '@/utils/addressUtils';
-import { isRegionMatch } from '@/common/utils/regionUtils';
+import { normalizeSidoName, cleanRegionName } from '@/utils/addressUtils';
+import { findRegionById, fetchFireRegions } from '@/common/utils/regionUtils';
 import UserAvatar from '@/components/common/UserAvatar';
 
 export interface SiteDetailDialogProps {
@@ -55,6 +55,26 @@ export default function SiteDetailDialog({
 
   const site = currentSite || initialSite;
 
+  // Fire Regions List & Region Resolution
+  const [fireRegions, setFireRegions] = useState<FireRegion[]>([]);
+  useEffect(() => {
+    fetchFireRegions().then(list => {
+      if (list && list.length > 0) setFireRegions(list);
+    });
+  }, []);
+
+  const fireRegion = useMemo(() => {
+    if (!site?.regionId) return undefined;
+    return fireRegions.find(fr => fr.regionId === site.regionId) || findRegionById(site.regionId);
+  }, [site?.regionId, fireRegions]);
+
+  const targetSido = fireRegion?.sidoName || site?.sido || '';
+  const targetRegionName = fireRegion?.name || site?.region || '';
+  const targetRegionLabel = useMemo(() => {
+    if (targetSido && targetRegionName) return `${targetSido} ${targetRegionName}`;
+    return targetRegionName || targetSido || site?.sigungu || '';
+  }, [targetSido, targetRegionName, site?.sigungu]);
+
   // Tabs & Search Controls
   const [siteDetailTab, setSiteDetailTab] = useState<'households' | 'workers'>(initialTab);
   const [householdSearch, setHouseholdSearch] = useState('');
@@ -84,6 +104,7 @@ export default function SiteDetailDialog({
     sido: '',
     sigungu: '',
     eupmyeondong: '',
+    regionId: '',
     contactPhone: '',
   });
 
@@ -103,12 +124,23 @@ export default function SiteDetailDialog({
       fullAddress += extraAddress !== '' ? ` (${extraAddress})` : '';
     }
 
+    const normalizedSido = normalizeSidoName(data.sido);
+    const sigungu = data.sigungu || '';
+    const eupmyeondong = data.bname || '';
+
+    const sidoFireRegions = fireRegions.filter(fr => normalizeSidoName(fr.sidoName) === normalizedSido);
+    let matchedFr = eupmyeondong ? sidoFireRegions.find(fr => fr.eupmyeondongs?.includes(eupmyeondong)) : undefined;
+    if (!matchedFr) {
+      matchedFr = sidoFireRegions.find(fr => cleanRegionName(fr.name) === cleanRegionName(sigungu));
+    }
+
     setSiteFormData(prev => ({
       ...prev,
       address: fullAddress,
-      sido: normalizeSidoName(data.sido),
-      sigungu: data.sigungu || '',
-      eupmyeondong: data.bname || '',
+      sido: normalizedSido,
+      sigungu: sigungu,
+      eupmyeondong: eupmyeondong,
+      regionId: matchedFr ? matchedFr.regionId : prev.regionId,
       name: prev.name.trim() ? prev.name : (data.buildingName ? data.buildingName : prev.name),
     }));
   };
@@ -234,6 +266,7 @@ export default function SiteDetailDialog({
         sido: site.sido || '',
         sigungu: site.sigungu || '',
         eupmyeondong: site.eupmyeondong || '',
+        regionId: site.regionId || '',
         contactPhone: site.contactPhone || '',
       });
       setIsInternalEditOpen(true);
@@ -265,6 +298,7 @@ export default function SiteDetailDialog({
         sido: siteFormData.sido || site.sido,
         sigungu: siteFormData.sigungu || site.sigungu,
         eupmyeondong: siteFormData.eupmyeondong || site.eupmyeondong,
+        regionId: siteFormData.regionId || site.regionId,
         contactPhone: updatedPhone,
       });
 
@@ -561,10 +595,10 @@ export default function SiteDetailDialog({
                     <div className="region-worker-notice-card">
                       <Info size={18} className="notice-icon" />
                       <div className="notice-body">
-                        <strong>[{site.region || site.sigungu}] 담당 작업자</strong>
+                        <strong>[{targetRegionLabel}] 담당 작업자</strong>
                         <p>
                           작업자는 <strong>소방관할구역(관할 소방서)</strong> 단위로 배정됩니다.
-                          본 현장의 관할인 <strong>[{site.sido} {site.region ? `${site.region} 소방관할` : site.sigungu}]</strong>에 배정된 작업자들이 설치 및 점검 업무를 수행합니다.
+                          본 현장의 관할인 <strong>[{targetRegionLabel}]</strong>에 배정된 작업자들이 설치 및 점검 업무를 수행합니다.
                         </p>
                       </div>
                     </div>
@@ -637,15 +671,13 @@ export default function SiteDetailDialog({
                                   )}
                                 </td>
                                 <td className="col-region-name">
-                                  <span className="region-name-tag">{site.sido} {site.sigungu}</span>
+                                  <span className="region-name-tag">{targetRegionLabel}</span>
                                 </td>
                                 <td style={{ textAlign: 'center', fontSize: '0.8125rem', color: 'var(--slate-500)' }}>
                                   <span>
                                     {worker.assignedRegions?.find((ar: UserAssignedRegionDetail) => {
-                                      if (site.regionId || ar.regionId) return Boolean(site.regionId && ar.regionId && ar.regionId === site.regionId);
-                                      if (site.region) return isRegionMatch(ar.sido, ar.sigungu, site.sido, site.region);
-                                      return isRegionMatch(ar.sido, ar.sigungu, site.sido, site.sigungu);
-                                    })?.assignedDate || '—'}
+                                      return Boolean(site?.regionId && ar.regionId && ar.regionId === site.regionId);
+                                    })?.assignedDate || worker.assignedRegions?.[0]?.assignedDate || '—'}
                                   </span>
                                 </td>
                               </tr>
@@ -653,7 +685,7 @@ export default function SiteDetailDialog({
                           ) : (
                             <tr>
                               <td colSpan={6} className="empty-households">
-                                {regionWorkers.length === 0 ? `현재 [${site.sido} ${site.sigungu}] 지역에 배정된 담당자가 없습니다.` : '조회된 담당자 정보가 없습니다.'}
+                                {regionWorkers.length === 0 ? `현재 [${targetRegionLabel}] 지역에 배정된 담당자가 없습니다.` : '조회된 담당자 정보가 없습니다.'}
                               </td>
                             </tr>
                           )}

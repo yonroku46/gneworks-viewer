@@ -10,21 +10,6 @@
     justify-content: space-between;
     align-items: stretch;
     gap: 0.75rem;
-    padding-bottom: 0.25rem;
-    .header-left {
-      .header-title-row {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        h3 {
-          font-size: 1.1875rem;
-          font-weight: 800;
-          color: var(--slate-900);
-          margin: 0;
-          white-space: nowrap;
-        }
-      }
-    }
     .header-stats {
       display: flex;
       gap: 0.5rem;
@@ -54,6 +39,7 @@
   .site-detail-tabs-bar,
   .batch-tabs-bar {
     display: flex;
+    justify-content: safe center;
     flex-wrap: nowrap;
     overflow-x: auto;
     gap: 0.5rem;
@@ -87,23 +73,6 @@
         color: var(--slate-900);
         background: var(--slate-100);
         border-bottom: 2px solid var(--slate-900);
-        .tab-count-badge {
-          background: var(--slate-900);
-          color: var(--white);
-        }
-      }
-      .tab-count-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 1.25rem;
-        height: 1.25rem;
-        padding: 0 0.375rem;
-        border-radius: 9999px;
-        font-size: 0.6875rem;
-        font-weight: 700;
-        background: var(--slate-200);
-        color: var(--slate-600);
       }
     }
   }
@@ -187,50 +156,6 @@
         }
       }
     }
-    .batch-selection-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.625rem 0.875rem;
-      background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: 0.5rem;
-      white-space: nowrap;
-      .toolbar-left {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        .select-all-label {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.375rem;
-          font-size: 0.8125rem;
-          font-weight: 700;
-          color: var(--slate-700);
-          cursor: pointer;
-          input[type="checkbox"] {
-            width: 1rem;
-            height: 1rem;
-            accent-color: var(--manage-primary);
-            cursor: pointer;
-          }
-        }
-        .summary-stats {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.8125rem;
-          color: var(--slate-600);
-          strong {
-            color: var(--manage-primary);
-            font-weight: 800;
-          }
-          .dot {
-            color: var(--slate-300);
-          }
-        }
-      }
-    }
     .batch-reports-table-container {
       background: var(--white);
       border: 1px solid var(--border);
@@ -254,10 +179,6 @@
             color: var(--slate-600);
             border-bottom: 1px solid var(--border);
             white-space: nowrap;
-            &.col-chk {
-              width: 38px;
-              text-align: center;
-            }
             &.col-num {
               width: 50px;
               text-align: center;
@@ -271,24 +192,12 @@
             &:hover {
               background: var(--slate-50);
             }
-            &.selected {
-              background: var(--manage-primary-tint);
-            }
             td {
               padding: 0.625rem 0.75rem;
               font-size: 0.8125rem;
               color: var(--slate-800);
               white-space: nowrap;
               vertical-align: middle;
-              &.col-chk {
-                text-align: center;
-                input[type="checkbox"] {
-                  width: 0.9375rem;
-                  height: 0.9375rem;
-                  accent-color: var(--manage-primary);
-                  cursor: pointer;
-                }
-              }
               &.col-num {
                 text-align: center;
                 .row-index {
@@ -333,53 +242,85 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    .preview-control-bar {
+    position: relative;
+    .document-pdf-mask-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 100;
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      background: rgba(255, 255, 255, 0.92);
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.625rem 0.875rem;
-      background: var(--slate-100);
-      border-radius: 0.5rem;
-      border: 1px solid var(--border);
-      white-space: nowrap;
-      .bar-left {
-        display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 120px;
+      .pdf-mask-indicator {
+        display: inline-flex;
         align-items: center;
-        gap: 0.625rem;
-        .preview-info-text {
-          font-size: 0.8125rem;
-          color: var(--slate-700);
-          strong {
-            color: var(--manage-primary);
-            font-weight: 800;
-          }
+        gap: 0.75rem;
+        background: var(--white);
+        border: 1.5px solid var(--slate-800);
+        border-radius: 0.75rem;
+        padding: 0.875rem 1.5rem;
+        box-shadow: 0 8px 30px var(--shadow-sm);
+        .mask-spinner {
+          color: var(--slate-900);
         }
-        .btn-toggle-limit {
-          font-size: 0.75rem;
-          padding: 0.25rem 0.5rem;
-          background: var(--white);
-          border: 1px solid var(--border);
-          border-radius: 0.25rem;
-          color: var(--slate-600);
-          cursor: pointer;
-          font-weight: 600;
-          transition: all 0.15s ease;
-          &:hover {
-            border-color: var(--manage-primary);
-            color: var(--manage-primary);
-          }
+        span {
+          font-size: 0.9375rem;
+          font-weight: 800;
+          color: var(--slate-900);
+          letter-spacing: -0.2px;
         }
       }
     }
     .preview-scroll-viewport {
       background: var(--slate-100);
       border-radius: 0.75rem;
-      padding: 1.5rem;
+      padding: 1.5rem 1rem;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 2rem;
-      overflow: visible;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+      box-sizing: border-box;
+      .preview-confirmation-header-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 182mm;
+        max-width: 182mm;
+        margin: 0 auto -1rem auto;
+        padding: 0.5rem 0.25rem 0;
+        box-sizing: border-box;
+        .preview-confirmation-title {
+          display: flex;
+          align-items: baseline;
+          gap: 0.5rem;
+          font-size: 0.9375rem;
+          font-weight: 800;
+          color: var(--slate-900);
+          .current-sub {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--slate-500);
+          }
+        }
+        .preview-more-count-badge {
+          display: inline-flex;
+          align-items: center;
+          background: var(--manage-primary);
+          color: var(--white);
+          font-size: 0.75rem;
+          font-weight: 800;
+          padding: 0.2rem 0.65rem;
+          border-radius: 9999px;
+          letter-spacing: -0.2px;
+          box-shadow: 0 2px 6px var(--manage-primary-glow);
+        }
+      }
     }
   }
 }
@@ -413,6 +354,13 @@
         background: var(--slate-100);
         border-color: var(--slate-400);
       }
+      &.btn-print-secondary {
+        flex: 0.7;
+        &:hover {
+          background: var(--slate-100);
+          border-color: var(--slate-400);
+        }
+      }
     }
     &.btn-flex-primary {
       flex: 1.8;
@@ -439,114 +387,9 @@
   }
 }
 
-.official-attachment-paper {
-  background: var(--white);
-  width: 210mm;
-  min-height: 297mm;
-  padding: 24mm 20mm 20mm 20mm;
-  box-sizing: border-box;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  color: var(--slate-900);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  font-family: 'Pretendard', sans-serif;
-  .attachment-title-wrap {
-    text-align: center;
-    margin-bottom: 2.5rem;
-    .attachment-main-title {
-      font-size: 1.75rem;
-      font-weight: 900;
-      letter-spacing: 2px;
-      margin: 0;
-      padding-bottom: 0.5rem;
-      border-bottom: 3px double var(--slate-900);
-      display: inline-block;
-    }
-  }
-  .doc-section {
-    margin-bottom: 2rem;
-    .section-head {
-      font-size: 1.0625rem;
-      font-weight: 800;
-      margin: 0 0 0.75rem 0;
-      color: var(--slate-900);
-    }
-    .overview-list {
-      list-style: none;
-      padding: 0 0 0 1rem;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      li {
-        font-size: 0.9375rem;
-        font-weight: 600;
-        color: var(--slate-900);
-        strong {
-          font-weight: 800;
-        }
-      }
-    }
-  }
-  .detail-table-wrap {
-    width: 100%;
-    margin-bottom: 1.5rem;
-    .detail-official-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8125rem;
-      border: 1.5px solid var(--slate-900);
-      thead {
-        background: var(--slate-100);
-        th {
-          border: 1px solid var(--slate-900);
-          padding: 0.5rem 0.375rem;
-          font-weight: 800;
-          text-align: center;
-          white-space: nowrap;
-        }
-      }
-      tbody {
-        tr {
-          td {
-            border: 1px solid var(--slate-900);
-            padding: 0.4375rem 0.375rem;
-            color: var(--slate-900);
-            &.center {
-              text-align: center;
-              white-space: nowrap;
-            }
-            &.addr {
-              max-width: 220px;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-.official-report-page-sheet {
-  background: var(--white);
-  width: 210mm;
-  min-height: 297mm;
-  padding: 15mm 15mm 15mm 15mm;
-  box-sizing: border-box;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  page-break-before: always;
-  .confirmation-document-paper {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-shadow: none !important;
-    border: 1px solid var(--slate-800) !important;
-    padding: 7mm 10mm !important;
+.confirmation-document-paper {
+  &.hidden-in-preview-only {
+    display: none;
   }
 }
 
@@ -579,11 +422,6 @@
           }
         }
       }
-      .batch-selection-toolbar {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
-      }
     }
     .batch-preview-content {
       .preview-scroll-viewport {
@@ -606,13 +444,6 @@
       }
     }
   }
-  .official-attachment-paper,
-  .official-report-page-sheet {
-    width: 100%;
-    min-height: auto;
-    padding: 1rem;
-    box-shadow: none;
-  }
 }
 
 @include pc {
@@ -620,6 +451,7 @@
     .batch-dialog-header-card {
       flex-direction: row;
       align-items: center;
+      justify-content: flex-end;
       .header-stats {
         .stat-pill {
           min-width: 110px;
@@ -630,54 +462,87 @@
 }
 
 @media print {
-  body * {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  html,
+  body,
+  body.regional-batch-print-active {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  body.regional-batch-print-active * {
     visibility: hidden;
   }
-  .regional-batch-dialog,
-  .regional-batch-dialog * {
-    visibility: visible;
+  body.regional-batch-print-active #printable-regional-batch-bundle,
+  body.regional-batch-print-active #printable-regional-batch-bundle * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .batch-dialog-header-card,
-  .site-detail-tabs-bar,
-  .batch-tabs-bar,
-  .preview-control-bar,
-  .slide-dialog-header,
-  .slide-dialog-footer,
-  .btn-toggle-limit {
-    display: none !important;
-  }
-  .batch-preview-content {
-    display: block !important;
-  }
-  .preview-scroll-viewport {
-    background: transparent !important;
+  body.regional-batch-print-active #printable-regional-batch-bundle {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
     padding: 0 !important;
-    max-height: none !important;
+    background: var(--white) !important;
+    display: block !important;
     overflow: visible !important;
+    box-sizing: border-box !important;
   }
-  .official-attachment-paper {
-    width: 210mm !important;
-    height: 297mm !important;
-    min-height: 297mm !important;
-    margin: 0 !important;
-    padding: 20mm 20mm !important;
+  .completion-report-cover-paper {
+    width: 182mm !important;
+    min-width: 182mm !important;
+    max-width: 182mm !important;
+    height: 275mm !important;
+    min-height: 275mm !important;
+    max-height: 275mm !important;
+    margin: 8mm auto !important;
+    padding: 6mm 9mm !important;
     box-shadow: none !important;
-    border: none !important;
+    border: 1.5px solid var(--slate-900) !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     page-break-after: always !important;
     break-after: page !important;
   }
-  .official-report-page-sheet {
-    width: 210mm !important;
-    height: 297mm !important;
-    min-height: 297mm !important;
-    margin: 0 !important;
-    padding: 10mm 15mm !important;
+  .confirmation-document-paper {
+    width: 182mm !important;
+    min-width: 182mm !important;
+    max-width: 182mm !important;
+    height: 275mm !important;
+    min-height: 275mm !important;
+    max-height: 275mm !important;
+    margin: 8mm auto !important;
+    padding: 6mm 9mm !important;
     box-shadow: none !important;
-    border: none !important;
-    page-break-before: always !important;
+    border: 1.5px solid var(--slate-900) !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     page-break-after: always !important;
-    break-before: page !important;
     break-after: page !important;
+    &:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
     &.hidden-in-preview-only {
       display: flex !important;
       visibility: visible !important;

@@ -7,7 +7,6 @@ import ProfileEditDialog from '@/components/dialog/ProfileEditDialog';
 import PasswordChangeDialog from '@/components/dialog/PasswordChangeDialog';
 import RegionAssignDialog from '@/components/dialog/RegionAssignDialog';
 import PortalService from '@/api/service/PortalService';
-import { isRegionMatch } from '@/common/utils/regionUtils';
 import { 
   LogOut, 
   Settings,
@@ -314,9 +313,7 @@ export default function ProfilePage() {
             <div className="assigned-sites-list">
               {assignedRegions.map(region => {
                 const sitesInRegion = allSites.filter(s => {
-                  if (region.regionId || s.regionId) return Boolean(region.regionId && s.regionId && s.regionId === region.regionId);
-                  if (s.region) return isRegionMatch(s.sido, s.region, region.sido, region.sigungu);
-                  return isRegionMatch(s.sido, s.sigungu, region.sido, region.sigungu);
+                  return Boolean(region.regionId && s.regionId && s.regionId === region.regionId);
                 });
                 const totalHouseholds = sitesInRegion.reduce(
                   (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),

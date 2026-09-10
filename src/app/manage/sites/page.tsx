@@ -248,7 +248,7 @@ export default function ManageCustomers() {
               e.stopPropagation();
               handleOpenDetail(site, 'workers');
             }}
-            title={`${site.sigungu} 지역 담당자 ${workers.length}명 (${workers.map(w => w.userName).join(', ')})`}
+            title={`${site.region || site.sigungu} 지역 담당자 ${workers.length}명 (${workers.map(w => w.userName).join(', ')})`}
           >
             <Users size={13} />
             <span>{workers.length > 1 ? `${workers[0].userName} 외 ${workers.length - 1}명` : workers[0].userName}</span>

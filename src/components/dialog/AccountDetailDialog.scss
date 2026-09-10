@@ -109,6 +109,7 @@
   .account-detail-tabs-bar {
     display: flex;
     flex-wrap: nowrap;
+    justify-content: safe center;
     overflow-x: auto;
     gap: 0.5rem;
     border-bottom: 1px solid var(--border);

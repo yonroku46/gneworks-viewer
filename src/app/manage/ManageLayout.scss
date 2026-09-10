@@ -572,13 +572,6 @@
             letter-spacing: -0.5px;
             line-height: 1;
           }
-          .rate-unit {
-            font-size: 0.5rem;
-            font-weight: 700;
-            color: var(--slate-400);
-            line-height: 1;
-            margin-left: 0.5px;
-          }
         }
         &.done {
           background: conic-gradient(
@@ -588,9 +581,6 @@
           .rate-ring-inner {
             background: var(--manage-primary-tint);
             .rate-num {
-              color: var(--manage-primary);
-            }
-            .rate-unit {
               color: var(--manage-primary);
             }
           }
@@ -1788,6 +1778,7 @@
   }
   .site-detail-tabs-bar {
     display: flex;
+    justify-content: safe center;
     flex-wrap: nowrap;
     overflow-x: auto;
     gap: 0.5rem;
@@ -5359,14 +5350,6 @@
       border-color: var(--slate-300);
       color: var(--slate-900);
     }
-    .batch-badge {
-      background: var(--slate-100);
-      color: var(--slate-700);
-      padding: 0.125rem 0.375rem;
-      border-radius: 9999px;
-      font-size: 0.6875rem;
-      font-weight: 800;
-    }
   }
 }
 
@@ -5678,9 +5661,6 @@
             .rate-num {
               font-size: 0.625rem;
             }
-            .rate-unit {
-              font-size: 0.4375rem;
-            }
           }
         }
         .site-info-col {
@@ -5910,7 +5890,7 @@
     visibility: hidden;
   }
   // ── 1. 단일 확인서 인쇄 (프리뷰 화면과 100% 동일한 A4 1장 완벽 출력) ──
-  body:not(.batch-print-active) {
+  body:not(.batch-print-active):not(.regional-batch-print-active) {
     #printable-confirmation-sheet,
     #printable-confirmation-sheet * {
       visibility: visible;
@@ -5927,14 +5907,33 @@
       box-shadow: none !important;
       width: 182mm !important;
       max-width: 182mm !important;
-      height: auto !important;
+      height: 275mm !important;
+      min-height: 275mm !important;
       max-height: 275mm !important;
-      padding: 7mm 10mm !important;
+      padding: 6mm 9mm !important;
       box-sizing: border-box !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       page-break-after: avoid !important;
       break-after: avoid !important;
+    }
+  }
+  body.regional-batch-print-active {
+    #printable-regional-batch-bundle,
+    #printable-regional-batch-bundle * {
+      visibility: visible !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    #printable-regional-batch-bundle {
+      display: block !important;
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      background: #ffffff !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
   }
   // ── 2. 일괄 번들 인쇄 (Batch Print: 대지 + 세대별 확인서) ──

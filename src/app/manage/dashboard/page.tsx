@@ -18,7 +18,6 @@ import Link from 'next/link';
 import AdminService from '@/api/service/AdminService';
 import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
-import { findActualFireRegion } from '@/common/utils/regionUtils';
 import StatusBadge from '@/components/common/StatusBadge';
 import UserAvatar from '@/components/common/UserAvatar';
 import AccountDetailDialog from '@/components/dialog/AccountDetailDialog';
@@ -107,14 +106,6 @@ export default function ManageDashboard() {
 
   // 현장 상세 정보 다이얼로그 상태 (아파트 클릭 시 현장 세대/지역담당자 관리 열람)
   const [selectedDetailSite, setSelectedDetailSite] = useState<SiteDetail>();
-  const [fireRegions, setFireRegions] = useState<FireRegion[]>([]);
-
-  // 소방관할(FireRegion) 목록 로드 (지역 필터 정합성 보장)
-  useEffect(() => {
-    AdminService.getFireRegions()
-      .then(list => setFireRegions(list || []))
-      .catch(err => console.error('[Dashboard] getFireRegions error:', err));
-  }, []);
 
   // 1. 백엔드 API에서 답변 대기 문의 요약 경량 조회 (건수 + 최신 1건 미리보기)
   const loadPendingInquirySummary = useCallback(async () => {
@@ -130,22 +121,9 @@ export default function ManageDashboard() {
   // 2. Initial Load from Backend API (API 단에서 10건 한도 적용 및 전체 집계 취득)
   const loadDashboardData = useCallback(async () => {
     try {
-      // 실제 DB에서 로드된 fireRegions 목록에서 현재 선택된 지역에 일치하는 실제 regionId 탐색
-      const matchedFireRegion = findActualFireRegion(
-        fireRegions,
-        region.sido,
-        region.sigungu,
-        region.eupmyeondong
-      );
-
-      // 가짜 정적 ID('REG_...')는 제외하고, 실제 DB의 regionId만 적용
-      const validRegionId = (region.regionId && !region.regionId.startsWith('REG_'))
-        ? region.regionId
-        : matchedFireRegion?.regionId;
-
       const regionParam: { regionId?: string } = {};
-      if (validRegionId) {
-        regionParam.regionId = validRegionId;
+      if (region.regionId) {
+        regionParam.regionId = region.regionId;
       }
 
       const [summaryRes, siteRes, workerRes, issueRes, recentRes] = await Promise.all([
@@ -204,7 +182,7 @@ export default function ManageDashboard() {
     } catch (e) {
       console.error('[Dashboard] loadDashboardData error', e);
     }
-  }, [region.sido, region.sigungu, region.eupmyeondong, region.regionId, fireRegions]);
+  }, [region.regionId]);
 
   // 대시보드 데이터 및 문의 요약 로드 & 실시간 알림 이벤트 연동
   useEffect(() => {
@@ -438,7 +416,6 @@ export default function ManageDashboard() {
                       >
                         <div className="rate-ring-inner">
                           <span className="rate-num">{rate}</span>
-                          <span className="rate-unit">%</span>
                         </div>
                       </div>
 

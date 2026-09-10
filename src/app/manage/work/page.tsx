@@ -26,6 +26,8 @@ import SearchInput from '@/components/common/SearchInput';
 import StatusBadge, { STATUS_LABEL_MAP } from '@/components/common/StatusBadge';
 import DataTable, { ColumnDef } from '@/components/common/DataTable';
 import AdminService from '@/api/service/AdminService';
+import { fetchFireRegions, getFireRegionById } from '@/common/utils/regionUtils';
+import { normalizeSidoName } from '@/utils/addressUtils';
 import '../ManageLayout.scss';
 
 dayjs.locale('ko');
@@ -215,9 +217,11 @@ function ManageWorkContent() {
         if (reportDetail.siteId) {
           const site = await AdminService.getSiteDetail(reportDetail.siteId);
           if (isMounted && site && site.regionId && site.regionId !== region.regionId) {
+            await fetchFireRegions();
+            const fr = getFireRegionById(site.regionId);
             setRegion({
-              sido: site.sido,
-              sigungu: site.region,
+              sido: fr?.sidoName || normalizeSidoName(site.sido) || '경기도',
+              sigungu: fr?.name || site.region || site.sigungu || '',
               eupmyeondong: '',
               regionId: site.regionId,
             });
@@ -460,7 +464,7 @@ function ManageWorkContent() {
   // Handle Batch Print Dialog Open
   const handleBatchPrint = async () => {
     if (!region.regionId) {
-      enqueueSnackbar('지역별 일괄 출력을 위해 지역(시/도, 시/군/구)를 먼저 지정해 주세요.', {
+      enqueueSnackbar('일괄 출력을 위해 지역(시/도, 시/군/구)를 먼저 지정해 주세요.', {
         variant: 'warning',
       });
       return;
@@ -499,8 +503,7 @@ function ManageWorkContent() {
             title={`${regionLabel} 지역의 모든 보고서를 대지와 함께 일괄 PDF로 출력합니다.`}
           >
             <FileDown size={15} />
-            <span>지역별 일괄 출력</span>
-            <span className="batch-badge">{totalCount}건</span>
+            <span>일괄 출력</span>
           </button>
 
           {/* 추가 옵션 더보기 메뉴 */}
@@ -939,6 +942,7 @@ function ManageWorkContent() {
         isOpen={isRegionalBatchDialogOpen}
         onClose={() => setIsRegionalBatchDialogOpen(false)}
         region={region}
+        regionLabel={regionLabel}
         reports={batchPrintReports}
       />
 
@@ -947,6 +951,7 @@ function ManageWorkContent() {
         isOpen={isTrashDialogOpen}
         onClose={() => setIsTrashDialogOpen(false)}
         regionId={region.regionId}
+        regionLabel={regionLabel}
       />
     </div>
   );

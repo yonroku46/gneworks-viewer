@@ -8,6 +8,7 @@ import {
   getFireRegionsBySido,
   getFireRegionById,
 } from '@/common/utils/regionUtils';
+import { normalizeSidoName } from '@/utils/addressUtils';
 import CustomSelect from './CustomSelect';
 import './RegionSelector.scss';
 
@@ -43,13 +44,25 @@ export default function RegionSelector({
     return getDbSidoList();
   }, [isLoaded]);
 
-  // 현재 유효한 시/도 (기본값: 목록의 첫 번째 시도, 보통 '경기도')
+  // 현재 유효한 시/도 (1순위: regionId 기준 소방관할의 sidoName, 2순위: 전달된 sido 정규화)
   const currentSido = useMemo(() => {
-    if (sido && sidoList.includes(sido)) {
-      return sido;
+    if (regionId) {
+      const fr = getFireRegionById(regionId);
+      if (fr?.sidoName && sidoList.includes(fr.sidoName)) {
+        return fr.sidoName;
+      }
+    }
+    if (sido) {
+      const normalized = normalizeSidoName(sido);
+      if (sidoList.includes(normalized)) {
+        return normalized;
+      }
+      if (sidoList.includes(sido)) {
+        return sido;
+      }
     }
     return sidoList[0] || '경기도';
-  }, [sido, sidoList]);
+  }, [regionId, sido, sidoList]);
 
   // 선택된 시/도의 DB 소방관할 목록
   const availableFireRegions = useMemo(() => {
@@ -59,8 +72,12 @@ export default function RegionSelector({
 
   // 현재 유효한 소방서 regionId (기본값: 해당 시도의 첫 번째 관할소방서)
   const currentFireRegionId = useMemo(() => {
-    if (regionId && availableFireRegions.some(fr => fr.regionId === regionId)) {
-      return regionId;
+    if (regionId) {
+      if (availableFireRegions.some(fr => fr.regionId === regionId)) {
+        return regionId;
+      }
+      const fr = getFireRegionById(regionId);
+      if (fr) return fr.regionId;
     }
     const matchedByName = availableFireRegions.find(fr => fr.name === sigungu);
     if (matchedByName) return matchedByName.regionId;
@@ -71,7 +88,7 @@ export default function RegionSelector({
   useEffect(() => {
     if (isLoaded && availableFireRegions.length > 0) {
       const selectedFr = availableFireRegions.find(fr => fr.regionId === currentFireRegionId) || availableFireRegions[0];
-      if (selectedFr && (sido !== currentSido || regionId !== selectedFr.regionId)) {
+      if (selectedFr && (sido !== currentSido || regionId !== selectedFr.regionId || sigungu !== selectedFr.name)) {
         onChange({
           regionId: selectedFr.regionId,
           sido: currentSido,
@@ -80,7 +97,7 @@ export default function RegionSelector({
         });
       }
     }
-  }, [isLoaded, currentSido, currentFireRegionId, availableFireRegions, sido, regionId, onChange]);
+  }, [isLoaded, currentSido, currentFireRegionId, availableFireRegions, sido, regionId, sigungu, onChange]);
 
   // 시/도 변경 핸들러 -> 변경된 시도의 첫 번째 관할 소방서로 즉시 자동 지정
   const handleSidoChange = (newSido: string) => {

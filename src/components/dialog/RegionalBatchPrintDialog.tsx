@@ -1,25 +1,22 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import SlideDialog from './SlideDialog';
 import dayjs from 'dayjs';
 import { TARGET_TYPE_LABEL_MAP } from '@/components/common/StatusBadge';
-import { 
-  Printer, 
-  MapPin, 
-  CheckSquare, 
-  Square, 
-  ArrowRight, 
-  ShieldCheck,
-  Building2,
-  FileText
-} from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
+import { useSnackbar } from 'notistack';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import CompletionReportCoverPaper from '@/components/common/CompletionReportCoverPaper';
+import ConfirmationDocumentPaper from '@/components/common/ConfirmationDocumentPaper';
 import './RegionalBatchPrintDialog.scss';
 
 export interface RegionalBatchPrintDialogProps {
   isOpen: boolean;
   onClose: () => void;
   region: SelectedRegion;
+  regionLabel?: string;
   reports: WorkReport[];
   sites?: SiteDetail[];
 }
@@ -28,9 +25,12 @@ export default function RegionalBatchPrintDialog({
   isOpen,
   onClose,
   region,
+  regionLabel = '',
   reports,
   sites = [],
 }: RegionalBatchPrintDialogProps) {
+  const { enqueueSnackbar } = useSnackbar();
+
   // ── Mode: 'filter' (보고서 관리/필터) vs 'preview' (제출용 PDF 미리보기) ──
   const [activeTab, setActiveTab] = useState<'filter' | 'preview'>('filter');
 
@@ -39,13 +39,36 @@ export default function RegionalBatchPrintDialog({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
-  // ── Number of Preview Items to Show (화면 렉 방지용 페이지네이션/토글) ──
-  const [showAllInPreview, setShowAllInPreview] = useState(false);
+  // ── PDF Generating States ──
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
+  const [pdfProgressText, setPdfProgressText] = useState('');
+  const [isBatchCapturing, setIsBatchCapturing] = useState(false);
+  const isCancelledRef = useRef(false);
 
-  // ── Region Label ──
-  const regionLabel = useMemo(() => {
-    return region.sido && region.sigungu ? `${region.sido} ${region.sigungu}` : (region.sido || '');
-  }, [region.sido, region.sigungu]);
+  // PDF 생성 중 브라우저 탭 닫기 / 새로고침 방어
+  useEffect(() => {
+    if (!isPdfGenerating) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isPdfGenerating]);
+
+  // PDF 생성 중 다이얼로그 닫기 방어 로직 (X버튼, ESC, 백드롭, 닫기 버튼 공통)
+  const handleSafeClose = () => {
+    if (isPdfGenerating) {
+      const confirmClose = window.confirm('현재 PDF 생성 작업이 진행 중입니다. 작업을 중단하고 창을 닫으시겠습니까?');
+      if (!confirmClose) {
+        return;
+      }
+      isCancelledRef.current = true;
+    }
+    onClose();
+  };
 
   // ── Target Reports: 오직 '확인완료(COMPLETED)' 보고서만 필터링 ──
   const completedReportsInRegion = useMemo(() => {
@@ -62,40 +85,8 @@ export default function RegionalBatchPrintDialog({
     });
   }, [completedReportsInRegion, startDate, endDate]);
 
-  // ── Selected Report IDs for Export ──
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  // Automatically select all filtered reports on filter change
-  React.useEffect(() => {
-    setSelectedIds(new Set(filteredReports.map(r => r.reportId)));
-  }, [filteredReports]);
-
-  const isAllSelected = filteredReports.length > 0 && selectedIds.size === filteredReports.length;
-
-  const handleToggleSelectAll = () => {
-    if (isAllSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredReports.map(r => r.reportId)));
-    }
-  };
-
-  const handleToggleRow = (reportId: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(reportId)) {
-        next.delete(reportId);
-      } else {
-        next.add(reportId);
-      }
-      return next;
-    });
-  };
-
-  // ── Final Reports for Export (Checked items from filtered list) ──
-  const exportReports = useMemo(() => {
-    return filteredReports.filter(r => selectedIds.has(r.reportId));
-  }, [filteredReports, selectedIds]);
+  // ── Final Reports for Export (해당 지역 확인완료 전체 일괄 출력) ──
+  const exportReports = filteredReports;
 
   // Total detector count for export reports
   const totalDetectorCount = useMemo(() => {
@@ -129,8 +120,191 @@ export default function RegionalBatchPrintDialog({
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+
+  // ── 2. 직접 PDF 파일 다운로드 (jsPDF + html2canvas 일괄 생성) ──
+  const handleDownloadPdf = async () => {
+    if (exportReports.length === 0) {
+      enqueueSnackbar('출력 대상 세대가 없습니다.', { variant: 'warning' });
+      return;
+    }
+
+    const bundleElement = document.getElementById('printable-regional-batch-bundle');
+    if (!bundleElement) {
+      enqueueSnackbar('출력할 서식 문서를 찾을 수 없습니다.', { variant: 'error' });
+      return;
+    }
+
+    isCancelledRef.current = false;
+    try {
+      setIsPdfGenerating(true);
+      setIsBatchCapturing(true);
+      setPdfProgressText('PDF 생성 준비 중...');
+
+      // 1. 전체 세대 마운트 및 렌더링 안정화 대기
+      await new Promise(resolve => setTimeout(resolve, 300));
+      if (isCancelledRef.current) return;
+
+      const coverElements = Array.from(bundleElement.querySelectorAll<HTMLElement>('.completion-report-cover-paper'));
+      const paperElements = Array.from(bundleElement.querySelectorAll<HTMLElement>('.confirmation-document-paper'));
+      if (coverElements.length === 0 || paperElements.length === 0) {
+        enqueueSnackbar('출력할 서식 문서를 렌더링할 수 없습니다.', { variant: 'error' });
+        return;
+      }
+
+      // 2. 번들 내 모든 이미지 로드 대기
+      const imgElements = Array.from(bundleElement.querySelectorAll<HTMLImageElement>('img'));
+      await Promise.all(
+        imgElements.map(img => {
+          if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
+          return new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve;
+            setTimeout(resolve, 2000);
+          });
+        })
+      );
+      if (isCancelledRef.current) return;
+
+      // 3. S3 rewrite 경로(/report/...)를 통해 CORS 없이 DataURL 변환
+      const s3Prefix = process.env.NEXT_PUBLIC_S3_PREFIX;
+      const toSameOriginUrl = (url: string) => {
+        if (!url) return '';
+        if (s3Prefix && url.includes(s3Prefix)) {
+          const idx = url.indexOf(s3Prefix);
+          return url.substring(idx + s3Prefix.length);
+        }
+        return url;
+      };
+
+      const originalSources = new Map<HTMLImageElement, string>();
+      await Promise.all(
+        imgElements.map(async (img) => {
+          const src = img.src;
+          if (!src || src.startsWith('data:')) return;
+          try {
+            const proxyUrl = toSameOriginUrl(src);
+            const res = await fetch(proxyUrl);
+            if (res.ok) {
+              const blob = await res.blob();
+              const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+              originalSources.set(img, src);
+              img.src = dataUrl;
+            }
+          } catch {
+            // fetch 실패 시 기존 src 유지
+          }
+        })
+      );
+      if (isCancelledRef.current) return;
+
+      // 4. jsPDF 초기화 (A4 세로)
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const maxWidth = 196;
+      const maxHeight = 282;
+      let renderW = maxWidth;
+      let renderH = maxHeight;
+      let leftM = 0;
+      let topM = 0;
+
+      // 5. 보급완료 보고서 대지 캡처 (1장 또는 분할된 복수 페이지)
+      const totalPages = coverElements.length + paperElements.length;
+
+      let currentPageNum = 1;
+      for (let i = 0; i < coverElements.length; i++) {
+        if (isCancelledRef.current) return;
+        const coverEl = coverElements[i];
+        setPdfProgressText(`대지 보고서 작성 중... (${currentPageNum}/${totalPages})`);
+        if (currentPageNum > 1) {
+          pdf.addPage();
+        }
+
+        coverEl.classList.add('capturing-for-pdf');
+        const coverCanvas = await html2canvas(coverEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          logging: false,
+          width: coverEl.offsetWidth,
+          height: coverEl.offsetHeight,
+        });
+        coverEl.classList.remove('capturing-for-pdf');
+
+        const coverData = coverCanvas.toDataURL('image/jpeg', 0.98);
+        const coverProps = pdf.getImageProperties(coverData);
+        renderW = maxWidth;
+        renderH = (coverProps.height * renderW) / coverProps.width;
+        if (renderH > maxHeight) {
+          renderH = maxHeight;
+          renderW = (coverProps.width * renderH) / coverProps.height;
+        }
+        leftM = (pdfWidth - renderW) / 2;
+        topM = (pdfHeight - renderH) / 2;
+        pdf.addImage(coverData, 'JPEG', leftM, topM, renderW, renderH);
+        currentPageNum++;
+      }
+
+      // 6. 세대별 보급지원확인서 캡처
+      for (let i = 0; i < paperElements.length; i++) {
+        if (isCancelledRef.current) return;
+        const paperEl = paperElements[i];
+        setPdfProgressText(`세대 확인서 저장 중... (${currentPageNum}/${totalPages})`);
+        pdf.addPage();
+
+        paperEl.classList.add('capturing-for-pdf');
+        const canvas = await html2canvas(paperEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          logging: false,
+          width: paperEl.offsetWidth,
+          height: paperEl.offsetHeight,
+        });
+        paperEl.classList.remove('capturing-for-pdf');
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        const imgProps = pdf.getImageProperties(imgData);
+        renderW = maxWidth;
+        renderH = (imgProps.height * renderW) / imgProps.width;
+        if (renderH > maxHeight) {
+          renderH = maxHeight;
+          renderW = (imgProps.width * renderH) / imgProps.height;
+        }
+        leftM = (pdfWidth - renderW) / 2;
+        topM = (pdfHeight - renderH) / 2;
+        pdf.addImage(imgData, 'JPEG', leftM, topM, renderW, renderH);
+        currentPageNum++;
+      }
+
+      // 7. DataURL 복원
+      originalSources.forEach((origSrc, img) => {
+        img.src = origSrc;
+      });
+
+      if (isCancelledRef.current) return;
+
+      // 8. PDF 다운로드 완료
+      const safeLabel = regionLabel ? regionLabel.replace(/\s+/g, '_') : '지역';
+      const fileName = `${safeLabel}_단독경보형감지기_보급완료_일괄보고서.pdf`;
+      pdf.save(fileName);
+      enqueueSnackbar('PDF가 성공적으로 다운로드되었습니다.', { variant: 'success' });
+    } catch (err: any) {
+      if (isCancelledRef.current) return;
+      console.error('Batch PDF 다운로드 실패:', err);
+      enqueueSnackbar(err?.message || 'PDF 생성 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsPdfGenerating(false);
+      setIsBatchCapturing(false);
+      setPdfProgressText('');
+    }
   };
 
   if (!isOpen) return null;
@@ -138,8 +312,8 @@ export default function RegionalBatchPrintDialog({
   return (
     <SlideDialog
       isOpen={isOpen}
-      onClose={onClose}
-      title="지역별 일괄 출력"
+      onClose={handleSafeClose}
+      title={`${regionLabel} 일괄 출력`}
       className="regional-batch-modal confirmation-dialog"
       footer={
         <div className="batch-dialog-footer-actions confirmation-modal-footer-actions">
@@ -148,7 +322,7 @@ export default function RegionalBatchPrintDialog({
               <button
                 type="button"
                 className="btn-flex-secondary btn-close-action"
-                onClick={onClose}
+                onClick={handleSafeClose}
               >
                 <span>닫기</span>
               </button>
@@ -158,8 +332,7 @@ export default function RegionalBatchPrintDialog({
                 onClick={() => setActiveTab('preview')}
                 disabled={exportReports.length === 0}
               >
-                <span>제출용 A4 서식 미리보기 ({exportReports.length}건)</span>
-                <ArrowRight size={16} />
+                <span>출력 미리보기</span>
               </button>
             </>
           ) : (
@@ -168,17 +341,27 @@ export default function RegionalBatchPrintDialog({
                 type="button"
                 className="btn-flex-secondary btn-edit-trigger"
                 onClick={() => setActiveTab('filter')}
+                disabled={isPdfGenerating}
               >
                 <span>필터 및 목록으로 돌아가기</span>
               </button>
               <button
                 type="button"
                 className="btn-flex-primary btn-print-action"
-                onClick={handlePrint}
-                disabled={exportReports.length === 0}
+                onClick={handleDownloadPdf}
+                disabled={exportReports.length === 0 || isPdfGenerating}
               >
-                <Printer size={16} />
-                <span>PDF 출력 / 인쇄하기 ({exportReports.length}건)</span>
+                {isPdfGenerating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin mask-spinner" />
+                    <span>{pdfProgressText || 'PDF 생성 중...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} />
+                    <span>PDF 다운로드</span>
+                  </>
+                )}
               </button>
             </>
           )}
@@ -188,11 +371,6 @@ export default function RegionalBatchPrintDialog({
       <div className="regional-batch-dialog">
         {/* ── TOP HEADER CARD ── */}
         <div className="batch-dialog-header-card">
-          <div className="header-left">
-            <div className="header-title-row">
-              <h3>{regionLabel}</h3>
-            </div>
-          </div>
           <div className="header-stats">
             <div className="stat-pill">
               <span className="stat-label">확인완료 보고서</span>
@@ -215,17 +393,17 @@ export default function RegionalBatchPrintDialog({
             type="button"
             className={`detail-tab-btn ${activeTab === 'filter' ? 'active' : ''}`}
             onClick={() => setActiveTab('filter')}
+            disabled={isPdfGenerating}
           >
-            <span>보고서 일람</span>
-            <span className="tab-count-badge">{filteredReports.length}</span>
+            <span>대상현장 목록</span>
           </button>
           <button
             type="button"
             className={`detail-tab-btn ${activeTab === 'preview' ? 'active' : ''}`}
             onClick={() => setActiveTab('preview')}
+            disabled={isPdfGenerating}
           >
-            <span>제출용 A4 미리보기</span>
-            <span className="tab-count-badge">{exportReports.length}</span>
+            <span>제출용 (출력)</span>
           </button>
         </div>
 
@@ -266,6 +444,8 @@ export default function RegionalBatchPrintDialog({
                       setStartDate(e.target.value);
                       setDatePreset('custom');
                     }}
+                    placeholder="시작일"
+                    aria-label="시작일"
                   />
                   <span className="date-sep">~</span>
                   <input
@@ -275,28 +455,9 @@ export default function RegionalBatchPrintDialog({
                       setEndDate(e.target.value);
                       setDatePreset('custom');
                     }}
+                    placeholder="종료일"
+                    aria-label="종료일"
                   />
-                </div>
-              </div>
-            </div>
-
-            {/* Selection Toolbar */}
-            <div className="batch-selection-toolbar">
-              <div className="toolbar-left">
-                <label className="select-all-label">
-                  <input
-                    type="checkbox"
-                    checked={isAllSelected}
-                    onChange={handleToggleSelectAll}
-                  />
-                  <span>전체 선택</span>
-                </label>
-                <div className="summary-stats">
-                  <span>선택된 보고서: <strong>{selectedIds.size}</strong>건</span>
-                  <span className="dot">•</span>
-                  <span>설치 세대: <strong>{exportReports.length}</strong>세대</span>
-                  <span className="dot">•</span>
-                  <span>총 감지기: <strong>{totalDetectorCount}</strong>개</span>
                 </div>
               </div>
             </div>
@@ -307,7 +468,6 @@ export default function RegionalBatchPrintDialog({
                 <table className="batch-table">
                   <thead>
                     <tr>
-                      <th className="col-chk">선택</th>
                       <th className="col-num">순번</th>
                       <th>현장(아파트명)</th>
                       <th>동 / 호수</th>
@@ -320,25 +480,12 @@ export default function RegionalBatchPrintDialog({
                   </thead>
                   <tbody>
                     {filteredReports.map((rep, idx) => {
-                      const isChecked = selectedIds.has(rep.reportId);
                       const hh = getHouseholdInfo(rep);
-                      const targetType = hh?.targetType || 'GENERAL';
+                      const targetType = (rep.targetType || hh?.targetType || 'GENERAL') as HouseholdTargetType;
                       const targetLabel = TARGET_TYPE_LABEL_MAP[targetType] || targetType;
 
                       return (
-                        <tr
-                          key={rep.reportId || idx}
-                          className={isChecked ? 'selected' : ''}
-                          onClick={() => handleToggleRow(rep.reportId)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <td className="col-chk" onClick={e => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => handleToggleRow(rep.reportId)}
-                            />
-                          </td>
+                        <tr key={rep.reportId || idx}>
                           <td className="col-num">
                             <span className="row-index">{idx + 1}</span>
                           </td>
@@ -376,254 +523,54 @@ export default function RegionalBatchPrintDialog({
         {/* ── TAB 2: OFFICIAL A4 PDF PREVIEW & PRINT ── */}
         {activeTab === 'preview' && (
           <div className="batch-preview-content">
-            {/* Preview Control Bar */}
-            <div className="preview-control-bar">
-              <div className="bar-left">
-                <span className="preview-info-text">
-                  총 <strong>{exportReports.length}</strong>건의 확인완료 보고서가 PDF 인쇄 대상으로 준비되었습니다.
-                </span>
-                {!showAllInPreview && exportReports.length > 3 && (
-                  <button
-                    type="button"
-                    className="btn-toggle-limit"
-                    onClick={() => setShowAllInPreview(true)}
-                  >
-                    확인서 전체 {exportReports.length}건 화면에 모두 펼치기
-                  </button>
-                )}
-                {showAllInPreview && exportReports.length > 3 && (
-                  <button
-                    type="button"
-                    className="btn-toggle-limit"
-                    onClick={() => setShowAllInPreview(false)}
-                  >
-                    화면 최적화 (상위 3건만 표시)
-                  </button>
-                )}
+            {/* PDF 생성 중 전체 블러 가림막 */}
+            {isPdfGenerating && (
+              <div className="document-pdf-mask-overlay">
+                <div className="pdf-mask-indicator">
+                  <Loader2 size={24} className="animate-spin mask-spinner" />
+                  <span>{pdfProgressText || 'PDF 문서 생성 중...'}</span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Scrollable Viewport with A4 Papers */}
-            <div className="preview-scroll-viewport">
+            <div id="printable-regional-batch-bundle" className="preview-scroll-viewport">
               {/* ───────────────────────────────────────────────────────────── */}
-              {/* PAGE 1: 단독경보형감지기 보급완료 보고서 대지 */}
+              {/* PAGE 1 ~ M: 단독경보형감지기 보급완료 보고서 대지 (자동 페이지 분할) */}
               {/* ───────────────────────────────────────────────────────────── */}
-              <div className="official-attachment-paper">
-                <div className="attachment-title-wrap">
-                  <h1 className="attachment-main-title">단독경보형감지기 보급완료 보고서</h1>
-                </div>
+              <CompletionReportCoverPaper
+                id="printable-cover-sheet"
+                regionLabel={regionLabel}
+                reports={exportReports}
+                sites={sites}
+              />
 
-                {/* 1. 설치 현황 */}
-                <div className="doc-section">
-                  <h2 className="section-head">1. 단독경보형감지기 설치 현황</h2>
-                  <ul className="overview-list">
-                    <li>
-                      가. 소&nbsp;&nbsp;방&nbsp;&nbsp;서 : <strong>{region.sigungu ? `${region.sigungu}소방서` : `${region.sido}소방서`}</strong>
-                    </li>
-                    <li>
-                      나. 설치세대 : <strong>{filteredReports.length}</strong>세대
-                    </li>
-                    <li>
-                      다. 설치수량 : 감지기 <strong>{filteredReports.length * 2}</strong>개
-                    </li>
-                  </ul>
-                </div>
-
-                {/* 2. 설치 세부내역 표 */}
-                <div className="doc-section">
-                  <h2 className="section-head">2. 단독경보형감지기 설치 세부내역</h2>
-                  <div className="detail-table-wrap">
-                    <table className="detail-official-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '40px' }}>연번</th>
-                          <th style={{ width: '80px' }}>구분</th>
-                          <th style={{ width: '75px' }}>성명</th>
-                          <th>주소</th>
-                          <th style={{ width: '100px' }}>연락처</th>
-                          <th style={{ width: '90px' }}>감지기 설치수량</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredReports.length > 0 ? (
-                          filteredReports.map((rep, idx) => {
-                            const hh = getHouseholdInfo(rep);
-                            const targetType = hh?.targetType || 'GENERAL';
-                            const targetLabel = TARGET_TYPE_LABEL_MAP[targetType] || targetType;
-                            const fullAddr = rep.address 
-                              ? `${rep.address} ${rep.dong}동 ${rep.ho}호`
-                              : `${rep.siteName} ${rep.dong}동 ${rep.ho}호`;
-
-                            return (
-                              <tr key={rep.reportId || idx}>
-                                <td className="center">{idx + 1}</td>
-                                <td className="center">{targetLabel}</td>
-                                <td className="center">{rep.headName}</td>
-                                <td className="addr" title={fullAddr}>{fullAddr}</td>
-                                <td className="center">010-****-****</td>
-                                <td className="center">2</td>
-                              </tr>
-                            );
-                          })
-                        ) : (
-                          <tr>
-                            <td colSpan={6} className="center" style={{ padding: '2rem 1rem', color: 'var(--slate-400)' }}>
-                              출력할 세부내역이 없습니다.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+              {/* ───────────────────────────────────────────────────────────── */}
+              {/* 세대별 확인서 프리뷰 헤더 안내 뱃지 */}
+              {/* ───────────────────────────────────────────────────────────── */}
+              {exportReports.length > 0 && !isBatchCapturing && (
+                <div className="preview-confirmation-header-bar">
+                  <div className="preview-confirmation-title">
+                    <span>세대별 보급지원확인서 미리보기</span>
+                    <span className="current-sub">(1번째 세대)</span>
                   </div>
+                  {exportReports.length > 1 && (
+                    <span className="preview-more-count-badge">외 {exportReports.length - 1}개 세대</span>
+                  )}
                 </div>
-              </div>
+              )}
 
               {/* ───────────────────────────────────────────────────────────── */}
-              {/* PAGE 2 ~ N+1: 선택된 세대별 단독경보형감지기 보급지원확인서 */}
+              {/* PAGE M+1 ~ M+N: 세대별 단독경보형감지기 보급지원확인서 */}
+              {/* 프리뷰 최적화를 위해 1개만 렌더링, PDF 다운로드 시 전체 일괄 렌더링 */}
               {/* ───────────────────────────────────────────────────────────── */}
               {exportReports.map((rep, idx) => {
-                const isHiddenInScreen = !showAllInPreview && idx >= 3;
-                const doorPhoto = rep.photoDoor || '';
-                const before1Photo = rep.photoBefore1 || '';
-                const after1Photo = rep.photoAfter1 || '';
-                const before2Photo = rep.photoBefore2 || '';
-                const after2Photo = rep.photoAfter2 || '';
-
+                if (!isBatchCapturing && idx > 0) return null;
                 return (
-                  <div 
-                    key={rep.reportId || idx} 
-                    className={`official-report-page-sheet ${isHiddenInScreen ? 'hidden-in-preview-only' : ''}`}
-                    style={isHiddenInScreen ? { display: 'none' } : undefined}
-                  >
-                    <div className="confirmation-document-paper">
-                      {/* 1. 상단 타이틀 및 확인자 직인 테이블 */}
-                      <div className="doc-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4mm' }}>
-                        <div className="doc-title-box">
-                          <h2 style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0 }}>단독경보형감지기 보급지원확인서</h2>
-                        </div>
-                        <table style={{ borderCollapse: 'collapse', border: '1px solid #111', fontSize: '0.6875rem' }}>
-                          <thead>
-                            <tr style={{ background: '#f1f5f9' }}>
-                              <th style={{ border: '1px solid #111', padding: '0.125rem 0.5rem', fontWeight: 700 }}>확인자</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td style={{ border: '1px solid #111', padding: '0.25rem 0.5rem', textAlign: 'center', fontWeight: 700 }}>
-                                {rep.confirmerName || rep.headName}
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ border: '1px solid #111', padding: '0.25rem', textAlign: 'center', height: '28px' }}>
-                                {rep.confirmerSignature ? (
-                                  <img src={rep.confirmerSignature} alt="서명" style={{ height: '24px', objectFit: 'contain' }} />
-                                ) : (
-                                  <span style={{ fontSize: '0.625rem', color: '#64748b' }}>(서명완료)</span>
-                                )}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* 2. 개인정보 수집 및 이용 동의 */}
-                      <div style={{ border: '1px solid #cbd5e1', padding: '0.375rem 0.5rem', fontSize: '0.625rem', color: '#475569', marginBottom: '3mm', lineHeight: 1.3 }}>
-                        <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.125rem' }}>■ 개인정보의 수집 및 이용에 대한 동의</div>
-                        <div>1. 수집목적: 경기도 소방재난본부 화재안전취약자 안전 생활환경 조성 지원 | 2. 수집항목: 세대 동, 호수, 이름</div>
-                        <div>3. 보유기간: 무상교체(10년)까지 보유 및 이용 | 4. 동의 거부 시 무상보급 대상에서 제한될 수 있습니다.</div>
-                      </div>
-
-                      {/* 3. 주소 배너 */}
-                      <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '0.375rem 0.625rem', fontSize: '0.75rem', fontWeight: 700, marginBottom: '4mm', display: 'flex', gap: '0.5rem' }}>
-                        <span style={{ color: '#64748b', minWidth: '35px' }}>주소 :</span>
-                        <span>{rep.address ? `${rep.address} (${rep.siteName})` : rep.siteName}</span>
-                      </div>
-
-                      {/* 4. 본문 6칸 그리드 (사진 및 세대 정보) */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4mm' }}>
-                        {/* [1행-1] 세대 정보 카드 */}
-                        <div style={{ border: '1px solid #94a3b8', padding: '0.5rem', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                          <div style={{ fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.25rem', marginBottom: '0.25rem', color: '#0f172a' }}>
-                            보급 지원 세대 정보
-                          </div>
-                          <div><strong>1. 성 명 :</strong> {rep.headName}</div>
-                          <div><strong>2. 동/호수 :</strong> {rep.dong}동 {rep.ho}호</div>
-                          <div><strong>3. 설치일 :</strong> {rep.installDateFormatted || rep.installDate || '—'}</div>
-                          <div><strong>4. 설치자 :</strong> {rep.reporterName || rep.visitorName || '현장기사'}</div>
-                        </div>
-
-                        {/* [1행-2] 신주소 대문 사진 */}
-                        <div style={{ border: '1px solid #94a3b8', padding: '0.25rem', display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ fontSize: '0.6875rem', fontWeight: 700, textAlign: 'center', background: '#f1f5f9', padding: '0.125rem', marginBottom: '0.25rem' }}>
-                            신주소 보이는 대문 등
-                          </div>
-                          <div style={{ flex: 1, minHeight: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-                            {doorPhoto ? (
-                              <img src={doorPhoto} alt="대문" style={{ width: '100%', height: '85px', objectFit: 'cover' }} />
-                            ) : (
-                              <span style={{ fontSize: '0.625rem', color: '#94a3b8' }}>사진 부착</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* [2행-1] 설치 전 1 */}
-                        <div style={{ border: '1px solid #94a3b8', padding: '0.25rem', display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ fontSize: '0.6875rem', fontWeight: 700, textAlign: 'center', background: '#f1f5f9', padding: '0.125rem', marginBottom: '0.25rem' }}>
-                            설치 전 ①
-                          </div>
-                          <div style={{ flex: 1, minHeight: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-                            {before1Photo ? (
-                              <img src={before1Photo} alt="설치전1" style={{ width: '100%', height: '85px', objectFit: 'cover' }} />
-                            ) : (
-                              <span style={{ fontSize: '0.625rem', color: '#94a3b8' }}>사진 부착</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* [2행-2] 설치 후 1 */}
-                        <div style={{ border: '1px solid #94a3b8', padding: '0.25rem', display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ fontSize: '0.6875rem', fontWeight: 700, textAlign: 'center', background: '#f1f5f9', padding: '0.125rem', marginBottom: '0.25rem' }}>
-                            설치 후 ①
-                          </div>
-                          <div style={{ flex: 1, minHeight: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-                            {after1Photo ? (
-                              <img src={after1Photo} alt="설치후1" style={{ width: '100%', height: '85px', objectFit: 'cover' }} />
-                            ) : (
-                              <span style={{ fontSize: '0.625rem', color: '#94a3b8' }}>사진 부착</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* [3행-1] 설치 전 2 */}
-                        <div style={{ border: '1px solid #94a3b8', padding: '0.25rem', display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ fontSize: '0.6875rem', fontWeight: 700, textAlign: 'center', background: '#f1f5f9', padding: '0.125rem', marginBottom: '0.25rem' }}>
-                            설치 전 ②
-                          </div>
-                          <div style={{ flex: 1, minHeight: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-                            {before2Photo ? (
-                              <img src={before2Photo} alt="설치전2" style={{ width: '100%', height: '85px', objectFit: 'cover' }} />
-                            ) : (
-                              <span style={{ fontSize: '0.625rem', color: '#94a3b8' }}>사진 부착</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* [3행-2] 설치 후 2 */}
-                        <div style={{ border: '1px solid #94a3b8', padding: '0.25rem', display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ fontSize: '0.6875rem', fontWeight: 700, textAlign: 'center', background: '#f1f5f9', padding: '0.125rem', marginBottom: '0.25rem' }}>
-                            설치 후 ②
-                          </div>
-                          <div style={{ flex: 1, minHeight: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-                            {after2Photo ? (
-                              <img src={after2Photo} alt="설치후2" style={{ width: '100%', height: '85px', objectFit: 'cover' }} />
-                            ) : (
-                              <span style={{ fontSize: '0.625rem', color: '#94a3b8' }}>사진 부착</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <ConfirmationDocumentPaper
+                    key={rep.reportId || idx}
+                    report={rep}
+                  />
                 );
               })}
             </div>

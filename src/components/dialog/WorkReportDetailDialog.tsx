@@ -8,7 +8,6 @@ import {
   Loader2,
   ArrowRight,
   Check,
-  CheckCircle2,
   XCircle,
   RotateCcw,
   MoreVertical,
@@ -23,6 +22,7 @@ import AdminService from '@/api/service/AdminService';
 import StatusBadge from '@/components/common/StatusBadge';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import CustomSelect from '@/components/common/CustomSelect';
+import ConfirmationDocumentPaper from '@/components/common/ConfirmationDocumentPaper';
 import { getImageUrl } from '@/common/utils/imageUtils';
 import './WorkReportDetailDialog.scss';
 
@@ -50,6 +50,32 @@ export default function WorkReportDetailDialog({
   const [isDocEditing, setIsDocEditing] = useState(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const isCancelledRef = useRef(false);
+
+  // PDF 생성 중 브라우저 탭 닫기 / 새로고침 방어
+  useEffect(() => {
+    if (!isPdfGenerating) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isPdfGenerating]);
+
+  // PDF 생성 중 다이얼로그 닫기 방어 로직 (X버튼, ESC, 백드롭, 닫기 버튼 공통)
+  const handleSafeClose = () => {
+    if (isPdfGenerating) {
+      const confirmClose = window.confirm('현재 PDF 생성 작업이 진행 중입니다. 작업을 중단하고 창을 닫으시겠습니까?');
+      if (!confirmClose) {
+        return;
+      }
+      isCancelledRef.current = true;
+    }
+    onClose();
+  };
 
   // 헤더 더보기(More) 메뉴 및 삭제 확인 모달 상태
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -306,6 +332,10 @@ export default function WorkReportDetailDialog({
       enqueueSnackbar('보고서 수정중에는 불가합니다.', { variant: 'warning' });
       return;
     }
+    if (isPdfGenerating) {
+      enqueueSnackbar('PDF 생성 중에는 탭을 전환할 수 없습니다.', { variant: 'warning' });
+      return;
+    }
     setReportDialogMode(targetMode);
   };
 
@@ -355,6 +385,7 @@ export default function WorkReportDetailDialog({
       return;
     }
 
+    isCancelledRef.current = false;
     try {
       setIsPdfGenerating(true);
 
@@ -375,6 +406,7 @@ export default function WorkReportDetailDialog({
           });
         })
       );
+      if (isCancelledRef.current) return;
 
       // 2. Next.js rewrite 경로(/report/...)를 통해 S3 이미지를 CORS 없이 동일 오리진으로 fetch -> DataURL 변환
       const s3Prefix = process.env.NEXT_PUBLIC_S3_PREFIX;
@@ -411,6 +443,7 @@ export default function WorkReportDetailDialog({
           }
         })
       );
+      if (isCancelledRef.current) return;
 
       // 3. 서식 캡처 준비 (스타일 안정화 대기)
       docElement.classList.add('capturing-for-pdf');
@@ -436,6 +469,8 @@ export default function WorkReportDetailDialog({
           img.src = origSrc;
         });
       }
+
+      if (isCancelledRef.current) return;
 
       const imgData = canvas.toDataURL('image/jpeg', 0.98);
       const pdf = new jsPDF('p', 'mm', 'a4');
@@ -464,6 +499,7 @@ export default function WorkReportDetailDialog({
 
       enqueueSnackbar('PDF가 다운로드되었습니다.', { variant: 'success' });
     } catch (err) {
+      if (isCancelledRef.current) return;
       console.error('PDF 직접 다운로드 실패:', err);
       enqueueSnackbar('PDF 변환에 실패하여 시스템 인쇄 창으로 연결합니다.', { variant: 'warning' });
       handlePrintDoc();
@@ -525,15 +561,19 @@ export default function WorkReportDetailDialog({
     <>
       <SlideDialog
         isOpen={isOpen && !isInternalStatusModalOpen}
-        onClose={onClose}
-        title={`${report.siteName} (${report.dong}동 ${report.ho}호) 보고서`}
+        onClose={handleSafeClose}
+        title={`보고서 상세`}
         className="manage-page manage-dashboard-report-dialog confirmation-dialog"
         rightElement={
           <div className="report-detail-more-menu-wrap" ref={moreMenuRef}>
             <button
               type="button"
               className={`btn-more-menu-trigger ${isMoreMenuOpen ? 'active' : ''}`}
-              onClick={() => setIsMoreMenuOpen(prev => !prev)}
+              onClick={() => {
+                if (isPdfGenerating) return;
+                setIsMoreMenuOpen(prev => !prev);
+              }}
+              disabled={isPdfGenerating}
               aria-label="추가 작업 메뉴"
               title="더보기"
             >
@@ -628,10 +668,13 @@ export default function WorkReportDetailDialog({
                         <RotateCcw size={14} />
                         <span>상태 변경</span>
                       </button>
-                      <div className="btn-approved-badge btn-flex-primary">
-                        <CheckCircle2 size={15} />
-                        <span>확인완료됨</span>
-                      </div>
+                      <button
+                        type="button"
+                        className="btn-status-action btn-close-action btn-flex-primary"
+                        onClick={handleSafeClose}
+                      >
+                        <span>닫기</span>
+                      </button>
                     </>
                   )}
                 </>
@@ -662,12 +705,13 @@ export default function WorkReportDetailDialog({
       >
       <div className="dashboard-dialog-content">
         {/* ── MODE SWITCH TOGGLE (검토용 / 제출용) ── */}
-        <div className={`dialog-mode-switch-bar ${isEditingAny ? 'is-disabled' : ''}`}>
+        <div className={`dialog-mode-switch-bar ${isEditingAny || isPdfGenerating ? 'is-disabled' : ''}`}>
           <button
             type="button"
             className={`switch-tab-btn ${reportDialogMode === 'review' ? 'active' : ''}`}
             onClick={() => handleSwitchTab('review')}
-            title={isEditingAny ? '보고서 수정중에는 불가합니다' : undefined}
+            disabled={isPdfGenerating}
+            title={isEditingAny ? '보고서 수정중에는 불가합니다' : isPdfGenerating ? 'PDF 생성 중에는 이동할 수 없습니다' : undefined}
           >
             <span>검토 및 수정</span>
           </button>
@@ -675,7 +719,8 @@ export default function WorkReportDetailDialog({
             type="button"
             className={`switch-tab-btn ${reportDialogMode === 'document' ? 'active' : ''}`}
             onClick={() => handleSwitchTab('document')}
-            title={isEditingAny ? '보고서 수정중에는 불가합니다' : undefined}
+            disabled={isPdfGenerating}
+            title={isEditingAny ? '보고서 수정중에는 불가합니다' : isPdfGenerating ? 'PDF 생성 중에는 이동할 수 없습니다' : undefined}
           >
             <span>제출용 (출력)</span>
           </button>
@@ -905,278 +950,14 @@ export default function WorkReportDetailDialog({
                 </div>
               </div>
             )}
-            <div className="confirmation-document-paper" id="printable-confirmation-sheet">
-              {/* 1. 문서 헤더: 타이틀 + 우측 끝 확인자 결재칸 */}
-            <div className="doc-header-row">
-              <div className="doc-title-box">
-                <h1 className="doc-main-title">단독경보형감지기 보급지원확인서</h1>
-              </div>
-              <table className="confirmer-stamp-table">
-                <thead>
-                  <tr>
-                    <th>확인자</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="name-row">
-                    <td>
-                      {isDocEditing ? (
-                        <input
-                          type="text"
-                          className="doc-stamp-input"
-                          value={docFormData.confirmerName || docFormData.headName}
-                          onChange={e => setDocFormData(prev => ({ ...prev, confirmerName: e.target.value }))}
-                        />
-                      ) : (
-                        docFormData.confirmerName || docFormData.headName
-                      )}
-                    </td>
-                  </tr>
-                  <tr className="sign-row">
-                    <td className="stamp-cell stamp-sign-cell">
-                      <div className="stamp-signature-frame">
-                        <img
-                          src={getImageUrl(docFormData.confirmerSignature || report.confirmerSignature) || '/assets/img/sample_signature.svg'}
-                          alt="확인자 서명"
-                          className="stamp-signature-img"
-                          decoding="async"
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* 2. 개인정보 수집 및 이용 동의 (주소 위에 배치) */}
-            <div className="doc-privacy-consent-box">
-              <div className="privacy-title-row">
-                <h4 className="privacy-title">■ 개인정보의 수집 및 이용에 대한 동의</h4>
-              </div>
-              <div className="privacy-content-text">
-                <ul className="privacy-terms-list">
-                  <li>
-                    <strong className="term-num-title">1. 수집 및 이용 목적</strong>
-                    <p className="term-sub-desc">- 경기도 소방재난본부 화제안전취약자 안전 생활환경 조성 지원</p>
-                  </li>
-                  <li>
-                    <strong className="term-num-title">2. 수집 및 이용 항목</strong>
-                    <p className="term-sub-desc">- 세대 동, 호수, 이름</p>
-                  </li>
-                  <li>
-                    <strong className="term-num-title">3. 개인정보의 보유 및 이용 기간</strong>
-                    <p className="term-sub-desc">- 노후아파트 단독경보형 감지기 무상보급 대상자의 개인정보 수집・이용목적이 달성되고 향후 무상교체까지(10년) 위 이용목적을 위하여 보유 및 이용하게 됩니다.</p>
-                  </li>
-                  <li>
-                    <strong className="term-num-title">4. 동의를 거부할 권리 및 동의를 거부할 경우의 불이익</strong>
-                    <p className="term-sub-desc">- 노후아파트 단독경보형 감지기 무상보급 대상자(정보주체)는 개인정보 수집 이용에 대한 동의를 거부할 권리가 있습니다.</p>
-                    <p className="term-sub-desc">- 다만 위 개인정보의 수집 이용에 관한 동의는 향후 무상교체를 위해 필수적인 사항으로 동의를 거부하실 경우 단독경보형 감지기 무상교체 대상에서 제한될 수 있습니다.</p>
-                  </li>
-                  <li>
-                    <strong className="term-num-title">5. 경기도 소방재난본부 및 관할 소방서가 위와 같이 개인정보를 수집 이용하는 것에 동의하시면 동, 호수, 성명란에 작성 바랍니다.</strong>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            {/* 3. 주소 배너 */}
-            <div className="doc-address-banner">
-              <span className="addr-label">주소</span>
-              {isDocEditing ? (
-                <input
-                  type="text"
-                  className="doc-inline-input flex-1"
-                  value={docFormData.address}
-                  onChange={e => setDocFormData(prev => ({ ...prev, address: e.target.value }))}
-                />
-              ) : (
-                <span className="addr-content">{docFormData.address}</span>
-              )}
-            </div>
-
-            {/* 4. 본문 6칸 그리드 (2열 x 3행: 둘 둘 둘, 동일한 4:3 사이즈 및 상단 띠 바) */}
-            <div className="doc-six-cards-grid">
-              {/* [1행-1] 1. 보급 지원 세대 정보 카드 (사진과 100% 동일한 사이즈) */}
-              <div className="doc-grid-card spec-grid-card">
-                <div className="card-top-ribbon">보급 지원 세대 정보</div>
-                <table className="doc-official-spec-table">
-                  <tbody>
-                    <tr>
-                      <th className="spec-label-th">1. 성 명</th>
-                      <td className="spec-value-td">
-                        {isDocEditing ? (
-                          <input
-                            type="text"
-                            className="doc-inline-input"
-                            value={docFormData.headName}
-                            onChange={e => setDocFormData(prev => ({ ...prev, headName: e.target.value }))}
-                          />
-                        ) : (
-                          <span>{docFormData.headName || '—'}</span>
-                        )}
-                      </td>
-                    </tr>
-                    <tr>
-                      <th className="spec-label-th">2. 동/호수</th>
-                      <td className="spec-value-td">
-                        {isDocEditing ? (
-                          <div className="dong-ho-input-group">
-                            <input
-                              type="text"
-                              className="doc-inline-input short"
-                              value={docFormData.dong}
-                              onChange={e => setDocFormData(prev => ({ ...prev, dong: e.target.value }))}
-                            />
-                            <span>동</span>
-                            <input
-                              type="text"
-                              className="doc-inline-input short"
-                              value={docFormData.ho}
-                              onChange={e => setDocFormData(prev => ({ ...prev, ho: e.target.value }))}
-                            />
-                            <span>호</span>
-                          </div>
-                        ) : (
-                          <span>{docFormData.dong ? `${docFormData.dong}동 ${docFormData.ho}호` : '—'}</span>
-                        )}
-                      </td>
-                    </tr>
-                    <tr>
-                      <th className="spec-label-th">3. 설치일</th>
-                      <td className="spec-value-td">
-                        {isDocEditing ? (
-                          <input
-                            type="text"
-                            className="doc-inline-input"
-                            value={docFormData.installDateFormatted}
-                            onChange={e => setDocFormData(prev => ({ ...prev, installDateFormatted: e.target.value }))}
-                          />
-                        ) : (
-                          <span>{docFormData.installDateFormatted || '—'}</span>
-                        )}
-                      </td>
-                    </tr>
-                    <tr>
-                      <th className="spec-label-th">4. 설치자</th>
-                      <td className="spec-value-td">
-                        {isDocEditing ? (
-                          <input
-                            type="text"
-                            className="doc-inline-input"
-                            value={docFormData.reporterName}
-                            onChange={e => setDocFormData(prev => ({ ...prev, reporterName: e.target.value }))}
-                          />
-                        ) : (
-                          <span>{docFormData.reporterName || '—'}</span>
-                        )}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* [1행-2] 2. 신주소 보이는 대문 등 */}
-              <div className="doc-grid-card photo-grid-card">
-                <div className="card-top-ribbon">신주소 보이는 대문 등</div>
-                <div className="card-photo-content">
-                  {doorPhoto?.url ? (
-                    <img 
-                      src={doorPhoto.url} 
-                      alt="신주소 보이는 대문 등" 
-                      className="doc-preview-img" 
-                      decoding="async"
-                      onError={(e) => {
-                        e.currentTarget.src = '/assets/img/photo_placeholder.webp';
-                      }}
-                    />
-                  ) : (
-                    <span className="doc-photo-placeholder">사진 미등록</span>
-                  )}
-                </div>
-              </div>
-
-              {/* [2행-1] 3. 감지기 1 설치 전 */}
-              <div className="doc-grid-card photo-grid-card">
-                <div className="card-top-ribbon">감지기 1 설치 전</div>
-                <div className="card-photo-content">
-                  {before1Photo?.url ? (
-                    <img 
-                      src={before1Photo.url} 
-                      alt="감지기 1 설치 전" 
-                      className="doc-preview-img" 
-                      decoding="async"
-                      onError={(e) => {
-                        e.currentTarget.src = '/assets/img/photo_placeholder.webp';
-                      }}
-                    />
-                  ) : (
-                    <span className="doc-photo-placeholder">사진 미등록</span>
-                  )}
-                </div>
-              </div>
-
-              {/* [2행-2] 4. 감지기 1 설치 후 */}
-              <div className="doc-grid-card photo-grid-card">
-                <div className="card-top-ribbon">감지기 1 설치 후</div>
-                <div className="card-photo-content">
-                  {after1Photo?.url ? (
-                    <img 
-                      src={after1Photo.url} 
-                      alt="감지기 1 설치 후" 
-                      className="doc-preview-img" 
-                      decoding="async"
-                      onError={(e) => {
-                        e.currentTarget.src = '/assets/img/photo_placeholder.webp';
-                      }}
-                    />
-                  ) : (
-                    <span className="doc-photo-placeholder">사진 미등록</span>
-                  )}
-                </div>
-              </div>
-
-              {/* [3행-1] 5. 감지기 2 설치 전 */}
-              <div className="doc-grid-card photo-grid-card">
-                <div className="card-top-ribbon">감지기 2 설치 전</div>
-                <div className="card-photo-content">
-                  {before2Photo?.url ? (
-                    <img 
-                      src={before2Photo.url} 
-                      alt="감지기 2 설치 전" 
-                      className="doc-preview-img" 
-                      decoding="async"
-                      onError={(e) => {
-                        e.currentTarget.src = '/assets/img/photo_placeholder.webp';
-                      }}
-                    />
-                  ) : (
-                    <span className="doc-photo-placeholder">사진 미등록</span>
-                  )}
-                </div>
-              </div>
-
-              {/* [3행-2] 6. 감지기 2 설치 후 */}
-              <div className="doc-grid-card photo-grid-card">
-                <div className="card-top-ribbon">감지기 2 설치 후</div>
-                <div className="card-photo-content">
-                  {after2Photo?.url ? (
-                    <img 
-                      src={after2Photo.url} 
-                      alt="감지기 2 설치 후" 
-                      className="doc-preview-img" 
-                      decoding="async"
-                      onError={(e) => {
-                        e.currentTarget.src = '/assets/img/photo_placeholder.webp';
-                      }}
-                    />
-                  ) : (
-                    <span className="doc-photo-placeholder">사진 미등록</span>
-                  )}
-                </div>
-              </div>
-            </div>
+            <ConfirmationDocumentPaper
+              id="printable-confirmation-sheet"
+              report={report}
+              docFormData={docFormData}
+              isEditing={isDocEditing}
+              onFormChange={(field, val) => setDocFormData(prev => ({ ...prev, [field]: val }))}
+            />
           </div>
-        </div>
         )}
       </div>
     </SlideDialog>

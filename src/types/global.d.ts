@@ -68,6 +68,7 @@ declare global {
     dong: string;
     ho: string;
     headName: string;
+    targetType?: HouseholdTargetType; // [조인 필드] household 테이블에서 가져온 대상 구분 (work_report 테이블 컬럼 아님)
     installDate: string;          // YYYY-MM-DD
     installDateFormatted?: string; // YYYY년 M월 D일
     reportTime?: string;           // YYYY-MM-DD HH:mm
