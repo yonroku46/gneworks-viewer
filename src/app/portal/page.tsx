@@ -43,12 +43,12 @@ export default function PortalPage() {
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isInquiryHistoryOpen, setIsInquiryHistoryOpen] = useState(false);
-  const [systemNotice, setSystemNotice] = useState<SystemSettings>();
+  const [systemNotice, setSystemNotice] = useState<PortalNotice>();
 
   const loadPortalData = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [regions, sites, reps] = await Promise.all([
+      const [regions, sites, reps, notice] = await Promise.all([
         PortalService.getAssignedRegions().catch(err => {
           console.error('[PortalPage] getAssignedRegions error', err);
           return [];
@@ -61,12 +61,19 @@ export default function PortalPage() {
           console.error('[PortalPage] getReports error', err);
           return { list: [] } as any;
         }),
+        PortalService.getNotice().catch(err => {
+          console.error('[PortalPage] getNotice error', err);
+          return null;
+        }),
       ]);
 
       setAssignedRegions(regions || []);
       setAllSites(sites || []);
       const repList = (reps as any)?.list || (Array.isArray(reps) ? reps : []);
       setReports(repList);
+      if (notice) {
+        setSystemNotice(notice);
+      }
     } finally {
       setLoading(false);
     }
@@ -76,39 +83,12 @@ export default function PortalPage() {
     loadPortalData();
 
     if (typeof window !== 'undefined') {
-      const updateNoticeFromStorage = () => {
-        try {
-          const stored = localStorage.getItem('gneworks_manage_system_settings');
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            setSystemNotice({
-              noticeTitle: parsed.noticeTitle || '현장 사진 촬영 및 보고서 작성 지침 안내',
-              noticeContent: parsed.noticeContent || '작업 전/후 사진은 가이드라인 안내선에 맞추어 선명하게 촬영해 주시기 바라며, 작업 확인 완료된 세대는 임의 수정이 불가하오니 제출 전 확인자 서명 및 기재사항을 꼼꼼히 확인 바랍니다.',
-              noticeDate: parsed.noticeDate || '2026.09.02',
-              contactPhone: parsed.contactPhone || '',
-              contactEmail: parsed.contactEmail || '',
-              notifyNewInquiry: parsed.notifyNewInquiry ?? false,
-              notifyNewReport: parsed.notifyNewReport ?? false,
-              notifyWebPush: parsed.notifyWebPush ?? false,
-              noticeVisible: parsed.noticeVisible ?? true,
-              visible: parsed.noticeVisible ?? true,
-            });
-          }
-        } catch (e) {
-          console.error('[PortalPage] notice parse error', e);
-        }
-      };
-
-      updateNoticeFromStorage();
-      window.addEventListener('storage', updateNoticeFromStorage);
-
       const handleRealtimeNotification = () => {
         loadPortalData();
       };
       window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
 
       return () => {
-        window.removeEventListener('storage', updateNoticeFromStorage);
         window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
       };
     }
@@ -343,7 +323,7 @@ export default function PortalPage() {
           <h2 className="portal-section-title">현장 지원 및 안내</h2>
         </div>
         {/* ── NOTICE FEED ── */}
-        {(systemNotice?.noticeVisible ?? systemNotice?.visible) && (
+        {systemNotice?.noticeVisible && (
           <section className="portal-notice-card">
             <div className="notice-header">
               <span className="notice-badge"> 

@@ -296,6 +296,23 @@ class PortalService {
       return [];
     }
   }
+
+  /**
+   * 현장 안내사항(공지) 조회
+   * GET /portal/notice
+   */
+  async getNotice(): Promise<PortalNotice | null> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_NOTICE);
+      if (response && !response.hasErrors) {
+        return response.responseData as PortalNotice;
+      }
+      return null;
+    } catch (error) {
+      console.error('[PortalService] getNotice', error);
+      return null;
+    }
+  }
 }
 
 export default PortalService.getInstance();

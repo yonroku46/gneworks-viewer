@@ -10,6 +10,7 @@ const NOTIFICATION_PUSH_VAPID_KEY = `${NOTIFICATION_ROOT}/push/vapid-key`;
 const NOTIFICATION_PUSH_SUBSCRIBE = `${NOTIFICATION_ROOT}/push/subscribe`;
 const NOTIFICATION_PUSH_UNSUBSCRIBE = `${NOTIFICATION_ROOT}/push/unsubscribe`;
 const NOTIFICATION_PUSH_TEST = `${NOTIFICATION_ROOT}/push/test`;
+const NOTIFICATION_SETTINGS = `${NOTIFICATION_ROOT}/settings`;
 
 // auth
 const AUTH_ROOT = `${ROOT}/auth`;
@@ -72,6 +73,9 @@ const ADMIN_DASHBOARD_SUMMARY = `${ADMIN_ROOT}/dashboard/summary`;
 // admin (data import)
 const ADMIN_IMPORT_EXCEL = `${ADMIN_ROOT}/data/import-excel`;
 
+// admin (settings)
+const ADMIN_SETTINGS = `${ADMIN_ROOT}/settings`;
+
 // portal
 const PORTAL_ROOT = `${ROOT}/portal`;
 const PORTAL_PROFILE = `${PORTAL_ROOT}/profile`;
@@ -86,6 +90,7 @@ const PORTAL_REPORT_SUBMIT = `${PORTAL_ROOT}/report`;
 const PORTAL_REPORT_BY_HOUSEHOLD = (householdId: string) => `${PORTAL_ROOT}/report/${householdId}`;
 const PORTAL_REPORTS = `${PORTAL_ROOT}/reports`;
 const PORTAL_INQUIRIES = `${PORTAL_ROOT}/inquiries`;
+const PORTAL_NOTICE = `${PORTAL_ROOT}/notice`;
 
 const ApiRoutes = {
   AUTH_LOGIN,
@@ -98,6 +103,7 @@ const ApiRoutes = {
   NOTIFICATION_PUSH_SUBSCRIBE,
   NOTIFICATION_PUSH_UNSUBSCRIBE,
   NOTIFICATION_PUSH_TEST,
+  NOTIFICATION_SETTINGS,
   CONTACT_SUBMIT,
   ADMIN_USER_LIST,
   ADMIN_USER_LIST_PAGED,
@@ -136,6 +142,7 @@ const ApiRoutes = {
   ADMIN_WORKER_RANKING,
   ADMIN_DASHBOARD_SUMMARY,
   ADMIN_IMPORT_EXCEL,
+  ADMIN_SETTINGS,
   PORTAL_PROFILE,
   PORTAL_PROFILE_PASSWORD,
   PORTAL_REGIONS,
@@ -148,6 +155,7 @@ const ApiRoutes = {
   PORTAL_REPORT_BY_HOUSEHOLD,
   PORTAL_REPORTS,
   PORTAL_INQUIRIES,
+  PORTAL_NOTICE,
 };
 
 export default ApiRoutes;

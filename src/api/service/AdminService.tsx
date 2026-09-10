@@ -802,6 +802,40 @@ class AdminService {
       throw error;
     }
   }
+
+  /**
+   * 시스템 설정 조회
+   * GET /admin/settings
+   */
+  async getSettings(): Promise<SystemSettings> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_SETTINGS);
+      if (response && !response.hasErrors) {
+        return response.responseData as SystemSettings;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch settings');
+    } catch (error) {
+      console.error('[AdminService] getSettings', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 시스템 설정 저장
+   * PUT /admin/settings
+   */
+  async updateSettings(data: Partial<SystemSettings>): Promise<ActionRes | undefined> {
+    try {
+      const response: ApiResponse = await ApiInstance.put(ApiRoutes.ADMIN_SETTINGS, data);
+      if (response && !response.hasErrors) {
+        return response.responseData as ActionRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to update settings');
+    } catch (error) {
+      console.error('[AdminService] updateSettings', error);
+      throw error;
+    }
+  }
 }
 
 export default AdminService.getInstance();

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Phone,
   Mail,
@@ -13,49 +13,33 @@ import {
 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import { useWebPush } from '@/hooks/useWebPush';
+import AdminService from '@/api/service/AdminService';
+import AppNotificationService from '@/api/service/AppNotificationService';
 import '../ManageLayout.scss';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   contactPhone: '010-6761-7665',
   contactEmail: 'minkyu0026@nate.com',
-  notifyWebPush: false,
-  notifyNewReport: false,
-  notifyNewInquiry: false,
   noticeVisible: true,
   noticeTitle: '현장 사진 촬영 및 보고서 작성 지침 안내',
   noticeContent: '작업 전/후 사진은 가이드라인 안내선에 맞추어 선명하게 촬영해 주시기 바라며, 작업 확인 완료된 세대는 임의 수정이 불가하오니 제출 전 확인자 서명 및 기재사항을 꼼꼼히 확인 바랍니다.',
   noticeDate: '2026.09.02',
-  visible: true,
 };
 
-const STORAGE_KEY = 'gneworks_manage_system_settings';
+const DEFAULT_PUSH_SETTINGS: UserNotificationSetting = {
+  notifyWebPush: false,
+  notifyNewReport: true,
+  notifyNewInquiry: true,
+  notifyReportStatus: true,
+  notifyInquiryAnswer: true,
+};
 
 export default function ManageSettings() {
   const { enqueueSnackbar } = useSnackbar();
-  const [settings, setSettings] = useState<SystemSettings>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          return {
-            ...DEFAULT_SETTINGS,
-            ...parsed,
-            notifyWebPush: parsed.notifyWebPush ?? DEFAULT_SETTINGS.notifyWebPush,
-            notifyNewReport: parsed.notifyNewReport ?? DEFAULT_SETTINGS.notifyNewReport,
-            notifyNewInquiry: parsed.notifyNewInquiry ?? parsed.notifyFixReport ?? DEFAULT_SETTINGS.notifyNewInquiry,
-            noticeVisible: parsed.noticeVisible ?? DEFAULT_SETTINGS.noticeVisible,
-            noticeTitle: parsed.noticeTitle ?? DEFAULT_SETTINGS.noticeTitle,
-            noticeContent: parsed.noticeContent ?? DEFAULT_SETTINGS.noticeContent,
-            noticeDate: parsed.noticeDate ?? DEFAULT_SETTINGS.noticeDate,
-          };
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return DEFAULT_SETTINGS;
-  });
+  const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
+  const [pushSettings, setPushSettings] = useState<UserNotificationSetting>(DEFAULT_PUSH_SETTINGS);
+  const [isSavingNotice, setIsSavingNotice] = useState(false);
+  const [isSavingContact, setIsSavingContact] = useState(false);
 
   const {
     permission,
@@ -67,7 +51,42 @@ export default function ManageSettings() {
   } = useWebPush();
   const [isTesting, setIsTesting] = useState(false);
 
-  const isMasterActive = Boolean(settings.notifyWebPush && isSubscribed);
+  // 초기 설정 데이터 DB에서 로드
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSettings = async () => {
+      try {
+        const [loadedSettings, loadedPush] = await Promise.all([
+          AdminService.getSettings().catch(err => {
+            console.error('[ManageSettings] getSettings error:', err);
+            return null;
+          }),
+          AppNotificationService.getUserNotificationSettings().catch(err => {
+            console.error('[ManageSettings] getUserNotificationSettings error:', err);
+            return null;
+          }),
+        ]);
+
+        if (isMounted) {
+          if (loadedSettings) {
+            setSettings(prev => ({ ...prev, ...loadedSettings }));
+          }
+          if (loadedPush) {
+            setPushSettings(prev => ({ ...prev, ...loadedPush }));
+          }
+        }
+      } catch (err) {
+        console.error('[ManageSettings] Initialization error:', err);
+      }
+    };
+
+    fetchSettings();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const isMasterActive = Boolean(pushSettings.notifyWebPush && isSubscribed);
 
   const handleWebPushMasterToggle = async () => {
     const nextVal = !isMasterActive;
@@ -75,21 +94,15 @@ export default function ManageSettings() {
       try {
         const success = await subscribe();
         if (success) {
-          setSettings(prev => {
-            const needTurnOnSub = !prev.notifyNewReport && !prev.notifyNewInquiry;
-            const updated = {
-              ...prev,
-              notifyWebPush: true,
-              notifyNewReport: needTurnOnSub ? true : prev.notifyNewReport,
-              notifyNewInquiry: needTurnOnSub ? true : prev.notifyNewInquiry,
-            };
-            try {
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-            } catch (e) {
-              console.error(e);
-            }
-            return updated;
-          });
+          const needTurnOnSub = !pushSettings.notifyNewReport && !pushSettings.notifyNewInquiry;
+          const updated: UserNotificationSetting = {
+            ...pushSettings,
+            notifyWebPush: true,
+            notifyNewReport: needTurnOnSub ? true : pushSettings.notifyNewReport,
+            notifyNewInquiry: needTurnOnSub ? true : pushSettings.notifyNewInquiry,
+          };
+          setPushSettings(updated);
+          await AppNotificationService.updateUserNotificationSettings(updated);
           enqueueSnackbar('웹 브라우저 푸시 알림이 활성화되었습니다.', { variant: 'success', autoHideDuration: 2000 });
         } else {
           enqueueSnackbar('푸시 알림 권한이 허용되지 않았습니다. 브라우저 주소창에서 권한을 확인해주세요.', { variant: 'warning' });
@@ -103,15 +116,9 @@ export default function ManageSettings() {
       } catch (err) {
         console.error(err);
       } finally {
-        setSettings(prev => {
-          const updated = { ...prev, notifyWebPush: false };
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-          } catch (e) {
-            console.error(e);
-          }
-          return updated;
-        });
+        const updated = { ...pushSettings, notifyWebPush: false };
+        setPushSettings(updated);
+        await AppNotificationService.updateUserNotificationSettings({ notifyWebPush: false }).catch(console.error);
         enqueueSnackbar('웹 브라우저 푸시 알림이 비활성화되었습니다.', { variant: 'info', autoHideDuration: 2000 });
       }
     }
@@ -130,82 +137,114 @@ export default function ManageSettings() {
     }
   };
 
-  const handleToggle = (key: keyof SystemSettings, label?: string) => {
-    setSettings(prev => {
-      const updated = { ...prev, [key]: !prev[key] };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        if (label) {
-          enqueueSnackbar(`${label} 설정이 ${updated[key] ? '활성화' : '비활성화'}되었습니다.`, { 
-            variant: 'success',
-            autoHideDuration: 2000
-          });
-        }
-      } catch (e) {
-        console.error(e);
-      }
-      return updated;
-    });
+  const handlePushToggle = async (key: 'notifyNewReport' | 'notifyNewInquiry', label: string) => {
+    const nextVal = !pushSettings[key];
+    const previous = pushSettings[key];
+    setPushSettings(prev => ({ ...prev, [key]: nextVal }));
+
+    try {
+      await AppNotificationService.updateUserNotificationSettings({ [key]: nextVal });
+      enqueueSnackbar(`${label} 설정이 ${nextVal ? '활성화' : '비활성화'}되었습니다.`, { 
+        variant: 'success',
+        autoHideDuration: 2000
+      });
+    } catch (err) {
+      console.error('[ManageSettings] updateUserNotificationSettings error:', err);
+      setPushSettings(prev => ({ ...prev, [key]: previous }));
+      enqueueSnackbar('알림 설정 저장 중 오류가 발생했습니다.', { variant: 'error' });
+    }
+  };
+
+  const handleNoticeVisibleToggle = async () => {
+    const nextVal = !settings.noticeVisible;
+    const previous = settings.noticeVisible;
+    setSettings(prev => ({ ...prev, noticeVisible: nextVal }));
+
+    try {
+      await AdminService.updateSettings({ noticeVisible: nextVal });
+      enqueueSnackbar(`현장 안내사항 노출이 ${nextVal ? '활성화' : '비활성화'}되었습니다.`, { 
+        variant: 'success',
+        autoHideDuration: 2000
+      });
+    } catch (err) {
+      console.error('[ManageSettings] updateSettings noticeVisible error:', err);
+      setSettings(prev => ({ ...prev, noticeVisible: previous }));
+      enqueueSnackbar('안내사항 노출 설정 저장 중 오류가 발생했습니다.', { variant: 'error' });
+    }
   };
 
   const handleTextChange = (key: keyof SystemSettings, value: string) => {
-    setSettings(prev => {
-      const updated = { ...prev, [key]: value };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {
-        console.error(e);
-      }
-      return updated;
-    });
+    setSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleResetNotice = () => {
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const today = `${yyyy}.${mm}.${dd}`;
-
-    setSettings(prev => {
-      const updated = {
-        ...prev,
-        noticeTitle: DEFAULT_SETTINGS.noticeTitle,
-        noticeContent: DEFAULT_SETTINGS.noticeContent,
-        noticeDate: today,
-        noticeVisible: DEFAULT_SETTINGS.noticeVisible,
-      };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        enqueueSnackbar('현장 안내사항이 기본 문구로 복원되었습니다.', { variant: 'info', autoHideDuration: 2000 });
-      } catch (e) {
-        console.error(e);
-      }
-      return updated;
-    });
-  };
-
-  const handleSaveNotice = () => {
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const today = `${yyyy}.${mm}.${dd}`;
-
-    const updated = {
-      ...settings,
-      noticeDate: today
-    };
-    setSettings(updated);
+  const handleSaveContact = async () => {
+    setIsSavingContact(true);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      enqueueSnackbar(`현장 안내사항이 저장되었습니다. (게시일: ${today})`, { 
-        variant: 'success', 
-        autoHideDuration: 2500 
+      await AdminService.updateSettings({
+        contactPhone: settings.contactPhone,
+        contactEmail: settings.contactEmail,
       });
+      enqueueSnackbar('고객지원 및 비상 연락처가 저장되었습니다.', { variant: 'success', autoHideDuration: 2000 });
+    } catch (err) {
+      console.error('[ManageSettings] updateSettings contact error:', err);
+      enqueueSnackbar('연락처 저장 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
+
+  const handleResetNotice = async () => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const today = `${yyyy}.${mm}.${dd}`;
+
+    const resetData: Partial<SystemSettings> = {
+      noticeTitle: DEFAULT_SETTINGS.noticeTitle,
+      noticeContent: DEFAULT_SETTINGS.noticeContent,
+      noticeDate: today,
+      noticeVisible: DEFAULT_SETTINGS.noticeVisible,
+    };
+
+    try {
+      await AdminService.updateSettings(resetData);
+      setSettings(prev => ({
+        ...prev,
+        ...resetData,
+      }));
+      enqueueSnackbar('현장 안내사항이 기본 문구로 복원되었습니다.', { variant: 'info' });
     } catch (e) {
-      console.error(e);
+      console.error('[ManageSettings] resetNotice error:', e);
+      enqueueSnackbar('기본 문구 복원 중 오류가 발생했습니다.', { variant: 'error' });
+    }
+  };
+
+  const handleSaveNotice = async () => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const today = `${yyyy}.${mm}.${dd}`;
+
+    setIsSavingNotice(true);
+    try {
+      await AdminService.updateSettings({
+        noticeTitle: settings.noticeTitle,
+        noticeContent: settings.noticeContent,
+        noticeDate: today,
+        noticeVisible: settings.noticeVisible,
+      });
+      setSettings(prev => ({
+        ...prev,
+        noticeDate: today,
+      }));
+      enqueueSnackbar(`현장 안내사항이 저장되었습니다. (게시일: ${today})`, { variant: 'success' });
+    } catch (e) {
+      console.error('[ManageSettings] saveNotice error:', e);
       enqueueSnackbar('안내사항 저장 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsSavingNotice(false);
     }
   };
 
@@ -236,6 +275,7 @@ export default function ManageSettings() {
                   type="tel" 
                   value={settings.contactPhone}
                   onChange={e => handleTextChange('contactPhone', e.target.value)}
+                  onBlur={handleSaveContact}
                   placeholder="예: 02-839-2119" 
                 />
               </div>
@@ -249,6 +289,7 @@ export default function ManageSettings() {
                   type="email" 
                   value={settings.contactEmail}
                   onChange={e => handleTextChange('contactEmail', e.target.value)}
+                  onBlur={handleSaveContact}
                   placeholder="예: support@gneworks.com" 
                 />
               </div>
@@ -317,8 +358,8 @@ export default function ManageSettings() {
                   <label className="custom-switch-label">
                     <input 
                       type="checkbox" 
-                      checked={isMasterActive && settings.notifyNewReport} 
-                      onChange={() => handleToggle('notifyNewReport', '신규 보고서 제출 알림')} 
+                      checked={isMasterActive && pushSettings.notifyNewReport} 
+                      onChange={() => handlePushToggle('notifyNewReport', '신규 보고서 제출 알림')} 
                       disabled={!isMasterActive}
                     />
                     <span className="switch-slider" />
@@ -333,8 +374,8 @@ export default function ManageSettings() {
                   <label className="custom-switch-label">
                     <input 
                       type="checkbox" 
-                      checked={isMasterActive && settings.notifyNewInquiry} 
-                      onChange={() => handleToggle('notifyNewInquiry', '신규 문의 접수 알림')} 
+                      checked={isMasterActive && pushSettings.notifyNewInquiry} 
+                      onChange={() => handlePushToggle('notifyNewInquiry', '신규 문의 접수 알림')} 
                       disabled={!isMasterActive}
                     />
                     <span className="switch-slider" />
@@ -376,7 +417,7 @@ export default function ManageSettings() {
                 <input 
                   type="checkbox" 
                   checked={settings.noticeVisible} 
-                  onChange={() => handleToggle('noticeVisible', '안내사항 노출')} 
+                  onChange={handleNoticeVisibleToggle} 
                 />
                 <span className="switch-slider" />
               </label>
@@ -409,6 +450,7 @@ export default function ManageSettings() {
                 type="button" 
                 className="btn-reset" 
                 onClick={handleResetNotice}
+                disabled={isSavingNotice}
                 title="기본 안내사항 문구로 초기화"
               >
                 <RotateCcw size={14} /> 기본 문구 복원
@@ -417,8 +459,9 @@ export default function ManageSettings() {
                 type="button" 
                 className="btn-save" 
                 onClick={handleSaveNotice}
+                disabled={isSavingNotice}
               >
-                <Save size={14} /> 안내사항 저장
+                <Save size={14} /> {isSavingNotice ? '저장 중...' : '안내사항 저장'}
               </button>
             </div>
           </div>
@@ -427,4 +470,3 @@ export default function ManageSettings() {
     </div>
   );
 }
-

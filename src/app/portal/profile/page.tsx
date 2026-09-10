@@ -20,20 +20,15 @@ import {
 } from 'lucide-react';
 import UserAvatar from '@/components/common/UserAvatar';
 import { useWebPush } from '@/hooks/useWebPush';
+import AppNotificationService from '@/api/service/AppNotificationService';
 import './Profile.scss';
 
-interface WorkerPushSettings {
-  enabled: boolean;
-  notifyReportStatus: boolean;
-  notifyInquiryAnswer: boolean;
-}
-
-const WORKER_PUSH_STORAGE_KEY = 'gneworks_worker_push_settings';
-
-const DEFAULT_WORKER_PUSH_SETTINGS: WorkerPushSettings = {
-  enabled: false,
-  notifyReportStatus: false,
-  notifyInquiryAnswer: false,
+const DEFAULT_WORKER_PUSH_SETTINGS: UserNotificationSetting = {
+  notifyWebPush: false,
+  notifyNewReport: false,
+  notifyNewInquiry: false,
+  notifyReportStatus: true,
+  notifyInquiryAnswer: true,
 };
 
 export default function ProfilePage() {
@@ -49,29 +44,27 @@ export default function ProfilePage() {
     sendTestNotification,
   } = useWebPush();
 
-  const [pushSettings, setPushSettings] = useState<WorkerPushSettings>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(WORKER_PUSH_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          return {
-            ...DEFAULT_WORKER_PUSH_SETTINGS,
-            ...parsed,
-            enabled: parsed.enabled ?? DEFAULT_WORKER_PUSH_SETTINGS.enabled,
-            notifyReportStatus: parsed.notifyReportStatus ?? DEFAULT_WORKER_PUSH_SETTINGS.notifyReportStatus,
-            notifyInquiryAnswer: parsed.notifyInquiryAnswer ?? DEFAULT_WORKER_PUSH_SETTINGS.notifyInquiryAnswer,
-          };
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return DEFAULT_WORKER_PUSH_SETTINGS;
-  });
+  const [pushSettings, setPushSettings] = useState<UserNotificationSetting>(DEFAULT_WORKER_PUSH_SETTINGS);
   const [isTestingPush, setIsTestingPush] = useState(false);
 
-  const isMasterActive = Boolean(pushSettings.enabled && isSubscribed);
+  useEffect(() => {
+    let isMounted = true;
+    AppNotificationService.getUserNotificationSettings()
+      .then(settings => {
+        if (isMounted && settings) {
+          setPushSettings(prev => ({ ...prev, ...settings }));
+        }
+      })
+      .catch(err => {
+        console.error('[ProfilePage] getUserNotificationSettings error:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const isMasterActive = Boolean(pushSettings.notifyWebPush && isSubscribed);
 
   const handleWorkerPushToggle = async () => {
     const nextVal = !isMasterActive;
@@ -79,21 +72,15 @@ export default function ProfilePage() {
       try {
         const success = await subscribe();
         if (success) {
-          setPushSettings(prev => {
-            const needTurnOnSub = !prev.notifyReportStatus && !prev.notifyInquiryAnswer;
-            const updated = {
-              ...prev,
-              enabled: true,
-              notifyReportStatus: needTurnOnSub ? true : prev.notifyReportStatus,
-              notifyInquiryAnswer: needTurnOnSub ? true : prev.notifyInquiryAnswer,
-            };
-            try {
-              localStorage.setItem(WORKER_PUSH_STORAGE_KEY, JSON.stringify(updated));
-            } catch (e) {
-              console.error(e);
-            }
-            return updated;
-          });
+          const needTurnOnSub = !pushSettings.notifyReportStatus && !pushSettings.notifyInquiryAnswer;
+          const updated: UserNotificationSetting = {
+            ...pushSettings,
+            notifyWebPush: true,
+            notifyReportStatus: needTurnOnSub ? true : pushSettings.notifyReportStatus,
+            notifyInquiryAnswer: needTurnOnSub ? true : pushSettings.notifyInquiryAnswer,
+          };
+          setPushSettings(updated);
+          await AppNotificationService.updateUserNotificationSettings(updated);
           enqueueSnackbar('웹 브라우저 푸시 알림이 활성화되었습니다.', { variant: 'success', autoHideDuration: 2000 });
         } else {
           enqueueSnackbar('알림 권한이 허용되지 않았습니다. 브라우저 설정에서 권한을 확인해주세요.', { variant: 'warning' });
@@ -107,27 +94,27 @@ export default function ProfilePage() {
       } catch (err) {
         console.error(err);
       } finally {
-        setPushSettings(prev => {
-          const updated = { ...prev, enabled: false };
-          try {
-            localStorage.setItem(WORKER_PUSH_STORAGE_KEY, JSON.stringify(updated));
-          } catch (e) {
-            console.error(e);
-          }
-          return updated;
-        });
+        const updated = { ...pushSettings, notifyWebPush: false };
+        setPushSettings(updated);
+        await AppNotificationService.updateUserNotificationSettings({ notifyWebPush: false }).catch(console.error);
         enqueueSnackbar('웹 브라우저 푸시 알림이 비활성화되었습니다.', { variant: 'info', autoHideDuration: 2000 });
       }
     }
   };
 
-  const handleSubToggle = (key: 'notifyReportStatus' | 'notifyInquiryAnswer', label: string) => {
-    setPushSettings(prev => {
-      const updated = { ...prev, [key]: !prev[key] };
-      localStorage.setItem(WORKER_PUSH_STORAGE_KEY, JSON.stringify(updated));
-      enqueueSnackbar(`${label} 설정이 ${updated[key] ? '활성화' : '비활성화'}되었습니다.`, { variant: 'success', autoHideDuration: 2000 });
-      return updated;
-    });
+  const handleSubToggle = async (key: 'notifyReportStatus' | 'notifyInquiryAnswer', label: string) => {
+    const nextVal = !pushSettings[key];
+    const previous = pushSettings[key];
+    setPushSettings(prev => ({ ...prev, [key]: nextVal }));
+
+    try {
+      await AppNotificationService.updateUserNotificationSettings({ [key]: nextVal });
+      enqueueSnackbar(`${label} 설정이 ${nextVal ? '활성화' : '비활성화'}되었습니다.`, { variant: 'success', autoHideDuration: 2000 });
+    } catch (err) {
+      console.error('[ProfilePage] updateUserNotificationSettings error:', err);
+      setPushSettings(prev => ({ ...prev, [key]: previous }));
+      enqueueSnackbar('설정 저장 중 오류가 발생했습니다.', { variant: 'error' });
+    }
   };
 
   const handleTestPush = async () => {

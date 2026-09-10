@@ -131,6 +131,51 @@ class AppNotificationService {
       throw error;
     }
   }
+
+  /**
+   * 사용자 알림 설정 조회
+   * GET /notification/settings
+   */
+  async getUserNotificationSettings(): Promise<UserNotificationSetting> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.NOTIFICATION_SETTINGS);
+      if (response && !response.hasErrors) {
+        return response.responseData as UserNotificationSetting;
+      }
+      return {
+        notifyWebPush: false,
+        notifyNewReport: true,
+        notifyNewInquiry: true,
+        notifyReportStatus: true,
+        notifyInquiryAnswer: true,
+      };
+    } catch (error) {
+      console.error('[NotificationService] getUserNotificationSettings', error);
+      return {
+        notifyWebPush: false,
+        notifyNewReport: true,
+        notifyNewInquiry: true,
+        notifyReportStatus: true,
+        notifyInquiryAnswer: true,
+      };
+    }
+  }
+
+  /**
+   * 사용자 알림 설정 변경
+   * PUT /notification/settings
+   */
+  async updateUserNotificationSettings(data: Partial<UserNotificationSetting>): Promise<ActionRes | undefined> {
+    try {
+      const response: ApiResponse = await ApiInstance.put(ApiRoutes.NOTIFICATION_SETTINGS, data);
+      if (response && !response.hasErrors) {
+        return response.responseData as ActionRes;
+      }
+    } catch (error) {
+      console.error('[NotificationService] updateUserNotificationSettings', error);
+      throw error;
+    }
+  }
 }
 
 export default AppNotificationService.getInstance();

@@ -354,16 +354,29 @@ declare global {
     assignedWorkers?: RegionWorkerUser[];
   }
   interface SystemSettings {
+    settingId?: number;
     contactPhone: string;
     contactEmail: string;
-    notifyWebPush: boolean;
-    notifyNewReport: boolean;
-    notifyNewInquiry: boolean;
     noticeVisible: boolean;
     noticeTitle: string;
     noticeContent: string;
     noticeDate: string;
-    visible: boolean;
+  }
+  interface UserNotificationSetting {
+    userId?: string;
+    notifyWebPush: boolean;
+    notifyNewReport: boolean;
+    notifyNewInquiry: boolean;
+    notifyReportStatus: boolean;
+    notifyInquiryAnswer: boolean;
+  }
+  interface PortalNotice {
+    noticeVisible: boolean;
+    noticeTitle: string;
+    noticeContent: string;
+    noticeDate: string;
+    contactPhone?: string;
+    contactEmail?: string;
   }
   interface AdminWorkerStatRes {
     userId: string;
