@@ -499,7 +499,7 @@ function ManageWorkContent() {
             title={`${regionLabel} 지역의 모든 보고서를 대지와 함께 일괄 PDF로 출력합니다.`}
           >
             <FileDown size={15} />
-            <span>지역별 일괄 PDF 출력</span>
+            <span>지역별 일괄 출력</span>
             <span className="batch-badge">{totalCount}건</span>
           </button>
 

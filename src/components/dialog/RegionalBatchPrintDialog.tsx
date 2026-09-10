@@ -39,16 +39,6 @@ export default function RegionalBatchPrintDialog({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
-  // ── Fire Station Name (소방서명) ──
-  const [fireStationName, setFireStationName] = useState<string>(() => {
-    return region.sigungu ? `${region.sigungu}소방서` : `${region.sido}소방서`;
-  });
-
-  // Update default station name if region changes
-  React.useEffect(() => {
-    setFireStationName(region.sigungu ? `${region.sigungu}소방서` : `${region.sido}소방서`);
-  }, [region.sido, region.sigungu]);
-
   // ── Number of Preview Items to Show (화면 렉 방지용 페이지네이션/토글) ──
   const [showAllInPreview, setShowAllInPreview] = useState(false);
 
@@ -57,25 +47,10 @@ export default function RegionalBatchPrintDialog({
     return region.sido && region.sigungu ? `${region.sido} ${region.sigungu}` : (region.sido || '');
   }, [region.sido, region.sigungu]);
 
-  // ── Target Reports: 오직 '확인완료(COMPLETED)' 보고서만 엄격 필터링 ──
+  // ── Target Reports: 오직 '확인완료(COMPLETED)' 보고서만 필터링 ──
   const completedReportsInRegion = useMemo(() => {
-    return reports.filter(r => {
-      // 1. 확인완료 상태만 대상
-      if (r.status !== 'COMPLETED') {
-        return false;
-      }
-
-      // 2. 지역 매칭
-      if (region.sido && r.sido !== region.sido) {
-        return false;
-      }
-      if (region.sigungu && r.sigungu !== region.sigungu) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [reports, region.sido, region.sigungu]);
+    return reports.filter(r => r.status === 'COMPLETED');
+  }, [reports]);
 
   // ── Date Filtered Reports ──
   const filteredReports = useMemo(() => {
@@ -164,7 +139,7 @@ export default function RegionalBatchPrintDialog({
     <SlideDialog
       isOpen={isOpen}
       onClose={onClose}
-      title="지역별 일괄 보고서 PDF 출력"
+      title="지역별 일괄 출력"
       className="regional-batch-modal confirmation-dialog"
       footer={
         <div className="batch-dialog-footer-actions confirmation-modal-footer-actions">
@@ -215,7 +190,7 @@ export default function RegionalBatchPrintDialog({
         <div className="batch-dialog-header-card">
           <div className="header-left">
             <div className="header-title-row">
-              <h3>{regionLabel} 단독경보형감지기 보급완료 보고서</h3>
+              <h3>{regionLabel}</h3>
             </div>
           </div>
           <div className="header-stats">
@@ -259,17 +234,6 @@ export default function RegionalBatchPrintDialog({
           <div className="batch-filter-content">
             {/* Filter Section: 줄바꿈 없이 깔끔한 2열 플렉스 레이아웃 */}
             <div className="batch-controls-unified-bar">
-              <div className="control-field-inline">
-                <label className="field-inline-label">관할 소방서</label>
-                <input
-                  type="text"
-                  className="station-inline-input"
-                  value={fireStationName}
-                  onChange={e => setFireStationName(e.target.value)}
-                  placeholder="예: 연천소방서, 안산단원소방서"
-                />
-              </div>
-
               <div className="control-date-inline">
                 <div className="date-presets-wrap">
                   <button
@@ -454,13 +418,13 @@ export default function RegionalBatchPrintDialog({
                   <h2 className="section-head">1. 단독경보형감지기 설치 현황</h2>
                   <ul className="overview-list">
                     <li>
-                      가. 소&nbsp;&nbsp;방&nbsp;&nbsp;서 : <strong>{fireStationName}</strong>
+                      가. 소&nbsp;&nbsp;방&nbsp;&nbsp;서 : <strong>{region.sigungu ? `${region.sigungu}소방서` : `${region.sido}소방서`}</strong>
                     </li>
                     <li>
-                      나. 설치세대 : <strong>{exportReports.length}</strong>세대
+                      나. 설치세대 : <strong>{filteredReports.length}</strong>세대
                     </li>
                     <li>
-                      다. 설치수량 : 감지기 <strong>{totalDetectorCount}</strong>개
+                      다. 설치수량 : 감지기 <strong>{filteredReports.length * 2}</strong>개
                     </li>
                   </ul>
                 </div>
@@ -481,8 +445,8 @@ export default function RegionalBatchPrintDialog({
                         </tr>
                       </thead>
                       <tbody>
-                        {exportReports.length > 0 ? (
-                          exportReports.map((rep, idx) => {
+                        {filteredReports.length > 0 ? (
+                          filteredReports.map((rep, idx) => {
                             const hh = getHouseholdInfo(rep);
                             const targetType = hh?.targetType || 'GENERAL';
                             const targetLabel = TARGET_TYPE_LABEL_MAP[targetType] || targetType;

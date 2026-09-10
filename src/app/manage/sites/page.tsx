@@ -66,13 +66,8 @@ export default function ManageCustomers() {
     try {
       setIsLoading(true);
 
-      // 선택된 소방관할 regionId 채택
-      const selectedRegionId = (region.regionId && !region.regionId.startsWith('REG_'))
-        ? region.regionId
-        : fireRegions.find(fr => fr.name === region.sigungu || fr.sidoName === region.sido)?.regionId;
-
       const res = await AdminService.getSiteListPaged({
-        regionId: selectedRegionId,
+        regionId: region.regionId,
         query: searchQuery.trim() || undefined,
         page,
         size: pageSize,
@@ -139,14 +134,8 @@ export default function ManageCustomers() {
   const handleExportExcel = async () => {
     try {
       setIsExporting(true);
-      const matchedFireRegion = fireRegions.find(fr => 
-        (region.sido === 'ALL' || fr.sidoName === region.sido) &&
-        (region.sigungu !== 'ALL' && (fr.name === region.sigungu || fr.name.replace(/(소방서|센터)$/, '').trim() === region.sigungu))
-      );
-      const selectedRegionId = region.regionId || matchedFireRegion?.regionId;
-
       await AdminService.exportSitesExcel({
-        regionId: selectedRegionId,
+        regionId: region.regionId,
         query: searchQuery.trim() || undefined,
       });
       enqueueSnackbar('현장 목록 엑셀 파일이 다운로드되었습니다.', { variant: 'success' });
