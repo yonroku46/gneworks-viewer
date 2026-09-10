@@ -680,18 +680,30 @@ export default function AccountDetailDialog({
 
               {/* Password Reset Action Box */}
               {onResetPassword && (
-                <div className="pw-reset-alert-box">
+                <div className={`pw-reset-alert-box ${!user.birthday ? 'disabled' : ''}`}>
                   <div className="pw-reset-desc">
                     <strong>비밀번호 초기화</strong>
                     <p>
-                      비밀번호 분실 시 해당 유저의 <strong>{user.birthday ? `생년월일 6자리(${dayjs(user.birthday).format('YYMMDD')})` : '생년월일 미등록(초기화 불가)'}</strong>로 즉시 초기화됩니다.
+                      {user.birthday ? (
+                        <>
+                          비밀번호 분실 시 해당 유저의 <strong>생년월일 6자리({dayjs(user.birthday).format('YYMMDD')})</strong>로 즉시 초기화됩니다.
+                        </>
+                      ) : (
+                        <span className="no-birthday-warning">
+                          해당 계정은 <strong>생년월일이 등록되어 있지 않아 비밀번호 초기화가 불가</strong>합니다.
+                        </span>
+                      )}
                     </p>
                   </div>
                   <button
                     type="button"
                     className="btn-pw-action"
                     disabled={!user.birthday}
-                    onClick={() => onResetPassword(user)}
+                    title={!user.birthday ? '생년월일 미등록으로 초기화 불가' : '비밀번호 초기화'}
+                    onClick={() => {
+                      if (!user.birthday) return;
+                      onResetPassword(user);
+                    }}
                   >
                     <KeyRound size={15} />
                     <span>초기화</span>

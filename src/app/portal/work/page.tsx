@@ -17,12 +17,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
+  CircleDashed,
   Hourglass,
   SlidersHorizontal,
   Check,
   ArrowLeft,
-  User,
-  Clock,
 } from 'lucide-react';
 import './Work.scss';
 
@@ -646,7 +645,7 @@ function PortalWorkContent() {
                         {statusType === 'COMPLETED' && <Check size={16} strokeWidth={2.5} />}
                         {statusType === 'PENDING' && <Hourglass size={15} />}
                         {statusType === 'REJECTED' && <AlertCircle size={15} />}
-                        {statusType === 'UNSUBMITTED' && <Circle size={13} strokeWidth={2} />}
+                        {statusType === 'UNSUBMITTED' && <CircleDashed size={15} strokeWidth={2} />}
                       </div>
 
                       <div className="card-body">

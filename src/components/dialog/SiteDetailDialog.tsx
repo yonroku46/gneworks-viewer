@@ -633,11 +633,11 @@ export default function SiteDetailDialog({
                         <thead>
                           <tr>
                             <th className="col-num">순번</th>
-                            <th>담당자 성명</th>
-                            <th>아이디</th>
-                            <th>연락처</th>
-                            <th>배정지역</th>
-                            <th style={{ width: '100px', textAlign: 'center' }}>배정일자</th>
+                            <th className="col-worker-name">담당자 성명</th>
+                            <th className="col-worker-id">아이디</th>
+                            <th className="col-worker-phone">연락처</th>
+                            <th className="col-region-name">배정지역</th>
+                            <th className="col-worker-date">배정일자</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -673,7 +673,7 @@ export default function SiteDetailDialog({
                                 <td className="col-region-name">
                                   <span className="region-name-tag">{targetRegionLabel}</span>
                                 </td>
-                                <td style={{ textAlign: 'center', fontSize: '0.8125rem', color: 'var(--slate-500)' }}>
+                                <td className="col-worker-date">
                                   <span>
                                     {worker.assignedRegions?.find((ar: UserAssignedRegionDetail) => {
                                       return Boolean(site?.regionId && ar.regionId && ar.regionId === site.regionId);

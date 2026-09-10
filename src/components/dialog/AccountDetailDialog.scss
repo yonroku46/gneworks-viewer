@@ -68,6 +68,23 @@
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
+    &.disabled {
+      background: var(--slate-50);
+      border-color: var(--border);
+      .pw-reset-desc {
+        strong {
+          color: var(--slate-600);
+        }
+        .no-birthday-warning {
+          color: var(--danger);
+          font-weight: 500;
+          strong {
+            color: var(--danger);
+            font-weight: 700;
+          }
+        }
+      }
+    }
     .pw-reset-desc {
       strong {
         font-size: 0.875rem;
@@ -100,9 +117,16 @@
       cursor: pointer;
       white-space: nowrap;
       transition: all 0.15s ease;
-      &:hover {
+      &:hover:not(:disabled) {
         background: var(--slate-100);
         color: var(--slate-900);
+      }
+      &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        background: var(--slate-100);
+        border-color: var(--border);
+        color: var(--slate-400);
       }
     }
   }

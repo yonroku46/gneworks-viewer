@@ -1970,9 +1970,11 @@
     border: 1px solid var(--border);
     border-radius: 0.75rem;
     background-color: var(--white);
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     .households-table {
       width: 100%;
+      min-width: 600px;
       border-collapse: collapse;
       text-align: left;
       thead {
@@ -2101,6 +2103,7 @@
           padding: 2.5rem 1rem;
           color: var(--slate-400);
           font-size: 0.8125rem;
+          white-space: nowrap;
         }
       }
     }
@@ -2182,6 +2185,7 @@
       font-weight: 600;
       text-decoration: none;
       transition: all 0.15s ease;
+      white-space: nowrap;
       &:hover {
         background: var(--manage-primary-light);
         color: var(--manage-primary);
@@ -2190,6 +2194,64 @@
         background: transparent;
         color: var(--slate-400);
         cursor: default;
+      }
+    }
+    .households-table {
+      min-width: 620px;
+      thead tr th {
+        white-space: nowrap;
+        &.col-worker-name {
+          min-width: 130px;
+        }
+        &.col-worker-id {
+          min-width: 100px;
+        }
+        &.col-worker-phone {
+          min-width: 140px;
+        }
+        &.col-region-name {
+          min-width: 130px;
+        }
+        &.col-worker-date {
+          width: 110px;
+          text-align: center;
+        }
+      }
+      tbody tr td {
+        white-space: nowrap;
+        &.col-worker-name {
+          white-space: nowrap;
+          .worker-table-cell {
+            white-space: nowrap;
+            strong {
+              white-space: nowrap;
+            }
+          }
+        }
+        &.col-worker-id {
+          white-space: nowrap;
+          .worker-id-text {
+            white-space: nowrap;
+          }
+        }
+        &.col-worker-phone {
+          white-space: nowrap;
+          .worker-phone-link {
+            white-space: nowrap;
+          }
+        }
+        &.col-region-name {
+          white-space: nowrap;
+          .region-name-tag {
+            white-space: nowrap;
+          }
+        }
+        &.col-worker-date {
+          white-space: nowrap;
+          text-align: center;
+          font-size: 0.8125rem;
+          color: var(--slate-500);
+        }
       }
     }
   }
