@@ -240,7 +240,7 @@ export default function ConfirmationDocumentPaper({
                 }}
               />
             ) : (
-              <span className="doc-photo-placeholder">사진 미등록</span>
+              <span className="doc-photo-placeholder"></span>
             )}
           </div>
         </div>
@@ -260,7 +260,7 @@ export default function ConfirmationDocumentPaper({
                 }}
               />
             ) : (
-              <span className="doc-photo-placeholder">사진 미등록</span>
+              <span className="doc-photo-placeholder"></span>
             )}
           </div>
         </div>
@@ -280,7 +280,7 @@ export default function ConfirmationDocumentPaper({
                 }}
               />
             ) : (
-              <span className="doc-photo-placeholder">사진 미등록</span>
+              <span className="doc-photo-placeholder"></span>
             )}
           </div>
         </div>
@@ -300,7 +300,7 @@ export default function ConfirmationDocumentPaper({
                 }}
               />
             ) : (
-              <span className="doc-photo-placeholder">사진 미등록</span>
+              <span className="doc-photo-placeholder"></span>
             )}
           </div>
         </div>
@@ -320,7 +320,7 @@ export default function ConfirmationDocumentPaper({
                 }}
               />
             ) : (
-              <span className="doc-photo-placeholder">사진 미등록</span>
+              <span className="doc-photo-placeholder"></span>
             )}
           </div>
         </div>

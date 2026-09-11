@@ -533,7 +533,6 @@ export default function WorkReportDetailDialog({
       <div className={`photo-upload-box ${hasPhoto ? 'has-photo' : 'empty-slot'}`}>
         <div className="photo-label-row">
           <span className="photo-label">{label}</span>
-          {!hasPhoto && <span className="unsubmitted-tag">미제출</span>}
         </div>
         {hasPhoto ? (
           <div className="photo-preview-wrapper readonly">

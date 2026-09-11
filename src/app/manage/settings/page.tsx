@@ -396,7 +396,7 @@ export default function ManageSettings() {
                   <span>{isTesting ? '발송 중...' : '테스트 알림 발송'}</span>
                 </button>
                 <span className="test-push-desc">
-                  현재 브라우저로 실제 웹 푸시를 발송하여 Windows/OS 알림창 수신을 점검합니다.
+                  현재 브라우저로 실제 웹 푸시를 발송하여 알림창 수신을 점검합니다.
                 </span>
               </div>
             </div>

@@ -147,13 +147,8 @@ export default function WorkReportDialog({
     setStep(2);
   };
 
-  // 2단계 -> 3단계 이동 (5장 고정 필수 검증)
+  // 2단계 -> 3단계 이동 (사진 선택 사항 - 필수 검증 해제)
   const handleGoToStep3 = () => {
-    const missingSlots = REPORT_PHOTO_SLOTS.filter(s => !photos[s.key]);
-    if (missingSlots.length > 0) {
-      enqueueSnackbar(`필수 현장 사진 5장을 모두 등록해 주세요. (${missingSlots.length}장 미등록)`, { variant: 'warning' });
-      return;
-    }
     setStep(3);
   };
 
@@ -237,12 +232,6 @@ export default function WorkReportDialog({
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isReadOnly || isSubmitting) return;
-
-    const missingSlots = REPORT_PHOTO_SLOTS.filter(slot => !photos[slot.key]);
-    if (missingSlots.length > 0) {
-      enqueueSnackbar(`필수 현장 사진 5장을 모두 등록해 주세요. (${missingSlots.length}장 누락)`, { variant: 'warning' });
-      return;
-    }
 
     if (!confirmerName.trim()) {
       enqueueSnackbar('확인자 성명을 입력해 주세요.', { variant: 'warning' });
@@ -360,7 +349,7 @@ export default function WorkReportDialog({
                   <span
                     className={`step-dot ${step >= 3 ? 'active' : ''}`}
                     onClick={() => {
-                      if (Object.keys(photos).length > 0) setStep(3);
+                      if (installDate) setStep(3);
                     }}
                     role="button"
                     tabIndex={0}
@@ -682,7 +671,7 @@ export default function WorkReportDialog({
               {step === 2 && (
                 <div className="wizard-step-panel step-2-panel">
                   <div className="step-section-header">
-                    <h4 className="section-title">현장 사진 (총 5개)</h4>
+                    <h4 className="section-title">현장 사진 (선택)</h4>
                     <span className={`photos-count-pill ${Object.keys(photos).length === 5 ? 'completed' : 'pending'}`}>
                       {Object.keys(photos).length === 5 ? '✓ 5개 완료' : `${Object.keys(photos).length} / 5개 등록`}
                     </span>
