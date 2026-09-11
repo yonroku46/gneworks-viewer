@@ -595,8 +595,10 @@
       border-radius: 0.625rem;
       background: var(--white);
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       table {
         width: 100%;
+        min-width: 500px;
         border-collapse: collapse;
         font-size: 0.8125rem;
         text-align: left;

@@ -229,11 +229,13 @@
       .sites-compact-table-wrap {
         border: 1px solid var(--border);
         border-radius: 0.75rem;
-        overflow: hidden;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
         background: var(--card-bg);
         box-shadow: var(--shadow-sm);
         .sites-compact-table {
           width: 100%;
+          min-width: 500px;
           border-collapse: collapse;
           text-align: left;
           font-size: 0.75rem;
@@ -319,10 +321,6 @@
                     display: flex;
                     flex-direction: column;
                     gap: 0.125rem;
-                    .eup-text {
-                      font-weight: 700;
-                      color: var(--slate-800);
-                    }
                     .full-addr-text {
                       font-size: 0.6875rem;
                       color: var(--slate-400);
@@ -451,13 +449,13 @@
                   &.col-addr {
                     .addr-wrapper {
                       .full-addr-text {
-                        max-width: 120px;
+                        max-width: 200px;
                       }
                     }
                   }
                   &.col-name {
                     .site-name-text {
-                      max-width: 110px;
+                      max-width: 160px;
                     }
                   }
                 }

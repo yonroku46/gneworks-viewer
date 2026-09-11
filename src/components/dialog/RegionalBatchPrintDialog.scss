@@ -161,10 +161,12 @@
       border: 1px solid var(--border);
       border-radius: 0.5rem;
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       max-height: 420px;
       overflow-y: auto;
       .batch-table {
         width: 100%;
+        min-width: 520px;
         border-collapse: collapse;
         text-align: left;
         thead {

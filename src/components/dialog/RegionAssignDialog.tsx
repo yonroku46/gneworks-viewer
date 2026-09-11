@@ -385,8 +385,8 @@ export default function RegionAssignDialog({
                 <thead>
                   <tr>
                     <th className="col-num">#</th>
-                    <th className="col-name">현장명 (단지)</th>
-                    <th className="col-addr">읍/면/동 및 주소</th>
+                    <th className="col-name">현장명</th>
+                    <th className="col-addr">주소</th>
                     <th className="col-scale">단지 규모</th>
                   </tr>
                 </thead>
@@ -404,7 +404,6 @@ export default function RegionAssignDialog({
                         </td>
                         <td className="col-addr">
                           <div className="addr-wrapper">
-                            <span className="eup-text">{site.eupmyeondong || '-'}</span>
                             <span className="full-addr-text">{site.address}</span>
                           </div>
                         </td>
