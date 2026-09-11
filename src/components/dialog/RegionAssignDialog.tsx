@@ -86,9 +86,16 @@ export default function RegionAssignDialog({
     }));
   }, [sidoList]);
 
-  // 선택된 시/도의 DB 소방관할구역 목록
+  // 선택된 시/도의 DB 소방관할구역 목록 (일반 관할 우선, 관리자용은 하단 정렬)
   const availableFireRegions = useMemo(() => {
-    return fireRegions.filter(fr => fr.sidoName === selectedSido);
+    return fireRegions
+      .filter(fr => fr.sidoName === selectedSido)
+      .sort((a, b) => {
+        const aAdmin = (a.name && a.name.includes('관리자')) || (a.regionId && a.regionId.startsWith('ADMIN_'));
+        const bAdmin = (b.name && b.name.includes('관리자')) || (b.regionId && b.regionId.startsWith('ADMIN_'));
+        if (aAdmin !== bAdmin) return aAdmin ? 1 : -1;
+        return (a.regionId || '').localeCompare(b.regionId || '');
+      });
   }, [fireRegions, selectedSido]);
 
   // 소방관할구역 옵션 목록
@@ -102,7 +109,14 @@ export default function RegionAssignDialog({
   // 시/도 변경 시 소방관할구역 자동 첫 항목 선택
   const handleSidoChange = (sido: string) => {
     setSelectedSido(sido);
-    const regions = fireRegions.filter(fr => fr.sidoName === sido);
+    const regions = fireRegions
+      .filter(fr => fr.sidoName === sido)
+      .sort((a, b) => {
+        const aAdmin = (a.name && a.name.includes('관리자')) || (a.regionId && a.regionId.startsWith('ADMIN_'));
+        const bAdmin = (b.name && b.name.includes('관리자')) || (b.regionId && b.regionId.startsWith('ADMIN_'));
+        if (aAdmin !== bAdmin) return aAdmin ? 1 : -1;
+        return (a.regionId || '').localeCompare(b.regionId || '');
+      });
     if (regions.length > 0) {
       setSelectedRegionId(regions[0].regionId);
     } else {

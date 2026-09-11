@@ -19,23 +19,22 @@ interface Props {
 function detectRegionFromFilename(filename: string, fireRegions: FireRegion[]): FireRegion | null {
   if (!filename || !fireRegions || fireRegions.length === 0) return null;
 
-  // 1. 괄호 안의 텍스트 우선 검출: "(수원남부)" → "수원남부", "(안산)" → "안산"
-  const match = filename.match(/[(\uff08]([^)\uff09]+)[)\uff09]/);
-  if (match) {
-    const raw = match[1].trim();
-    const clean = raw.replace(/(소방서|센터)$/, '').trim();
+  const isAdmin = filename.includes('관리자');
 
-    const exact = fireRegions.find(fr => fr.name === raw || fr.name === clean);
-    if (exact) return exact;
+  // 관리자 파일이면 관리자용 관할, 일반 파일이면 일반 관할 우선 검색
+  const targetRegions = fireRegions.filter(fr =>
+    isAdmin ? fr.name.includes('관리자') : !fr.name.includes('관리자')
+  );
 
-    const partial = fireRegions.find(fr => clean.includes(fr.name) || fr.name.includes(clean));
-    if (partial) return partial;
-  }
+  // 긴 지명 우선 정렬 (예: '수원남부'가 '수원'보다 먼저 매칭되도록)
+  const sorted = [...(targetRegions.length > 0 ? targetRegions : fireRegions)]
+    .sort((a, b) => b.name.length - a.name.length);
 
-  // 2. 파일명 전체에서 소방서명 검출 (긴 이름 우선 매칭)
-  const sorted = [...fireRegions].sort((a, b) => b.name.length - a.name.length);
   for (const fr of sorted) {
-    if (filename.includes(fr.name) || filename.includes(fr.name + '소방서')) {
+    // 관할 이름에서 '(관리자용)' 등을 제외한 순수 지역명 (예: '수원(관리자용)' → '수원')
+    const baseName = fr.name.replace(/\(관리자.*?\)/, '').trim();
+
+    if (filename.includes(fr.name) || filename.includes(baseName)) {
       return fr;
     }
   }
@@ -80,10 +79,17 @@ export default function ExcelImportDialog({ isOpen, onClose, fireRegions, onImpo
     return getDbSidoList();
   }, [fireRegions]);
 
-  // 2. 선택된 시/도의 DB 소방관할 목록
+  // 2. 선택된 시/도의 DB 소방관할 목록 (일반 관할 우선, 관리자용은 맨 아래)
   const availableFireRegions = useMemo(() => {
     if (!selectedSido) return [];
-    return fireRegions.filter(fr => fr.sidoName === selectedSido);
+    return fireRegions
+      .filter(fr => fr.sidoName === selectedSido)
+      .sort((a, b) => {
+        const aAdmin = (a.name && a.name.includes('관리자')) || (a.regionId && a.regionId.startsWith('ADMIN_'));
+        const bAdmin = (b.name && b.name.includes('관리자')) || (b.regionId && b.regionId.startsWith('ADMIN_'));
+        if (aAdmin !== bAdmin) return aAdmin ? 1 : -1;
+        return (a.regionId || '').localeCompare(b.regionId || '');
+      });
   }, [fireRegions, selectedSido]);
 
   // 3. 선택된 소방관할 FireRegion 객체
@@ -106,7 +112,14 @@ export default function ExcelImportDialog({ isOpen, onClose, fireRegions, onImpo
   // 시/도 변경 핸들러
   const handleSidoChange = (newSido: string) => {
     setSelectedSido(newSido);
-    const regions = fireRegions.filter(fr => fr.sidoName === newSido);
+    const regions = fireRegions
+      .filter(fr => fr.sidoName === newSido)
+      .sort((a, b) => {
+        const aAdmin = (a.name && a.name.includes('관리자')) || (a.regionId && a.regionId.startsWith('ADMIN_'));
+        const bAdmin = (b.name && b.name.includes('관리자')) || (b.regionId && b.regionId.startsWith('ADMIN_'));
+        if (aAdmin !== bAdmin) return aAdmin ? 1 : -1;
+        return (a.regionId || '').localeCompare(b.regionId || '');
+      });
     if (regions.length > 0) {
       setSelectedRegionId(regions[0].regionId);
     } else {

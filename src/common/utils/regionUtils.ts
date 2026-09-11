@@ -134,6 +134,14 @@ export async function fetchFireRegions(forceReload = false): Promise<FireRegion[
         };
       });
 
+      // 정렬: 일반 관할 우선, 관리자용은 항상 맨 뒤로
+      normalizedList.sort((a, b) => {
+        const aAdmin = (a.name && a.name.includes('관리자')) || (a.regionId && a.regionId.startsWith('ADMIN_'));
+        const bAdmin = (b.name && b.name.includes('관리자')) || (b.regionId && b.regionId.startsWith('ADMIN_'));
+        if (aAdmin !== bAdmin) return aAdmin ? 1 : -1;
+        return (a.regionId || '').localeCompare(b.regionId || '');
+      });
+
       // 캐시 및 인덱스 갱신
       cachedFireRegions = normalizedList;
       regionsBySidoCache.clear();
