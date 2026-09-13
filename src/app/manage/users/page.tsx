@@ -141,7 +141,6 @@ export default function AccountManagementPage() {
     userId: string;
     userName: string;
     phoneNum: string;
-    birthday: string;
     gender: string;
     postalCode: string;
     detailAddress: string;
@@ -149,7 +148,6 @@ export default function AccountManagementPage() {
     userId: '',
     userName: '',
     phoneNum: '',
-    birthday: '',
     gender: 'M',
     postalCode: '',
     detailAddress: '',
@@ -191,7 +189,6 @@ export default function AccountManagementPage() {
       userId: '',
       userName: '',
       phoneNum: '',
-      birthday: '',
       gender: 'M',
       postalCode: '',
       detailAddress: '',
@@ -208,7 +205,6 @@ export default function AccountManagementPage() {
       userId: user.userId,
       userName: user.userName,
       phoneNum: user.phoneNum,
-      birthday: user.birthday || '',
       gender: user.gender || 'M',
       postalCode: user.postalCode || '',
       detailAddress: user.detailAddress || '',
@@ -248,10 +244,6 @@ export default function AccountManagementPage() {
       enqueueSnackbar('전화번호를 입력해 주세요.', { variant: 'error' });
       return;
     }
-    if (!formData.birthday) {
-      enqueueSnackbar('생년월일을 입력해 주세요. (초기 비밀번호로 사용됩니다)', { variant: 'error' });
-      return;
-    }
 
     const now = dayjs().toISOString();
 
@@ -260,7 +252,6 @@ export default function AccountManagementPage() {
         ...editingUser,
         userName: formData.userName.trim(),
         phoneNum: formData.phoneNum.trim(),
-        birthday: formData.birthday || undefined,
         gender: formData.gender || undefined,
         postalCode: formData.postalCode.trim() || undefined,
         detailAddress: formData.detailAddress.trim() || undefined,
@@ -273,7 +264,6 @@ export default function AccountManagementPage() {
           userId: updatedUser.userId,
           userName: updatedUser.userName,
           phoneNum: updatedUser.phoneNum,
-          birthday: updatedUser.birthday,
           gender: updatedUser.gender,
           postalCode: updatedUser.postalCode,
           detailAddress: updatedUser.detailAddress,
@@ -297,7 +287,6 @@ export default function AccountManagementPage() {
         userId: targetUserId,
         userName: formData.userName.trim(),
         phoneNum: formattedPhone,
-        birthday: formData.birthday || undefined,
         gender: formData.gender || undefined,
         postalCode: formData.postalCode.trim() || undefined,
         detailAddress: formData.detailAddress.trim() || undefined,
@@ -310,7 +299,6 @@ export default function AccountManagementPage() {
           userId: newUser.userId,
           userName: newUser.userName,
           phoneNum: newUser.phoneNum,
-          birthday: newUser.birthday,
           gender: newUser.gender,
           postalCode: newUser.postalCode,
           detailAddress: newUser.detailAddress,
@@ -320,8 +308,9 @@ export default function AccountManagementPage() {
         return;
       }
 
-      const birthPw = dayjs(newUser.birthday).format('YYMMDD');
-      const pwInfo = `생년월일 6자리(${birthPw})`;
+      const phoneDigits = newUser.phoneNum ? newUser.phoneNum.replace(/[^0-9]/g, '') : '';
+      const rawPw = phoneDigits.slice(-4);
+      const pwInfo = `전화번호 끝 4자리(${rawPw})`;
 
       setUsers(prev => [newUser, ...prev]);
       enqueueSnackbar(
@@ -337,12 +326,13 @@ export default function AccountManagementPage() {
 
   // Reset Password Handler
   const handleResetPassword = async (user: User) => {
-    if (!user.birthday) {
-      enqueueSnackbar('생년월일이 등록되지 않은 계정은 비밀번호를 초기화할 수 없습니다.', { variant: 'error' });
+    const phoneDigits = user.phoneNum ? user.phoneNum.replace(/[^0-9]/g, '') : '';
+    if (phoneDigits.length < 4) {
+      enqueueSnackbar('전화번호가 올바르지 않은 계정은 비밀번호를 초기화할 수 없습니다.', { variant: 'error' });
       return;
     }
-    const birthPw = dayjs(user.birthday).format('YYMMDD');
-    const pwDesc = `생년월일 6자리(${birthPw})`;
+    const rawPw = phoneDigits.slice(-4);
+    const pwDesc = `전화번호 끝 4자리(${rawPw})`;
 
     if (
       confirm(
@@ -459,12 +449,6 @@ export default function AccountManagementPage() {
       },
     },
     {
-      key: 'birthday',
-      header: '생년월일',
-      className: 'col-birthday',
-      render: (user) => <span>{user.birthday || '—'}</span>,
-    },
-    {
       key: 'createTime',
       header: '등록일',
       className: 'col-created',
@@ -556,7 +540,7 @@ export default function AccountManagementPage() {
               <div className="alert-content">
                 <strong>계정 발급 및 초기 비밀번호 안내</strong>
                 <p>
-                  아이디는 <strong>하이픈 없는 전화번호</strong>로 자동 생성되며, 초기 비밀번호는 <strong>생년월일 6자리</strong>로 자동 설정됩니다.
+                  아이디는 <strong>하이픈 없는 전화번호</strong>로 자동 생성되며, 초기 비밀번호는 <strong>전화번호 끝 4자리</strong>로 자동 설정됩니다.
                 </p>
               </div>
             </div>
@@ -624,36 +608,20 @@ export default function AccountManagementPage() {
               value={formData.phoneNum}
               onChange={e => setFormData(prev => ({ ...prev, phoneNum: formatPhoneNumber(e.target.value) }))}
             />
-            {!editingUser && !isCustomId && (
-              <span className="field-hint">
-                로그인 아이디: <strong>{formData.phoneNum.replace(/[^0-9]/g, '') || '전화번호 입력 시 자동 지정'}</strong>
-              </span>
-            )}
           </div>
 
-          <div className="form-grid-2">
-            <div className="form-field">
-              <label>성별</label>
-              <CustomSelect
-                fullWidth
-                sizeVariant="lg"
-                value={formData.gender}
-                onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value }))}
-              >
-                <option value="M">남성</option>
-                <option value="F">여성</option>
-                <option value="O">기타</option>
-              </CustomSelect>
-            </div>
-            <div className="form-field">
-              <label>생년월일 <span className="req">*</span></label>
-              <input
-                type="date"
-                required
-                value={formData.birthday}
-                onChange={e => setFormData(prev => ({ ...prev, birthday: e.target.value }))}
-              />
-            </div>
+          <div className="form-field">
+            <label>성별</label>
+            <CustomSelect
+              fullWidth
+              sizeVariant="lg"
+              value={formData.gender}
+              onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+            >
+              <option value="M">남성</option>
+              <option value="F">여성</option>
+              <option value="O">기타</option>
+            </CustomSelect>
           </div>
 
           {/* 주소 검색 필드 (우편번호 검색 상단 + 도로명 주소 하단) */}
