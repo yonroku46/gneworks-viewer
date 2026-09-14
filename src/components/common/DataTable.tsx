@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Download, Loader2, Inbox, ChevronDown } from 'lucide-react';
+import { Download, Loader2, Inbox, ChevronDown, X, ListChecks, Trash2 } from 'lucide-react';
 import TableLoadingRow from './TableLoadingRow';
 import Pagination from './Pagination';
 import './DataTable.scss';
@@ -19,6 +19,14 @@ export interface DataTableExcelAction {
   onExport: () => void | Promise<void>;
   isExporting?: boolean;
   label?: string;
+}
+
+export interface DataTableBatchAction {
+  label?: string;
+  onAction: () => void | Promise<void>;
+  isLoading?: boolean;
+  unit?: string;
+  icon?: React.ReactNode;
 }
 
 export interface DataTableProps<T> {
@@ -43,6 +51,11 @@ export interface DataTableProps<T> {
   className?: string;
   showPagination?: boolean;
   showPageSizeOnTop?: boolean;
+  selectable?: boolean;
+  onSelectableChange?: (selectable: boolean) => void;
+  selectedRowKeys?: (string | number)[];
+  onSelectChange?: (keys: (string | number)[], items: T[]) => void;
+  batchAction?: DataTableBatchAction;
 }
 
 export default function DataTable<T>({
@@ -67,12 +80,52 @@ export default function DataTable<T>({
   className = '',
   showPagination = true,
   showPageSizeOnTop = true,
+  selectable = false,
+  onSelectableChange,
+  selectedRowKeys = [],
+  onSelectChange,
+  batchAction,
 }: DataTableProps<T>) {
   const effectiveTotalCount = totalCount !== undefined ? totalCount : data.length;
   const totalPages = Math.ceil(effectiveTotalCount / pageSize);
   const startIndex = (page - 1) * pageSize;
 
-  const hasLeftToolbar = Boolean(toolbarTitle || toolbarBadge || toolbarLeftAction);
+  const getItemKey = (item: T, idx: number): string | number => (
+    rowKey ? rowKey(item, idx) : (item as any)?.id || (item as any)?.siteId || (item as any)?.reportId || idx
+  );
+
+  const currentPageKeys = data.map((item, idx) => getItemKey(item, idx));
+  const isAllSelected = data.length > 0 && currentPageKeys.every(k => selectedRowKeys.includes(k));
+  const isSomeSelected = !isAllSelected && currentPageKeys.some(k => selectedRowKeys.includes(k));
+
+  const handleToggleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!onSelectChange) return;
+    const checked = e.target.checked;
+    const currentSelected = new Set(selectedRowKeys);
+    if (checked) {
+      currentPageKeys.forEach(k => currentSelected.add(k));
+    } else {
+      currentPageKeys.forEach(k => currentSelected.delete(k));
+    }
+    const newKeys = Array.from(currentSelected);
+    onSelectChange(newKeys, data.filter((item, idx) => newKeys.includes(getItemKey(item, idx))));
+  };
+
+  const handleToggleSelectRow = (key: string | number, item: T, e: React.MouseEvent | React.ChangeEvent) => {
+    e.stopPropagation();
+    if (!onSelectChange) return;
+    const currentSelected = new Set(selectedRowKeys);
+    if (currentSelected.has(key)) {
+      currentSelected.delete(key);
+    } else {
+      currentSelected.add(key);
+    }
+    const newKeys = Array.from(currentSelected);
+    onSelectChange(newKeys, data.filter((d, idx) => newKeys.includes(getItemKey(d, idx))));
+  };
+
+  const totalColSpan = columns.length + (selectable ? 1 : 0);
+  const hasLeftToolbar = Boolean(toolbarTitle || toolbarBadge || toolbarLeftAction || onSelectableChange);
   const hasRightToolbar = Boolean((showPageSizeOnTop && onPageSizeChange) || excelAction || toolbarRightAction);
   const hasToolbar = hasLeftToolbar || hasRightToolbar;
 
@@ -80,15 +133,58 @@ export default function DataTable<T>({
     <div className={`data-table-container ${className}`.trim()}>
       {hasToolbar && (
         <div className="data-table-toolbar">
-          {hasLeftToolbar ? (
-            <div className="toolbar-left">
-              {toolbarTitle && <span className="toolbar-title">{toolbarTitle}</span>}
-              {toolbarBadge && <span className="toolbar-badge">{toolbarBadge}</span>}
-              {toolbarLeftAction}
-            </div>
-          ) : (
-            <div className="toolbar-left" />
-          )}
+          <div className="toolbar-left">
+            {toolbarTitle && <span className="toolbar-title">{toolbarTitle}</span>}
+            {toolbarBadge && <span className="toolbar-badge">{toolbarBadge}</span>}
+            {onSelectableChange && (
+              <div className="selection-toolbar-group">
+                {selectable && batchAction && (
+                  <div className="table-batch-actions">
+                    <button
+                      type="button"
+                      className={`btn-batch-delete ${selectedRowKeys.length > 0 ? 'has-selection' : ''}`}
+                      onClick={batchAction.onAction}
+                      disabled={batchAction.isLoading || selectedRowKeys.length === 0}
+                      title={
+                        selectedRowKeys.length === 0
+                          ? '삭제할 항목을 선택해주세요'
+                          : `${selectedRowKeys.length}${batchAction.unit || '건'} ${batchAction.label || '선택 삭제'}`
+                      }
+                    >
+                      {batchAction.isLoading ? (
+                        <Loader2 size={13} className="spin-icon" />
+                      ) : (
+                        batchAction.icon || <Trash2 size={13} />
+                      )}
+                      <span>{batchAction.label || '선택 삭제'}</span>
+                      {selectedRowKeys.length > 0 && (
+                        <span className="batch-count-badge">
+                          {selectedRowKeys.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className={`btn-selection-toggle ${selectable ? 'active' : ''}`}
+                  onClick={() => {
+                    const next = !selectable;
+                    onSelectableChange(next);
+                    if (!next && onSelectChange) {
+                      onSelectChange([], []);
+                    }
+                  }}
+                  title={selectable ? '선택 모드 닫기' : '항목 일괄 선택'}
+                >
+                  {selectable ? <X size={14} /> : <ListChecks size={15} />}
+                  <span>{selectable ? '취소' : '일괄선택'}</span>
+                </button>
+              </div>
+            )}
+            {toolbarLeftAction}
+          </div>
 
           <div className="toolbar-right">
             {showPageSizeOnTop && onPageSizeChange && (
@@ -141,6 +237,20 @@ export default function DataTable<T>({
           <table className="data-table">
             <thead>
               <tr>
+                {selectable && (
+                  <th className="col-selection align-center" style={{ width: '40px' }}>
+                    <input
+                      type="checkbox"
+                      className="table-checkbox"
+                      checked={isAllSelected}
+                      ref={el => {
+                        if (el) el.indeterminate = isSomeSelected;
+                      }}
+                      onChange={handleToggleSelectAll}
+                      aria-label="현재 페이지 전체 선택"
+                    />
+                  </th>
+                )}
                 {columns.map(col => (
                   <th
                     key={col.key}
@@ -154,18 +264,42 @@ export default function DataTable<T>({
             </thead>
             <tbody>
               {isLoading ? (
-                <TableLoadingRow colSpan={columns.length} message={loadingMessage} />
+                <TableLoadingRow colSpan={totalColSpan} message={loadingMessage} />
               ) : data.length > 0 ? (
                 data.map((item, idx) => {
-                  const key = rowKey ? rowKey(item, idx) : (item as any)?.id || idx;
-                  const isClickable = !!onRowClick;
+                  const key = getItemKey(item, idx);
+                  const isClickable = selectable || !!onRowClick;
+                  const isSelected = selectable && selectedRowKeys.includes(key);
+
+                  const handleRowClick = (e: React.MouseEvent) => {
+                    if (selectable) {
+                      handleToggleSelectRow(key, item, e);
+                    } else if (onRowClick) {
+                      onRowClick(item, idx);
+                    }
+                  };
 
                   return (
                     <tr
                       key={key}
-                      className={`data-table-row ${isClickable ? 'clickable' : ''}`}
-                      onClick={() => onRowClick && onRowClick(item, idx)}
+                      className={`data-table-row ${isClickable ? 'clickable' : ''} ${isSelected ? 'selected' : ''}`.trim()}
+                      onClick={handleRowClick}
                     >
+                      {selectable && (
+                        <td
+                          className="col-selection align-center"
+                          style={{ width: '40px' }}
+                        >
+                          <input
+                            type="checkbox"
+                            className="table-checkbox"
+                            checked={isSelected}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => handleToggleSelectRow(key, item, e)}
+                            aria-label={`행 선택`}
+                          />
+                        </td>
+                      )}
                       {columns.map(col => {
                         const value = (item as any)?.[col.key];
                         const content = col.render
@@ -188,7 +322,7 @@ export default function DataTable<T>({
                 })
               ) : (
                 <tr className="empty-row">
-                  <td colSpan={columns.length}>
+                  <td colSpan={totalColSpan}>
                     <div className="empty-state-box">
                       <Inbox size={36} />
                       <p>{emptyMessage}</p>

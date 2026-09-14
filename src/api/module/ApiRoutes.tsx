@@ -39,6 +39,7 @@ const ADMIN_SITE_DETAIL = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}`;
 const ADMIN_SITE_CREATE = `${ADMIN_ROOT}/site`;
 const ADMIN_SITE_UPDATE = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}`;
 const ADMIN_SITE_DELETE = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}`;
+const ADMIN_SITE_BATCH_DELETE = `${ADMIN_ROOT}/site/batch-delete`;
 const ADMIN_HOUSEHOLD_ADD = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}/household`;
 const ADMIN_HOUSEHOLD_DELETE = (siteId: string, householdId: string) => `${ADMIN_ROOT}/site/${siteId}/household/${householdId}`;
 
@@ -64,6 +65,7 @@ const ADMIN_REPORT_EXPORT_EXCEL = `${ADMIN_ROOT}/report/export/excel`;
 const ADMIN_REPORT_DETAIL = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}`;
 const ADMIN_REPORT_STATUS = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}/status`;
 const ADMIN_REPORT_DELETE = (reportId: string) => `${ADMIN_ROOT}/report/${reportId}`;
+const ADMIN_REPORT_BATCH_DELETE = `${ADMIN_ROOT}/report/batch-delete`;
 const ADMIN_REPORT_DELETED_PAGED = `${ADMIN_ROOT}/report/deleted`;
 
 // admin (dashboard)
@@ -120,6 +122,7 @@ const ApiRoutes = {
   ADMIN_SITE_CREATE,
   ADMIN_SITE_UPDATE,
   ADMIN_SITE_DELETE,
+  ADMIN_SITE_BATCH_DELETE,
   ADMIN_HOUSEHOLD_ADD,
   ADMIN_HOUSEHOLD_DELETE,
   ADMIN_FIRE_REGION_LIST,
@@ -139,6 +142,7 @@ const ApiRoutes = {
   ADMIN_REPORT_DETAIL,
   ADMIN_REPORT_STATUS,
   ADMIN_REPORT_DELETE,
+  ADMIN_REPORT_BATCH_DELETE,
   ADMIN_REPORT_DELETED_PAGED,
   ADMIN_WORKER_RANKING,
   ADMIN_DASHBOARD_SUMMARY,

@@ -11,6 +11,9 @@ import {
   ArrowRight,
   MoreVertical,
   History,
+  Trash2,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
@@ -49,6 +52,20 @@ function ManageWorkContent() {
 
   // Regional Batch Print Dialog State
   const [isRegionalBatchDialogOpen, setIsRegionalBatchDialogOpen] = useState(false);
+
+  // Selection & Batch Delete State
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
+  const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState(false);
+  const [batchDeleteReason, setBatchDeleteReason] = useState('');
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+
+  const QUICK_DELETE_REASONS = [
+    '오등록/중복 세대',
+    '작업자 오입력 요청',
+    '세대 현장 취소',
+    '사진 오류/재작성 예정',
+  ];
 
   // Trash (Deletion Log) Dialog State
   const [isTrashDialogOpen, setIsTrashDialogOpen] = useState(false);
@@ -304,10 +321,12 @@ function ManageWorkContent() {
     };
   }, [loadData]);
 
-  // 지역 또는 검색어 변경 시 1페이지로 리셋
+  // 지역 또는 검색어 변경 시 1페이지로 리셋 및 선택 초기화
   React.useEffect(() => {
     setPage(1);
-  }, [region, searchQuery]);
+    setSelectedReportIds([]);
+    setIsSelectMode(false);
+  }, [region, searchQuery, appliedStatusFilter, appliedInstallStartDate, appliedInstallEndDate, appliedReportStartDate, appliedReportEndDate]);
 
   // 엑셀 다운로드 핸들러
   const handleExportExcel = async () => {
@@ -457,6 +476,29 @@ function ManageWorkContent() {
     } catch (err: any) {
       console.error('[ManageWorkPage] updateReportStatus error:', err);
       enqueueSnackbar(err?.message || '상태 변경 중 오류가 발생했습니다.', { variant: 'error' });
+    }
+  };
+
+  // 시공 보고서 일괄 영구 삭제 처리 (동일 삭제 사유 일괄 기록 및 정리)
+  const handleConfirmBatchDelete = async () => {
+    if (selectedReportIds.length === 0 || isBatchDeleting) return;
+    if (!batchDeleteReason.trim() || batchDeleteReason.trim().length < 5) {
+      enqueueSnackbar('일괄 삭제 사유를 최소 5자 이상 구체적으로 입력해주세요.', { variant: 'warning' });
+      return;
+    }
+    setIsBatchDeleting(true);
+    try {
+      await AdminService.batchDeleteReports(selectedReportIds, batchDeleteReason.trim());
+      enqueueSnackbar(`선택한 ${selectedReportIds.length}건의 보고서가 영구 삭제되었습니다.`, { variant: 'success' });
+      setIsBatchDeleteModalOpen(false);
+      setSelectedReportIds([]);
+      setBatchDeleteReason('');
+      await loadData();
+    } catch (err: any) {
+      console.error('[ManageWorkPage] batchDeleteReports error:', err);
+      enqueueSnackbar('보고서 일괄 삭제 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsBatchDeleting(false);
     }
   };
 
@@ -614,6 +656,24 @@ function ManageWorkContent() {
 
       {/* ── 3. WORK REPORTS DATA TABLE ── */}
       <DataTable<WorkReport>
+        selectable={isSelectMode}
+        onSelectableChange={(val) => {
+          setIsSelectMode(val);
+          if (!val) {
+            setSelectedReportIds([]);
+          }
+        }}
+        selectedRowKeys={selectedReportIds}
+        onSelectChange={(keys) => setSelectedReportIds(keys as string[])}
+        batchAction={{
+          label: '선택 삭제',
+          unit: '건',
+          onAction: () => {
+            setBatchDeleteReason('');
+            setIsBatchDeleteModalOpen(true);
+          },
+          isLoading: isBatchDeleting,
+        }}
         columns={columns}
         data={reports}
         rowKey={(report, idx) => report.reportId || `report_${idx}`}
@@ -621,10 +681,14 @@ function ManageWorkContent() {
         page={page}
         pageSize={pageSize}
         pageSizeOptions={[30, 50, 100]}
-        onPageChange={setPage}
+        onPageChange={(newPage) => {
+          setPage(newPage);
+          setSelectedReportIds([]);
+        }}
         onPageSizeChange={(newSize) => {
           setPageSize(newSize);
           setPage(1);
+          setSelectedReportIds([]);
         }}
         isLoading={isLoading}
         loadingMessage="작업 보고서 목록을 불러오는 중입니다..."
@@ -959,6 +1023,91 @@ function ManageWorkContent() {
         regionId={region.regionId}
         regionLabel={regionLabel}
       />
+
+      {/* ── BATCH REPORT DELETE CONFIRMATION SLIDE DIALOG ── */}
+      <SlideDialog
+        isOpen={isBatchDeleteModalOpen}
+        onClose={() => {
+          if (!isBatchDeleting) {
+            setIsBatchDeleteModalOpen(false);
+          }
+        }}
+        title="선택 보고서 일괄 삭제"
+        className="report-delete-slide-dialog manage-page"
+        footer={
+          <div className="dialog-btn-group">
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setIsBatchDeleteModalOpen(false)}
+              disabled={isBatchDeleting}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="btn-confirm-delete btn-danger-action"
+              onClick={handleConfirmBatchDelete}
+              disabled={batchDeleteReason.trim().length < 5 || isBatchDeleting}
+            >
+              {isBatchDeleting ? (
+                <>
+                  <Loader2 size={16} className="spin-icon" />
+                  <span>일괄 삭제 중...</span>
+                </>
+              ) : (
+                <span>일괄 영구 삭제 ({selectedReportIds.length}건)</span>
+              )}
+            </button>
+          </div>
+        }
+      >
+        <div className="report-delete-dialog-content">
+          <div className="delete-warning-banner">
+            <AlertTriangle size={20} className="warning-icon" />
+            <div className="warning-text">
+              <strong>주의: 일괄 삭제 시 복구할 수 없습니다.</strong>
+              <p>선택된 {selectedReportIds.length}건의 보고서 원본 및 S3 사진들이 즉시 영구 삭제되며, 해당 세대들은 &apos;미설치&apos; 상태로 자동 원복됩니다.</p>
+            </div>
+          </div>
+
+          <div className="delete-target-card">
+            <div className="target-item">
+              <span className="lbl">선택된 삭제 대상</span>
+              <strong className="val">{selectedReportIds.length}건</strong>
+            </div>
+            <div className="target-item">
+              <span className="lbl">적용 사항</span>
+              <span className="val">동일 사유로 삭제이력 보존 및 세대 상태 원복</span>
+            </div>
+          </div>
+
+          <div className="delete-reason-section">
+            <label className="reason-label">
+              <span>일괄 삭제 사유 <span className="req">*</span></span>
+            </label>
+            <div className="quick-reason-chips">
+              {QUICK_DELETE_REASONS.map(r => (
+                <button
+                  key={r}
+                  type="button"
+                  className="quick-chip"
+                  onClick={() => setBatchDeleteReason(r)}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <textarea
+              className="reason-textarea"
+              placeholder="선택한 보고서들에 공통 적용될 구체적인 삭제 사유를 입력하세요 (예: 오등록 중복 세대, 재작성 요청 등 최소 5자 이상)"
+              value={batchDeleteReason}
+              onChange={e => setBatchDeleteReason(e.target.value)}
+              rows={5}
+            />
+          </div>
+        </div>
+      </SlideDialog>
     </div>
   );
 }

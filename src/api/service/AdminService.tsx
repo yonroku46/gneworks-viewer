@@ -327,6 +327,25 @@ class AdminService {
   }
 
   /**
+   * 현장 일괄 삭제 (연관 세대 일괄 삭제)
+   * POST /admin/site/batch-delete
+   */
+  async batchDeleteSites(siteIds: string[]): Promise<ActionRes> {
+    try {
+      const response: ApiResponse = await ApiInstance.post(ApiRoutes.ADMIN_SITE_BATCH_DELETE, {
+        siteIds,
+      });
+      if (response && !response.hasErrors) {
+        return response.responseData as ActionRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to batch delete sites');
+    } catch (error) {
+      console.error('[AdminService] batchDeleteSites', error);
+      throw error;
+    }
+  }
+
+  /**
    * 세대 개별 등록
    * POST /admin/site/{siteId}/household
    */
@@ -759,6 +778,26 @@ class AdminService {
       throw new Error(response?.informations?.[0]?.message || 'Failed to delete report');
     } catch (error) {
       console.error('[AdminService] deleteReport', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 시공 보고서 일괄 영구 삭제 (관리자 필수 사유 기록 및 감사 로그 저장)
+   * POST /admin/report/batch-delete
+   */
+  async batchDeleteReports(reportIds: string[], deleteReason: string): Promise<ActionRes> {
+    try {
+      const response: ApiResponse = await ApiInstance.post(ApiRoutes.ADMIN_REPORT_BATCH_DELETE, {
+        reportIds,
+        deleteReason,
+      });
+      if (response && !response.hasErrors) {
+        return response.responseData as ActionRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to batch delete reports');
+    } catch (error) {
+      console.error('[AdminService] batchDeleteReports', error);
       throw error;
     }
   }

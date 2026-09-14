@@ -1729,6 +1729,22 @@
       background: var(--manage-primary-hover);
     }
   }
+  .btn-danger-action,
+  .btn-confirm-delete {
+    background: var(--danger);
+    border: 1px solid transparent;
+    color: var(--white);
+    .spin-icon {
+      animation: spin 1s linear infinite;
+    }
+    &:hover:not(:disabled) {
+      background: var(--danger-hover);
+    }
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
 }
 
 .site-detail-modal {

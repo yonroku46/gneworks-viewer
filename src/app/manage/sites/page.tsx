@@ -13,6 +13,7 @@ import {
   Users,
   Search,
   FileUp,
+  Trash2,
 } from 'lucide-react';
 import RegionSelector from '@/components/common/RegionSelector';
 import CustomSelect from '@/components/common/CustomSelect';
@@ -34,6 +35,11 @@ export default function ManageCustomers() {
   const [isExporting, setIsExporting] = useState(false);
   const [regionWorkersMap, setRegionWorkersMap] = useState<Record<string, RegionWorkerUser[]>>({});
   const [fireRegions, setFireRegions] = useState<FireRegion[]>([]);
+
+  // Selection State for Batch Actions
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   // Region State for Common RegionSelector (Global Shared State)
   const { region, setRegion } = useManageRegion();
@@ -57,9 +63,11 @@ export default function ManageCustomers() {
       .catch(err => console.error('Failed to load fire regions:', err));
   }, []);
 
-  // 필터(지역/검색어) 변경 시 1페이지로 리셋
+  // 필터(지역/검색어) 변경 시 1페이지로 리셋 및 선택 초기화
   useEffect(() => {
     setPage(1);
+    setSelectedSiteIds([]);
+    setIsSelectMode(false);
   }, [region, searchQuery]);
 
   // Load Sites from Backend (Paged)
@@ -469,10 +477,31 @@ export default function ManageCustomers() {
       setIsDetailOpen(false);
       setSelectedSite(undefined);
       setEditingSite(undefined);
+      setSelectedSiteIds(prev => prev.filter(id => id !== site.siteId));
       await loadSites();
     } catch (error: any) {
       console.error('Failed to delete site:', error);
       enqueueSnackbar('현장 삭제에 실패했습니다.', { variant: 'error' });
+    }
+  };
+
+  // Batch Delete Sites
+  const handleBatchDeleteSites = async () => {
+    if (selectedSiteIds.length === 0 || isBatchDeleting) return;
+    if (!confirm(`선택한 ${selectedSiteIds.length}개 현장과 등록된 모든 세대 데이터를 정말 일괄 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
+      return;
+    }
+    try {
+      setIsBatchDeleting(true);
+      await AdminService.batchDeleteSites(selectedSiteIds);
+      enqueueSnackbar(`선택한 ${selectedSiteIds.length}개 현장이 일괄 삭제되었습니다.`, { variant: 'success' });
+      setSelectedSiteIds([]);
+      await loadSites();
+    } catch (error: any) {
+      console.error('Failed to batch delete sites:', error);
+      enqueueSnackbar('현장 일괄 삭제에 실패했습니다.', { variant: 'error' });
+    } finally {
+      setIsBatchDeleting(false);
     }
   };
 
@@ -544,6 +573,21 @@ export default function ManageCustomers() {
 
       {/* ── 3. SITE TABLE (REUSABLE DATA TABLE COMPONENT) ── */}
       <DataTable<SiteDetail>
+        selectable={isSelectMode}
+        onSelectableChange={(val) => {
+          setIsSelectMode(val);
+          if (!val) {
+            setSelectedSiteIds([]);
+          }
+        }}
+        selectedRowKeys={selectedSiteIds}
+        onSelectChange={(keys) => setSelectedSiteIds(keys as string[])}
+        batchAction={{
+          label: '선택 삭제',
+          unit: '개',
+          onAction: handleBatchDeleteSites,
+          isLoading: isBatchDeleting,
+        }}
         columns={columns}
         data={sites}
         rowKey={(site, idx) => site.siteId || `site_${idx}`}
@@ -551,10 +595,14 @@ export default function ManageCustomers() {
         page={page}
         pageSize={pageSize}
         pageSizeOptions={[30, 50, 100]}
-        onPageChange={setPage}
+        onPageChange={(newPage) => {
+          setPage(newPage);
+          setSelectedSiteIds([]);
+        }}
         onPageSizeChange={(newSize) => {
           setPageSize(newSize);
           setPage(1);
+          setSelectedSiteIds([]);
         }}
         isLoading={isLoading}
         loadingMessage="현장 목록을 불러오는 중입니다..."

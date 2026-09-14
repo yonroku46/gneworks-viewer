@@ -32,6 +32,94 @@
         font-size: 0.75rem;
         font-weight: 700;
       }
+      .selection-toolbar-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+      }
+      .table-batch-actions {
+        display: inline-flex;
+        align-items: center;
+        .btn-batch-delete {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.375rem;
+          height: 2.25rem;
+          padding: 0 0.8125rem;
+          border-radius: 0.625rem;
+          border: 1px solid var(--border);
+          background: var(--slate-100);
+          color: var(--slate-400);
+          font-size: 0.8125rem;
+          font-weight: 600;
+          cursor: not-allowed;
+          white-space: nowrap;
+          transition: all 0.15s ease;
+          svg {
+            width: 0.8125rem;
+            height: 0.8125rem;
+            color: var(--slate-400);
+            transition: color 0.15s ease;
+          }
+          .spin-icon {
+            animation: spin 1s linear infinite;
+          }
+          &.has-selection {
+            border-color: var(--danger-border);
+            background: var(--danger-bg);
+            color: var(--danger-hover);
+            cursor: pointer;
+            svg {
+              color: var(--danger);
+            }
+          }
+          .batch-count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.125rem;
+            height: 1.125rem;
+            padding: 0 0.3125rem;
+            border-radius: 9999px;
+            background: var(--white);
+            color: var(--danger-hover);
+            font-size: 0.6875rem;
+            font-weight: 800;
+            line-height: 1;
+            box-shadow: 0 1px 2px var(--danger-border);
+          }
+        }
+      }
+      .btn-selection-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.375rem;
+        height: 2.25rem;
+        padding: 0 0.8125rem;
+        border-radius: 0.625rem;
+        border: 1px solid var(--border);
+        background: var(--card-bg);
+        color: var(--slate-700);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s ease;
+        svg {
+          width: 0.875rem;
+          height: 0.875rem;
+          color: var(--slate-500);
+          transition: color 0.15s ease;
+        }
+        &.active {
+          padding: 0 0.6875rem;
+          color: var(--slate-600);
+          svg {
+            color: var(--slate-500);
+          }
+        }
+      }
     }
     .toolbar-right {
       display: flex;
@@ -134,7 +222,27 @@
             &.align-right {
               text-align: right;
             }
+            &.col-selection {
+              width: 40px;
+              min-width: 40px;
+              max-width: 40px;
+              text-align: center;
+              padding: 0.75rem 0.25rem;
+              vertical-align: middle;
+            }
           }
+        }
+        .table-checkbox {
+          width: 0.9375rem;
+          height: 0.9375rem;
+          min-width: 0.9375rem;
+          min-height: 0.9375rem;
+          accent-color: var(--manage-primary);
+          cursor: pointer;
+          border-radius: 0.25rem;
+          margin: 0;
+          display: inline-block;
+          vertical-align: middle;
         }
         tbody {
           tr.data-table-row {
@@ -145,6 +253,9 @@
             }
             &.clickable {
               cursor: pointer;
+            }
+            &.selected {
+              background-color: var(--gray-alpha-100);
             }
             td {
               padding: 0.875rem 1rem;
@@ -158,6 +269,14 @@
               }
               &.align-right {
                 text-align: right;
+              }
+              &.col-selection {
+                width: 40px;
+                min-width: 40px;
+                max-width: 40px;
+                text-align: center;
+                padding: 0.875rem 0.25rem;
+                vertical-align: middle;
               }
             }
           }
@@ -223,13 +342,49 @@
   .data-table-container .data-table-card .data-table-scroll-area .data-table tbody tr.data-table-row.clickable:hover {
     background-color: var(--slate-50);
   }
-  .data-table-container .data-table-toolbar .toolbar-right .toolbar-size-select-wrap:hover {
-    .toolbar-size-select {
+  .data-table-container .data-table-card .data-table-scroll-area .data-table tbody tr.data-table-row.selected:hover {
+    background-color: var(--gray-alpha-200);
+  }
+  .data-table-container .data-table-toolbar .toolbar-left {
+    .btn-selection-toggle:hover {
+      background: var(--slate-50);
       border-color: var(--slate-300);
       color: var(--slate-900);
+      svg {
+        color: var(--slate-700);
+      }
+      &.active:hover {
+        background: var(--slate-100);
+        border-color: var(--slate-300);
+        color: var(--slate-800);
+        svg {
+          color: var(--slate-700);
+        }
+      }
     }
-    .select-arrow-icon {
-      color: var(--slate-600);
+    .table-batch-actions .btn-batch-delete.has-selection:not(:disabled):hover {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: var(--white);
+      box-shadow: 0 2px 6px var(--danger-border);
+      svg {
+        color: var(--white);
+      }
+      .batch-count-badge {
+        background: var(--white);
+        color: var(--danger);
+      }
+    }
+  }
+  .data-table-container .data-table-toolbar .toolbar-right {
+    .toolbar-size-select-wrap:hover {
+      .toolbar-size-select {
+        border-color: var(--slate-300);
+        color: var(--slate-900);
+      }
+      .select-arrow-icon {
+        color: var(--slate-600);
+      }
     }
   }
   .btn-excel-export:not(:disabled):hover {
