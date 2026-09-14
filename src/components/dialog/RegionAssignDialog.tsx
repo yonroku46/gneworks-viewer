@@ -6,6 +6,8 @@ import CustomSelect from '@/components/common/CustomSelect';
 import { CheckCircle2, Building2, AlertCircle, X, ChevronDown, ChevronRight } from 'lucide-react';
 import AdminService from '@/api/service/AdminService';
 import PortalService from '@/api/service/PortalService';
+import AdminSiteBadge from '@/components/common/AdminSiteBadge';
+import { isAdminRegion } from '@/common/utils/regionUtils';
 import './RegionAssignDialog.scss';
 
 interface RegionAssignDialogProps {
@@ -414,7 +416,10 @@ export default function RegionAssignDialog({
                           <span className="row-index">{index + 1}</span>
                         </td>
                         <td className="col-name">
-                          <strong className="site-name-text">{site.name}</strong>
+                          <div className="site-name-cell">
+                            <strong className="site-name-text">{site.name}</strong>
+                            {isAdminRegion(site.regionId) && <AdminSiteBadge />}
+                          </div>
                         </td>
                         <td className="col-addr">
                           <div className="addr-wrapper">

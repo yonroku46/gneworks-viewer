@@ -6,6 +6,8 @@ import SiteDetailDialog from '@/components/dialog/SiteDetailDialog';
 import ExcelImportDialog from '@/components/dialog/ExcelImportDialog';
 import DataTable, { ColumnDef } from '@/components/common/DataTable';
 import AdminService from '@/api/service/AdminService';
+import AdminSiteBadge from '@/components/common/AdminSiteBadge';
+import { isAdminRegion } from '@/common/utils/regionUtils';
 import { useSnackbar } from 'notistack';
 import {
   Building2,
@@ -201,7 +203,12 @@ export default function ManageCustomers() {
       key: 'name',
       header: '현장 (아파트명)',
       render: (site) => (
-        <strong className="site-title-text">{site.name}</strong>
+        <div className="site-name-cell">
+          <div className="site-title-row">
+            <strong className="site-title-text">{site.name}</strong>
+            {isAdminRegion(site.regionId) && <AdminSiteBadge />}
+          </div>
+        </div>
       ),
     },
     {

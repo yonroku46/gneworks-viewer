@@ -4,6 +4,8 @@ import React, { useState, useMemo } from 'react';
 import SlideDialog from './SlideDialog';
 import RegionSelector from '@/components/common/RegionSelector';
 import SearchInput from '@/components/common/SearchInput';
+import AdminSiteBadge from '@/components/common/AdminSiteBadge';
+import { isAdminRegion } from '@/common/utils/regionUtils';
 import { Building2, Plus, MapPin, CheckCircle2, Users, Search } from 'lucide-react';
 import './SiteAssignDialog.scss';
 
@@ -97,6 +99,7 @@ export default function SiteAssignDialog({
                       <div className="site-title-row">
                         <Building2 size={18} className="site-icon" />
                         <h4 className="site-name">{site.name}</h4>
+                        {isAdminRegion(site.regionId) && <AdminSiteBadge />}
                         <div className="region-badge">
                           <span>{site.sigungu} {site.eupmyeondong}</span>
                         </div>

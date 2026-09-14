@@ -20,6 +20,8 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import AdminService from '@/api/service/AdminService';
 import StatusBadge from '@/components/common/StatusBadge';
+import AdminSiteBadge from '@/components/common/AdminSiteBadge';
+import { isAdminRegion } from '@/common/utils/regionUtils';
 import SlideDialog from '@/components/dialog/SlideDialog';
 import CustomSelect from '@/components/common/CustomSelect';
 import ConfirmationDocumentPaper from '@/components/common/ConfirmationDocumentPaper';
@@ -789,6 +791,7 @@ export default function WorkReportDetailDialog({
                     <div className="target-title-line">
                       <Building2 size={16} />
                       <h3>{report.siteName} {report.dong}동 {report.ho}호</h3>
+                      {isAdminRegion(report.regionId) && <AdminSiteBadge />}
                       <span className="head-badge">{report.headName} 세대주</span>
                     </div>
                     <p className="target-address">

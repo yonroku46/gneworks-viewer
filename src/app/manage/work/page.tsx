@@ -27,9 +27,10 @@ import RegionSelector from '@/components/common/RegionSelector';
 import { useManageRegion } from '@/providers/ManageRegionProvider';
 import SearchInput from '@/components/common/SearchInput';
 import StatusBadge, { STATUS_LABEL_MAP } from '@/components/common/StatusBadge';
+import AdminSiteBadge from '@/components/common/AdminSiteBadge';
 import DataTable, { ColumnDef } from '@/components/common/DataTable';
 import AdminService from '@/api/service/AdminService';
-import { fetchFireRegions, getFireRegionById } from '@/common/utils/regionUtils';
+import { fetchFireRegions, getFireRegionById, isAdminRegion } from '@/common/utils/regionUtils';
 import { normalizeSidoName } from '@/utils/addressUtils';
 import '../ManageLayout.scss';
 
@@ -383,7 +384,10 @@ function ManageWorkContent() {
       header: '현장명 (아파트)',
       render: (report) => (
         <div className="site-name-wrap">
-          <strong className="site-title">{report.siteName}</strong>
+          <div className="site-title-row">
+            <strong className="site-title">{report.siteName}</strong>
+            {isAdminRegion(report.regionId) && <AdminSiteBadge />}
+          </div>
           <span className="site-addr-sub">{report.sigungu} {report.eupmyeondong}</span>
         </div>
       ),

@@ -304,3 +304,11 @@ export function findActualFireRegion(
 
   return undefined;
 }
+
+/**
+ * 관리자용 지역/현장 여부 확인 (regionId가 ADMIN으로 시작하는지 확인)
+ */
+export const isAdminRegion = (regionId?: string): boolean => {
+  if (!regionId) return false;
+  return regionId.toUpperCase().startsWith('ADMIN');
+};

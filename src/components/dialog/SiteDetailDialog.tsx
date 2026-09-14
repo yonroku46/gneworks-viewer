@@ -9,7 +9,8 @@ import CustomSelect from '@/components/common/CustomSelect';
 import AdminService from '@/api/service/AdminService';
 import { useDaumPostcodePopup, Address } from 'react-daum-postcode';
 import { normalizeSidoName, cleanRegionName } from '@/utils/addressUtils';
-import { findRegionById, fetchFireRegions } from '@/common/utils/regionUtils';
+import { findRegionById, fetchFireRegions, isAdminRegion } from '@/common/utils/regionUtils';
+import AdminSiteBadge from '@/components/common/AdminSiteBadge';
 import UserAvatar from '@/components/common/UserAvatar';
 
 export interface SiteDetailDialogProps {
@@ -373,7 +374,10 @@ export default function SiteDetailDialog({
           {/* Top Site Header Summary */}
           <div className="site-detail-header-card">
             <div className="site-header-left">
-              <h3>{site.name}</h3>
+              <div className="site-title-row">
+                <h3>{site.name}</h3>
+                {isAdminRegion(site.regionId) && <AdminSiteBadge />}
+              </div>
               <div className="site-address-sub">
                 <span>{site.address} ({site.sigungu} {site.eupmyeondong})</span>
               </div>

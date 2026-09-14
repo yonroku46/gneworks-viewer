@@ -60,6 +60,7 @@ declare global {
     reportId: string;
     householdId?: string;
     siteId: string;
+    regionId?: string;
     siteName: string;
     sido: string;
     sigungu: string;

@@ -9,6 +9,8 @@ import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
 import PortalService from '@/api/service/PortalService';
 import { getImageUrl } from '@/common/utils/imageUtils';
+import AdminSiteBadge from '@/components/common/AdminSiteBadge';
+import { isAdminRegion } from '@/common/utils/regionUtils';
 import { Plus, X, Check, AlertCircle, Building2, Loader2 } from 'lucide-react';
 import './WorkReportDialog.scss';
 
@@ -45,6 +47,7 @@ export default function WorkReportDialog({
     if (!site && !household && !existingReport) return null;
     return {
       siteId: site?.siteId || existingReport?.siteId || '',
+      regionId: site?.regionId || existingReport?.regionId || '',
       siteName: site?.name || existingReport?.siteName || '',
       sido: site?.sido || existingReport?.sido || '',
       sigungu: site?.sigungu || existingReport?.sigungu || '',
@@ -300,6 +303,7 @@ export default function WorkReportDialog({
             <div className="target-summary-bar">
               <div className="summary-header">
                 <span className="site-badge">{target.siteName}</span>
+                {isAdminRegion(target.regionId) && <AdminSiteBadge />}
                 <span className="unit-badge">
                   {target.dong}동 {target.ho}호
                 </span>
