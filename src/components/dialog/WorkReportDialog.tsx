@@ -102,7 +102,9 @@ export default function WorkReportDialog({
       
       const initInstallDate = target.existingReport?.installDate || todayStr;
       const initReporterName = target.existingReport?.reporterName || user?.userName || '현장 작업자';
-      const initConfirmerName = target.existingReport?.confirmerName || target.headName;
+      const rawConfirmer = target.existingReport?.confirmerName || target.headName || '';
+      const cleanConfirmer = (rawConfirmer.trim() === '-') ? '' : rawConfirmer.trim();
+      const initConfirmerName = cleanConfirmer;
       const initRemarks = target.existingReport?.remarks || '';
       const initSignature = target.existingReport?.confirmerSignature || '';
 
@@ -233,7 +235,7 @@ export default function WorkReportDialog({
     if (e) e.preventDefault();
     if (isReadOnly || isSubmitting) return;
 
-    if (!confirmerName.trim()) {
+    if (!confirmerName.trim() || confirmerName.trim() === '-') {
       enqueueSnackbar('확인자 성명을 입력해 주세요.', { variant: 'warning' });
       return;
     }
@@ -258,7 +260,7 @@ export default function WorkReportDialog({
         headName: target.headName,
         installDate,
         reporterName,
-        confirmerName: confirmerName.trim() || target.headName,
+        confirmerName: confirmerName.trim(),
         confirmerSignature,
         photoDoor: photos.photoDoor || '',
         photoBefore1: photos.photoBefore1 || '',
@@ -971,10 +973,11 @@ export default function WorkReportDialog({
         onClose={() => setIsSignatureModalOpen(false)}
         onSave={(sigData) => {
           setConfirmerSignature(sigData);
-          enqueueSnackbar(`${confirmerName || target.headName} 확인자 서명이 등록되었습니다.`, { variant: 'success' });
+          const displayName = confirmerName.trim() || (target.headName && target.headName !== '-' ? target.headName : '확인자');
+          enqueueSnackbar(`${displayName} 확인자 서명이 등록되었습니다.`, { variant: 'success' });
         }}
-        userName={confirmerName || target.headName}
-        title={`${confirmerName || target.headName} 확인자 서명`}
+        userName={confirmerName.trim() || (target.headName && target.headName !== '-' ? target.headName : '')}
+        title={`${confirmerName.trim() || (target.headName && target.headName !== '-' ? target.headName : '')} 확인자 서명`}
         disableBackdropClick={true}
       />
 
