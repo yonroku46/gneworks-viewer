@@ -163,7 +163,6 @@ declare global {
     userId: string;
     userName: string;
     phoneNum: string;
-    birthday?: string;
     gender?: string;
     postalCode?: string;
     detailAddress?: string;
@@ -172,7 +171,6 @@ declare global {
     userId: string;
     userName?: string;
     phoneNum?: string;
-    birthday?: string;
     gender?: string;
     postalCode?: string;
     detailAddress?: string;
@@ -290,7 +288,6 @@ declare global {
     userName: string;
     phoneNum: string;
     profileImg?: string;
-    birthday?: string;
     gender?: string;
     postalCode?: string;
     detailAddress?: string;

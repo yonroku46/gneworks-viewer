@@ -79,14 +79,12 @@ export default function AccountDetailDialog({
   const [editFormData, setEditFormData] = useState<{
     userName: string;
     phoneNum: string;
-    birthday: string;
     gender: 'M' | 'F' | 'O';
     postalCode: string;
     detailAddress: string;
   }>({
     userName: '',
     phoneNum: '',
-    birthday: '',
     gender: 'M',
     postalCode: '',
     detailAddress: '',
@@ -122,7 +120,6 @@ export default function AccountDetailDialog({
     setEditFormData({
       userName: user.userName,
       phoneNum: user.phoneNum,
-      birthday: user.birthday || '',
       gender: (user.gender as 'M' | 'F' | 'O') || 'M',
       postalCode: user.postalCode || '',
       detailAddress: user.detailAddress || '',
@@ -145,16 +142,11 @@ export default function AccountDetailDialog({
       enqueueSnackbar('전화번호를 입력해 주세요.', { variant: 'error' });
       return;
     }
-    if (!editFormData.birthday) {
-      enqueueSnackbar('생년월일을 입력해 주세요.', { variant: 'error' });
-      return;
-    }
 
     const updatedUser: User = {
       ...user,
       userName: editFormData.userName.trim(),
       phoneNum: formatPhoneNumber(editFormData.phoneNum.trim()),
-      birthday: editFormData.birthday || undefined,
       gender: editFormData.gender,
       postalCode: editFormData.postalCode.trim() || undefined,
       detailAddress: editFormData.detailAddress.trim() || undefined,
@@ -166,7 +158,6 @@ export default function AccountDetailDialog({
         userId: updatedUser.userId,
         userName: updatedUser.userName,
         phoneNum: updatedUser.phoneNum,
-        birthday: updatedUser.birthday,
         gender: updatedUser.gender,
         postalCode: updatedUser.postalCode,
         detailAddress: updatedUser.detailAddress,
@@ -652,10 +643,6 @@ export default function AccountDetailDialog({
                     </span>
                   </div>
                   <div className="info-row">
-                    <span className="row-key">생년월일</span>
-                    <span className="row-val">{user.birthday || '—'}</span>
-                  </div>
-                  <div className="info-row">
                     <span className="row-key">우편번호</span>
                     <span className="row-val">{user.postalCode || '—'}</span>
                   </div>
@@ -679,37 +666,43 @@ export default function AccountDetailDialog({
               </div>
 
               {/* Password Reset Action Box */}
-              {onResetPassword && (
-                <div className={`pw-reset-alert-box ${!user.birthday ? 'disabled' : ''}`}>
-                  <div className="pw-reset-desc">
-                    <strong>비밀번호 초기화</strong>
-                    <p>
-                      {user.birthday ? (
-                        <>
-                          비밀번호 분실 시 해당 유저의 <strong>생년월일 6자리({dayjs(user.birthday).format('YYMMDD')})</strong>로 즉시 초기화됩니다.
-                        </>
-                      ) : (
-                        <span className="no-birthday-warning">
-                          해당 계정은 <strong>생년월일이 등록되어 있지 않아 비밀번호 초기화가 불가</strong>합니다.
-                        </span>
-                      )}
-                    </p>
+              {onResetPassword && (() => {
+                const phoneDigits = user.phoneNum ? user.phoneNum.replace(/[^0-9]/g, '') : '';
+                const hasValidPhone = phoneDigits.length >= 4;
+                const last4 = hasValidPhone ? phoneDigits.slice(-4) : '';
+
+                return (
+                  <div className={`pw-reset-alert-box ${!hasValidPhone ? 'disabled' : ''}`}>
+                    <div className="pw-reset-desc">
+                      <strong>비밀번호 초기화</strong>
+                      <p>
+                        {hasValidPhone ? (
+                          <>
+                            비밀번호 분실 시 해당 유저의 <strong>전화번호 끝 4자리({last4})</strong>로 즉시 초기화됩니다.
+                          </>
+                        ) : (
+                          <span className="no-phone-warning">
+                            해당 계정은 <strong>전화번호가 올바르지 않아 비밀번호 초기화가 불가</strong>합니다.
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-pw-action"
+                      disabled={!hasValidPhone}
+                      title={!hasValidPhone ? '전화번호 불일치로 초기화 불가' : '비밀번호 초기화'}
+                      onClick={() => {
+                        if (!hasValidPhone) return;
+                        onResetPassword(user);
+                      }}
+                    >
+                      <KeyRound size={15} />
+                      <span>초기화</span>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-pw-action"
-                    disabled={!user.birthday}
-                    title={!user.birthday ? '생년월일 미등록으로 초기화 불가' : '비밀번호 초기화'}
-                    onClick={() => {
-                      if (!user.birthday) return;
-                      onResetPassword(user);
-                    }}
-                  >
-                    <KeyRound size={15} />
-                    <span>초기화</span>
-                  </button>
-                </div>
-              )}
+                );
+              })()}
             </>
           )}
 
@@ -1089,29 +1082,18 @@ export default function AccountDetailDialog({
               />
             </div>
 
-            <div className="form-grid-2">
-              <div className="form-field">
-                <label>성별</label>
-                <CustomSelect
-                  fullWidth
-                  sizeVariant="lg"
-                  value={editFormData.gender}
-                  onChange={e => setEditFormData(prev => ({ ...prev, gender: e.target.value as 'M' | 'F' | 'O' }))}
-                >
-                  <option value="M">남성</option>
-                  <option value="F">여성</option>
-                  <option value="O">기타</option>
-                </CustomSelect>
-              </div>
-              <div className="form-field">
-                <label>생년월일 <span className="req">*</span></label>
-                <input
-                  type="date"
-                  required
-                  value={editFormData.birthday}
-                  onChange={e => setEditFormData(prev => ({ ...prev, birthday: e.target.value }))}
-                />
-              </div>
+            <div className="form-field">
+              <label>성별</label>
+              <CustomSelect
+                fullWidth
+                sizeVariant="lg"
+                value={editFormData.gender}
+                onChange={e => setEditFormData(prev => ({ ...prev, gender: e.target.value as 'M' | 'F' | 'O' }))}
+              >
+                <option value="M">남성</option>
+                <option value="F">여성</option>
+                <option value="O">기타</option>
+              </CustomSelect>
             </div>
 
             {/* 주소 검색 필드 (우편번호 검색 상단 + 도로명 주소 하단) */}
