@@ -17,6 +17,7 @@ interface RegionSelectorProps {
   onChange: (newValue: SelectedRegion) => void;
   className?: string;
   showActiveBadge?: boolean;
+  allowNational?: boolean;
 }
 
 export default function RegionSelector({
@@ -24,6 +25,7 @@ export default function RegionSelector({
   onChange,
   className = '',
   showActiveBadge = true,
+  allowNational = false,
 }: RegionSelectorProps) {
   const { regionId, sido, sigungu } = value;
   const [isLoaded, setIsLoaded] = useState(false);
@@ -39,20 +41,24 @@ export default function RegionSelector({
     };
   }, []);
 
-  // DB 기반 시/도 목록 ('ALL' 없는 실제 시/도 목록)
+  // DB 기반 시/도 목록 (allowNational이 true이면 맨 위에 'ALL' 추가)
   const sidoList = useMemo(() => {
-    return getDbSidoList();
-  }, [isLoaded]);
+    const dbList = getDbSidoList();
+    return allowNational ? ['ALL', ...dbList] : dbList;
+  }, [isLoaded, allowNational]);
 
-  // 현재 유효한 시/도 (1순위: regionId 기준 소방관할의 sidoName, 2순위: 전달된 sido 정규화)
+  // 현재 유효한 시/도
   const currentSido = useMemo(() => {
+    if (allowNational && (sido === 'ALL' || (!regionId && sido === '전국'))) {
+      return 'ALL';
+    }
     if (regionId) {
       const fr = getFireRegionById(regionId);
       if (fr?.sidoName && sidoList.includes(fr.sidoName)) {
         return fr.sidoName;
       }
     }
-    if (sido) {
+    if (sido && sido !== 'ALL') {
       const normalized = normalizeSidoName(sido);
       if (sidoList.includes(normalized)) {
         return normalized;
@@ -61,17 +67,18 @@ export default function RegionSelector({
         return sido;
       }
     }
-    return sidoList[0] || '경기도';
-  }, [regionId, sido, sidoList]);
+    return sidoList.find(s => s !== 'ALL') || '경기도';
+  }, [allowNational, regionId, sido, sidoList]);
 
-  // 선택된 시/도의 DB 소방관할 목록
+  // 선택된 시/도의 DB 소방관할 목록 (전국일 때는 빈 목록)
   const availableFireRegions = useMemo(() => {
-    if (!currentSido) return [];
+    if (!currentSido || currentSido === 'ALL') return [];
     return getFireRegionsBySido(currentSido);
   }, [currentSido, isLoaded]);
 
-  // 현재 유효한 소방서 regionId (기본값: 해당 시도의 첫 번째 관할소방서)
+  // 현재 유효한 소방서 regionId
   const currentFireRegionId = useMemo(() => {
+    if (currentSido === 'ALL') return 'ALL';
     if (regionId) {
       if (availableFireRegions.some(fr => fr.regionId === regionId)) {
         return regionId;
@@ -82,25 +89,49 @@ export default function RegionSelector({
     const matchedByName = availableFireRegions.find(fr => fr.name === sigungu);
     if (matchedByName) return matchedByName.regionId;
     return availableFireRegions[0]?.regionId || '';
-  }, [regionId, sigungu, availableFireRegions]);
+  }, [currentSido, regionId, sigungu, availableFireRegions]);
 
-  // 마운트 및 로드 완료 시 유효하지 않은 관할서 상태를 첫 번째 유효 관할서로 자동 동기화
+  // 마운트 및 로드 완료 시 자동 동기화
   useEffect(() => {
-    if (isLoaded && availableFireRegions.length > 0) {
-      const selectedFr = availableFireRegions.find(fr => fr.regionId === currentFireRegionId) || availableFireRegions[0];
-      if (selectedFr && (sido !== currentSido || regionId !== selectedFr.regionId || sigungu !== selectedFr.name)) {
-        onChange({
-          regionId: selectedFr.regionId,
-          sido: currentSido,
-          sigungu: selectedFr.name,
-          eupmyeondong: '',
-        });
+    if (isLoaded) {
+      if (currentSido === 'ALL') {
+        if (sido !== 'ALL' || regionId !== undefined) {
+          onChange({
+            regionId: undefined,
+            sido: 'ALL',
+            sigungu: '전국',
+            eupmyeondong: '',
+          });
+        }
+        return;
+      }
+
+      if (availableFireRegions.length > 0) {
+        const selectedFr = availableFireRegions.find(fr => fr.regionId === currentFireRegionId) || availableFireRegions[0];
+        if (selectedFr && (sido !== currentSido || regionId !== selectedFr.regionId || sigungu !== selectedFr.name)) {
+          onChange({
+            regionId: selectedFr.regionId,
+            sido: currentSido,
+            sigungu: selectedFr.name,
+            eupmyeondong: '',
+          });
+        }
       }
     }
   }, [isLoaded, currentSido, currentFireRegionId, availableFireRegions, sido, regionId, sigungu, onChange]);
 
-  // 시/도 변경 핸들러 -> 변경된 시도의 첫 번째 관할 소방서로 즉시 자동 지정
+  // 시/도 변경 핸들러 -> 'ALL' 선택 시 전국 단위로 지정
   const handleSidoChange = (newSido: string) => {
+    if (newSido === 'ALL') {
+      onChange({
+        regionId: undefined,
+        sido: 'ALL',
+        sigungu: '전국',
+        eupmyeondong: '',
+      });
+      return;
+    }
+
     const regions = getFireRegionsBySido(newSido);
     const firstFr = regions && regions.length > 0 ? regions[0] : undefined;
 
@@ -125,6 +156,9 @@ export default function RegionSelector({
 
   // 브레드크럼 표시용 텍스트 (시/도 > 관할구역)
   const activeRegionParts = useMemo(() => {
+    if (currentSido === 'ALL') {
+      return ['전국'];
+    }
     const selectedFr = availableFireRegions.find(fr => fr.regionId === currentFireRegionId);
     const sgName = selectedFr?.name || sigungu;
     const parts = [currentSido];
@@ -160,25 +194,30 @@ export default function RegionSelector({
           >
             {sidoList.map(name => (
               <option key={name} value={name}>
-                {name}
+                {name === 'ALL' ? '전국' : name}
               </option>
             ))}
           </CustomSelect>
         </div>
 
-        {/* 2단계: 관할구역 (DB name 원본 그대로 표시) */}
-        <div className="select-col">
+        {/* 2단계: 관할구역 (전국일 때는 '전체'로 고정 및 비활성화) */}
+        <div className={`select-col ${currentSido === 'ALL' ? 'disabled' : ''}`}>
           <CustomSelect
             fullWidth
             sizeVariant="md"
             value={currentFireRegionId}
             onChange={e => handleFireRegionChange(e.target.value)}
+            disabled={currentSido === 'ALL'}
           >
-            {availableFireRegions.map(fr => (
-              <option key={fr.regionId} value={fr.regionId}>
-                {fr.name}
-              </option>
-            ))}
+            {currentSido === 'ALL' ? (
+              <option value="ALL">전체</option>
+            ) : (
+              availableFireRegions.map(fr => (
+                <option key={fr.regionId} value={fr.regionId}>
+                  {fr.name}
+                </option>
+              ))
+            )}
           </CustomSelect>
         </div>
       </div>

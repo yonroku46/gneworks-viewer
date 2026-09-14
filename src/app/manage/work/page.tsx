@@ -252,7 +252,8 @@ function ManageWorkContent() {
   const loadData = React.useCallback(async () => {
     try {
       setIsLoading(true);
-      const regionParam = region.regionId ? { regionId: region.regionId } : {};
+      const isNational = region.sido === 'ALL' || !region.regionId;
+      const regionParam = !isNational && region.regionId ? { regionId: region.regionId } : {};
       const searchParam: AdminReportSearchReq = {
         ...regionParam,
         status: appliedStatusFilter !== 'ALL' ? appliedStatusFilter : undefined,
@@ -270,7 +271,10 @@ function ManageWorkContent() {
           console.error('[ManageWorkPage] getReportListPaged error', err);
           return { list: [], totalCount: 0, page: 1, size: 30, totalPages: 0, hasNext: false, hasPrev: false };
         }),
-        AdminService.getDashboardSummary(regionParam).catch(() => null),
+        // 전국 검색 시에는 3중 조인 부하가 큰 전국 집계를 회피하여 DB 서버 보호
+        !isNational
+          ? AdminService.getDashboardSummary(regionParam).catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       setReports(pagedRes?.list || []);
@@ -309,7 +313,8 @@ function ManageWorkContent() {
   const handleExportExcel = async () => {
     try {
       setIsExporting(true);
-      const regionParam = region.regionId ? { regionId: region.regionId } : {};
+      const isNational = region.sido === 'ALL' || !region.regionId;
+      const regionParam = !isNational && region.regionId ? { regionId: region.regionId } : {};
       await AdminService.exportReportsExcel({
         ...regionParam,
         status: appliedStatusFilter !== 'ALL' ? appliedStatusFilter : undefined,
@@ -568,6 +573,7 @@ function ManageWorkContent() {
         value={region}
         onChange={setRegion}
         showActiveBadge={true}
+        allowNational={true}
       />
 
       {/* ── 2. SEARCH & FILTER DIALOG BAR ── */}
@@ -575,7 +581,7 @@ function ManageWorkContent() {
         <SearchInput
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder="아파트명, 동/호수, 설치 작업자명 검색..."
+          placeholder={(region.sido === 'ALL' || !region.regionId) ? "전국 아파트명, 동/호수, 설치 작업자명 검색..." : "아파트명, 동/호수, 설치 작업자명 검색..."}
         />
 
         <div className="filter-actions-cluster">
@@ -622,7 +628,7 @@ function ManageWorkContent() {
         }}
         isLoading={isLoading}
         loadingMessage="작업 보고서 목록을 불러오는 중입니다..."
-        emptyMessage="선택된 조건에 일치하는 작업 보고서가 없습니다."
+        emptyMessage={(region.sido === 'ALL' || !region.regionId) ? "전국 검색 조건에 일치하는 작업 보고서가 없습니다." : "선택된 조건에 일치하는 작업 보고서가 없습니다."}
         onRowClick={(report) => setSelectedReport(report)}
         excelAction={{
           onExport: handleExportExcel,

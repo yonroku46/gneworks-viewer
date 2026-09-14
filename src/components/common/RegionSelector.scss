@@ -40,6 +40,11 @@
     flex-wrap: wrap;
     .select-col {
       min-width: 170px;
+      transition: opacity 0.2s ease;
+      &.disabled {
+        opacity: 0.45;
+        pointer-events: none;
+      }
     }
   }
 }

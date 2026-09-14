@@ -1076,7 +1076,13 @@
 
 .manage-sites-page {
   .sites-search-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     margin-bottom: 1.5rem;
+    .common-search-input-wrap {
+      flex: 1;
+    }
   }
   .sites-filter-card {
     background: var(--card-bg);

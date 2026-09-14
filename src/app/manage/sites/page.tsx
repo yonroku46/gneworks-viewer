@@ -38,6 +38,7 @@ export default function ManageCustomers() {
   // Region State for Common RegionSelector (Global Shared State)
   const { region, setRegion } = useManageRegion();
   const [searchQuery, setSearchQuery] = useState('');
+  const regionWorkersCacheRef = React.useRef<Record<string, RegionWorkerUser[]>>({});
 
   // Dialog Controls
   const [isSiteFormOpen, setIsSiteFormOpen] = useState(false);
@@ -66,8 +67,9 @@ export default function ManageCustomers() {
     try {
       setIsLoading(true);
 
+      const isNational = region.sido === 'ALL' || !region.regionId;
       const res = await AdminService.getSiteListPaged({
-        regionId: region.regionId,
+        regionId: !isNational && region.regionId ? region.regionId : undefined,
         query: searchQuery.trim() || undefined,
         page,
         size: pageSize,
@@ -76,23 +78,29 @@ export default function ManageCustomers() {
       setSites(res.list || []);
       setTotalCount(res.totalCount || 0);
 
-      // 현장들의 고유 regionId 수집 및 작업자 목록 로드
+      // 현장들의 고유 regionId 수집 및 작업자 목록 로드 (캐시 우선 활용하여 불필요한 N+1 호출 방어)
       const regionIdSet = new Set<string>();
       (res.list || []).forEach(s => {
         if (s.regionId) regionIdSet.add(s.regionId);
       });
 
-      const workersMap: Record<string, RegionWorkerUser[]> = {};
-      await Promise.all(
-        Array.from(regionIdSet).map(async (regionId) => {
-          try {
-            const workers = await AdminService.getRegionWorkers({ regionId });
-            workersMap[regionId] = workers;
-          } catch {
-            workersMap[regionId] = [];
-          }
-        })
-      );
+      const workersMap: Record<string, RegionWorkerUser[]> = { ...regionWorkersCacheRef.current };
+      const missingRegionIds = Array.from(regionIdSet).filter(rId => !workersMap[rId]);
+
+      if (missingRegionIds.length > 0) {
+        await Promise.all(
+          missingRegionIds.map(async (regionId) => {
+            try {
+              const workers = await AdminService.getRegionWorkers({ regionId });
+              workersMap[regionId] = workers;
+              regionWorkersCacheRef.current[regionId] = workers;
+            } catch {
+              workersMap[regionId] = [];
+              regionWorkersCacheRef.current[regionId] = [];
+            }
+          })
+        );
+      }
       setRegionWorkersMap(workersMap);
     } catch (error: any) {
       console.error('Failed to load sites:', error);
@@ -100,7 +108,7 @@ export default function ManageCustomers() {
     } finally {
       setIsLoading(false);
     }
-  }, [region, searchQuery, page, pageSize, fireRegions, enqueueSnackbar]);
+  }, [region, searchQuery, page, pageSize, enqueueSnackbar]);
 
   useEffect(() => {
     loadSites();
@@ -134,8 +142,9 @@ export default function ManageCustomers() {
   const handleExportExcel = async () => {
     try {
       setIsExporting(true);
+      const isNational = region.sido === 'ALL' || !region.regionId;
       await AdminService.exportSitesExcel({
-        regionId: region.regionId,
+        regionId: !isNational && region.regionId ? region.regionId : undefined,
         query: searchQuery.trim() || undefined,
       });
       enqueueSnackbar('현장 목록 엑셀 파일이 다운로드되었습니다.', { variant: 'success' });
@@ -520,6 +529,7 @@ export default function ManageCustomers() {
       <RegionSelector
         value={region}
         onChange={newRegion => setRegion(newRegion)}
+        allowNational={true}
       />
 
       {/* ── 2. SEARCH BAR ── */}
@@ -527,7 +537,7 @@ export default function ManageCustomers() {
         <SearchInput
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder="아파트명 또는 도로명 주소로 검색..."
+          placeholder={(region.sido === 'ALL' || !region.regionId) ? "전국 아파트명 또는 도로명 주소로 검색..." : "아파트명 또는 도로명 주소로 검색..."}
           fullWidth
         />
       </div>
@@ -548,7 +558,7 @@ export default function ManageCustomers() {
         }}
         isLoading={isLoading}
         loadingMessage="현장 목록을 불러오는 중입니다..."
-        emptyMessage="선택된 지역 및 조건에 일치하는 현장 정보가 없습니다."
+        emptyMessage={(region.sido === 'ALL' || !region.regionId) ? "전국 검색 조건에 일치하는 현장 정보가 없습니다." : "선택된 지역 및 조건에 일치하는 현장 정보가 없습니다."}
         onRowClick={(site) => handleOpenDetail(site, 'households')}
         excelAction={{
           onExport: handleExportExcel,
