@@ -729,40 +729,31 @@ export default function AccountDetailDialog({
               <div className="card-content-body">
                 {userAssignedRegions.length > 0 ? (
                   <div className="assigned-sites-list">
-                    {userAssignedRegions.map((region, rIdx) => {
-                      const sitesInRegion = sites.filter(s => {
-                        return Boolean(region.regionId && s.regionId && s.regionId === region.regionId);
-                      });
-                      const totalHouseholds = sitesInRegion.reduce(
-                        (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),
-                        0
-                      );
-                      return (
-                        <div key={region.assignedRegionId || `reg_${region.sido}_${region.sigungu}_${rIdx}`} className="assigned-site-card">
-                          <div className="site-info-col">
-                            <div className="site-name-row">
-                              <span className="site-title">{region.sido} {region.sigungu}</span>
-                              {region.assignedDate && (
-                                <span className="site-region-tag">{region.assignedDate} 등록</span>
-                              )}
-                            </div>
-                            <div className="site-meta-row">
-                              <span className="meta-item">총 {sitesInRegion.length}개 현장</span>
-                              <span className="dot">•</span>
-                              <span className="meta-item">총 {totalHouseholds}세대</span>
-                            </div>
+                    {userAssignedRegions.map((region, rIdx) => (
+                      <div key={region.assignedRegionId || `reg_${region.sido}_${region.sigungu}_${rIdx}`} className="assigned-site-card">
+                        <div className="site-info-col">
+                          <div className="site-name-row">
+                            <span className="site-title">{region.sido} {region.sigungu}</span>
+                            {region.assignedDate && (
+                              <span className="site-region-tag">{region.assignedDate} 등록</span>
+                            )}
                           </div>
-                          <button
-                            type="button"
-                            className="btn-unassign-action"
-                            onClick={() => handleUnassignRegion(region)}
-                            title="담당 지역 배정 해제"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <div className="site-meta-row">
+                            <span className="meta-item">총 {region.totalSites ?? 0}개 현장</span>
+                            <span className="dot">•</span>
+                            <span className="meta-item">총 {region.totalHouseholds ?? 0}세대</span>
+                          </div>
                         </div>
-                      );
-                    })}
+                        <button
+                          type="button"
+                          className="btn-unassign-action"
+                          onClick={() => handleUnassignRegion(region)}
+                          title="담당 지역 배정 해제"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="assigned-empty-box">

@@ -133,8 +133,7 @@ export default function ProfilePage() {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isRegionAssignOpen, setIsRegionAssignOpen] = useState(false);
 
-  // Sites & Regions state synchronized with Backend API
-  const [allSites, setAllSites] = useState<SiteDetail[]>([]);
+  // Regions state synchronized with Backend API
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [reportSummary, setReportSummary] = useState<WorkerReportSummary>({
     totalReports: 0,
@@ -154,15 +153,6 @@ export default function ProfilePage() {
     }
   }, []);
 
-  const fetchSites = useCallback(async () => {
-    try {
-      const data = await PortalService.getSites();
-      setAllSites(data || []);
-    } catch (error) {
-      console.error('[ProfilePage] getSites error', error);
-    }
-  }, []);
-
   const fetchReportSummary = useCallback(async () => {
     try {
       const data = await PortalService.getMyReportSummary();
@@ -176,9 +166,8 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetchAssignedRegions();
-    fetchSites();
     fetchReportSummary();
-  }, [fetchAssignedRegions, fetchSites, fetchReportSummary]);
+  }, [fetchAssignedRegions, fetchReportSummary]);
 
   const completedCount = reportSummary.completedReports;
   const pendingCount = reportSummary.pendingReports;
@@ -311,36 +300,26 @@ export default function ProfilePage() {
         <div className="card-content-body">
           {assignedRegions.length > 0 ? (
             <div className="assigned-sites-list">
-              {assignedRegions.map(region => {
-                const sitesInRegion = allSites.filter(s => {
-                  return Boolean(region.regionId && s.regionId && s.regionId === region.regionId);
-                });
-                const totalHouseholds = sitesInRegion.reduce(
-                  (sum, s) => sum + (s.totalHouseholds ?? s.households?.length ?? 0),
-                  0
-                );
-
-                return (
-                  <div key={region.assignedRegionId} className="assigned-site-item">
-                    <div className="item-main-info">
-                      <strong className="site-name">
-                        {region.sido} {region.sigungu}
-                      </strong>
-                      <div className="item-meta">
-                        <span className="meta-dong">총 <strong>{sitesInRegion.length}</strong>개 현장</span>
-                        <span className="meta-divider">•</span>
-                        <span className="meta-households">총 <strong>{totalHouseholds}</strong>세대</span>
-                      </div>
+              {assignedRegions.map(region => (
+                <div key={region.assignedRegionId} className="assigned-site-item">
+                  <div className="item-main-info">
+                    <strong className="site-name">
+                      {region.sido} {region.sigungu}
+                    </strong>
+                    <div className="item-meta">
+                      <span className="meta-dong">총 <strong>{region.totalSites ?? 0}</strong>개 현장</span>
+                      <span className="meta-divider">•</span>
+                      <span className="meta-households">총 <strong>{region.totalHouseholds ?? 0}</strong>세대</span>
                     </div>
-
-                    {region.assignedDate && (
-                      <span className="assigned-date-badge">
-                        {region.assignedDate} 등록
-                      </span>
-                    )}
                   </div>
-                );
-              })}
+
+                  {region.assignedDate && (
+                    <span className="assigned-date-badge">
+                      {region.assignedDate} 등록
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           ) : (
             <div className="assigned-empty-box">
@@ -499,7 +478,6 @@ export default function ProfilePage() {
         isOpen={isRegionAssignOpen}
         onClose={() => setIsRegionAssignOpen(false)}
         assignedRegions={assignedRegions}
-        sites={allSites}
         mode="portal"
         onAssignRegion={handleAssignRegion}
         onUnassignRegion={handleRemoveRegion}

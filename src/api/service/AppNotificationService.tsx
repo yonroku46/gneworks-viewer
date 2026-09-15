@@ -17,9 +17,9 @@ class AppNotificationService {
    * 알림 목록 조회
    * GET /notification/list
    */
-  async getNotifications(): Promise<AppNotification[]> {
+  async getNotifications(limit: number = 30): Promise<AppNotification[]> {
     try {
-      const response: ApiResponse = await ApiInstance.get(ApiRoutes.NOTIFICATION_LIST);
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.NOTIFICATION_LIST, { params: { limit } });
       if (response && !response.hasErrors) {
         return response.responseData.list as AppNotification[];
       }

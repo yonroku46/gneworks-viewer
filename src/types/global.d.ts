@@ -306,6 +306,8 @@ declare global {
   interface UserAssignedRegionDetail extends UserAssignedRegion {
     sido: string;
     sigungu: string;
+    totalSites?: number;
+    totalHouseholds?: number;
   }
   interface RegionWorkerUser extends User {
     assignedRegions?: UserAssignedRegionDetail[];
