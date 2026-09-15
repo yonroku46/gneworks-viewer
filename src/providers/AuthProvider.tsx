@@ -21,6 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<LoginUserRes>();
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { enqueueSnackbar } = useSnackbar();
@@ -38,6 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error('Failed to parse user data:', error);
+      } finally {
+        setIsInitialized(true);
       }
     };
 
@@ -94,32 +97,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (!isLoading && pathname) {
-      const isManagePath = pathname.startsWith(managePrefix);
-      const isAuthPath = authPaths.includes(pathname);
+    if (!isInitialized || isLoading || !pathname) return;
 
-      if (!user) {
-        if (isManagePath) {
-          try {
-            sessionStorage.setItem('returnUrl', pathname);
-          } catch {
-            // ignore
-          }
-          router.replace('/login');
+    const isManagePath = pathname.startsWith(managePrefix) || pathname.startsWith('/admin');
+    const isServicePath = pathname.startsWith(servicePrefix);
+    const isAuthPath = authPaths.includes(pathname);
+
+    if (!user) {
+      if (isManagePath || isServicePath) {
+        try {
+          sessionStorage.setItem('returnUrl', pathname);
+        } catch {
+          // ignore
         }
-      } else {
-        if (isAuthPath) {
-          router.replace(getReturnUrl(user));
-        } else if (isManagePath && !user.mngFlg) {
-          enqueueSnackbar('관리자 권한이 없습니다. 작업 포탈로 이동합니다.', {
-            variant: 'warning',
-            preventDuplicate: true,
-          });
-          router.replace(servicePrefix);
-        }
+        router.replace('/login');
+      }
+    } else {
+      if (isAuthPath) {
+        router.replace(getReturnUrl(user));
+      } else if (isManagePath && !user.mngFlg) {
+        enqueueSnackbar('관리자 권한이 없습니다. 작업 포탈로 이동합니다.', {
+          variant: 'warning',
+          preventDuplicate: true,
+        });
+        router.replace(servicePrefix);
       }
     }
-  }, [user, isLoading, pathname, router, enqueueSnackbar]);
+  }, [user, isInitialized, isLoading, pathname, router, enqueueSnackbar]);
 
   const login = async (userId: string, password: string, stayLoggedIn: boolean = true) => {
     setIsLoading(true);
@@ -171,10 +175,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const isManagePath = pathname ? pathname.startsWith(managePrefix) : false;
+  const isManagePath = pathname ? (pathname.startsWith(managePrefix) || pathname.startsWith('/admin')) : false;
   const isServicePath = pathname ? pathname.startsWith(servicePrefix) : false;
   const isAuthPath = pathname ? authPaths.includes(pathname) : false;
-  const showLoading = (isLoading && !isAuthPath) || (!user && (isManagePath || isServicePath)) || (user && isAuthPath);
+  const showLoading = !isInitialized || (isLoading && !isAuthPath) || (!user && (isManagePath || isServicePath)) || (user && isAuthPath);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, updateUser, isLoading }}>

@@ -20,6 +20,20 @@ const nextConfig = {
       }
     ]
   },
+  async redirects() {
+    return [
+      {
+        source: '/admin',
+        destination: '/manage/dashboard',
+        permanent: false,
+      },
+      {
+        source: '/admin/:path*',
+        destination: '/manage/:path*',
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

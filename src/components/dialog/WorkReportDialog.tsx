@@ -143,16 +143,20 @@ export default function WorkReportDialog({
 
   if (!target) return null;
 
-  // 1단계 -> 2단계 이동
+  // 1단계 -> 2단계 이동 (확인자 성명 및 서명 검증)
   const handleGoToStep2 = () => {
-    if (!installDate) {
-      enqueueSnackbar('설치 일자를 입력해 주세요.', { variant: 'warning' });
+    if (!confirmerName.trim() || confirmerName.trim() === '-') {
+      enqueueSnackbar('확인자 성명을 입력해 주세요.', { variant: 'warning' });
+      return;
+    }
+    if (!confirmerSignature) {
+      enqueueSnackbar('확인자 서명을 받아주세요.', { variant: 'warning' });
       return;
     }
     setStep(2);
   };
 
-  // 2단계 -> 3단계 이동 (사진 선택 사항 - 필수 검증 해제)
+  // 2단계 -> 3단계 이동 (사진 선택 사항)
   const handleGoToStep3 = () => {
     setStep(3);
   };
@@ -240,11 +244,19 @@ export default function WorkReportDialog({
 
     if (!confirmerName.trim() || confirmerName.trim() === '-') {
       enqueueSnackbar('확인자 성명을 입력해 주세요.', { variant: 'warning' });
+      setStep(1);
       return;
     }
 
     if (!confirmerSignature) {
       enqueueSnackbar('확인자 서명을 받아주세요.', { variant: 'warning' });
+      setStep(1);
+      return;
+    }
+
+    if (!installDate) {
+      enqueueSnackbar('설치 일자를 입력해 주세요.', { variant: 'warning' });
+      setStep(3);
       return;
     }
 
@@ -317,7 +329,9 @@ export default function WorkReportDialog({
                   {step === 1 ? (
                     <>
                       <span className="target-site-badge guide">STEP 1</span>
-                      <span className="target-guide-text">작업 장소 및 설치 일자 확인</span>
+                      <span className="target-guide-text">
+                        {target.dong}동 {target.ho}호 확인자 서명
+                      </span>
                     </>
                   ) : step === 2 ? (
                     <>
@@ -329,9 +343,7 @@ export default function WorkReportDialog({
                   ) : (
                     <>
                       <span className="target-site-badge guide">STEP 3</span>
-                      <span className="target-unit-text">
-                        {target.dong}동 {target.ho}호 서명 및 완료
-                      </span>
+                      <span className="target-guide-text">작업 장소 및 설치 일자 확인</span>
                     </>
                   )}
                 </div>
@@ -341,12 +353,20 @@ export default function WorkReportDialog({
                     onClick={() => setStep(1)}
                     role="button"
                     tabIndex={0}
-                    title="1단계: 세대·일자 확인"
+                    title="1단계: 확인자 서명"
                   />
                   <span
                     className={`step-dot ${step >= 2 ? 'active' : ''}`}
                     onClick={() => {
-                      if (installDate) setStep(2);
+                      if (!confirmerName.trim() || confirmerName.trim() === '-') {
+                        enqueueSnackbar('확인자 성명을 입력해 주세요.', { variant: 'warning' });
+                        return;
+                      }
+                      if (!confirmerSignature) {
+                        enqueueSnackbar('확인자 서명을 받아주세요.', { variant: 'warning' });
+                        return;
+                      }
+                      setStep(2);
                     }}
                     role="button"
                     tabIndex={0}
@@ -355,11 +375,19 @@ export default function WorkReportDialog({
                   <span
                     className={`step-dot ${step >= 3 ? 'active' : ''}`}
                     onClick={() => {
-                      if (installDate) setStep(3);
+                      if (!confirmerName.trim() || confirmerName.trim() === '-') {
+                        enqueueSnackbar('확인자 성명을 입력해 주세요.', { variant: 'warning' });
+                        return;
+                      }
+                      if (!confirmerSignature) {
+                        enqueueSnackbar('확인자 서명을 받아주세요.', { variant: 'warning' });
+                        return;
+                      }
+                      setStep(3);
                     }}
                     role="button"
                     tabIndex={0}
-                    title="3단계: 확인자 서명 및 완료"
+                    title="3단계: 작업 장소 및 설치 일자 확인"
                   />
                 </div>
               </div>
@@ -426,7 +454,7 @@ export default function WorkReportDialog({
                       className="btn-wizard-next"
                       onClick={handleGoToStep3}
                     >
-                      <span>다음: 서명 및 완료 (2/3)</span>
+                      <span>다음: 작업 확인 및 제출 (2/3)</span>
                     </button>
                   </>
                 )}
@@ -616,59 +644,98 @@ export default function WorkReportDialog({
                 [모드 B] 작업 작성 모드 (3-Step Wizard 진행형)
             ══════════════════════════════════════════════════ */
             <div className="wizard-panels-container">
-              {/* ── STEP 1: 세대 및 설치 일자 확인 ── */}
+              {/* ── STEP 1: 확인자 성명 및 서명 ── */}
               {step === 1 && (
                 <div className="wizard-step-panel step-1-panel">
-                  {/* 단일 통합 정보 및 입력 카드 */}
-                  <div className="step-fields-card integrated-card">
-                    {/* 상단: 작업 대상 세대 정보 (관리자 화면과 완벽 통일) */}
-                    <div className="card-location-header report-target-summary">
-                      <div className="target-title-line">
-                        <Building2 size={16} />
-                        <h3>{target.siteName} {target.dong}동 {target.ho}호</h3>
-                        {target.headName && (
-                          <span className="head-badge">{target.headName} 세대주</span>
-                        )}
-                      </div>
-                      {target.address && (
-                        <p className="target-address">
-                          {target.address && target.siteName && !target.address.includes(target.siteName)
-                            ? `${target.address} (${target.siteName})`
-                            : target.address}
-                        </p>
+                  {/* 상단: 세대 간략 안내 카드 */}
+                  <div className="step-target-brief-card">
+                    <div className="brief-title-line">
+                      <Building2 size={16} />
+                      <span className="brief-unit">{target.siteName} {target.dong}동 {target.ho}호</span>
+                      {target.headName && (
+                        <span className="brief-head">{target.headName} 세대</span>
+                      )}
+                    </div>
+                    <p className="brief-guide">설치 확인 서명을 화면에 입력해 주세요.</p>
+                  </div>
+
+                  {/* 확인자 서명 섹션 */}
+                  <div className="form-group signature-section">
+                    <div className="signature-header-row">
+                      <label className="form-label">
+                        <span>확인자 성명 및 서명</span>
+                        <span className="required-tag">(필수)</span>
+                      </label>
+                      {confirmerSignature ? (
+                        <span className="signature-badge completed">서명 등록됨</span>
+                      ) : (
+                        <span className="signature-badge pending">서명 필요</span>
                       )}
                     </div>
 
-                    {/* 하단: 설치 일자 & 작업자 입력 */}
-                    <div className="card-fields-body">
-                      <div className="form-group">
-                        <label className="form-label">
-                          <span>설치 일자</span>
-                          <span className="required-tag">(필수)</span>
-                        </label>
-                        <input
-                          type="date"
-                          className="form-input"
-                          value={installDate}
-                          onChange={e => setInstallDate(e.target.value)}
-                          required
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">
-                          <span>작업자 (보고자)</span>
-                        </label>
+                    {/* 확인자 성명 입력 */}
+                    <div className="confirmer-name-field">
+                      <div className="input-clear-wrapper">
                         <input
                           type="text"
-                          className="form-input"
-                          value={reporterName}
-                          readOnly
-                          tabIndex={-1}
-                          title="로그인된 작업자 본인 계정으로 자동 고정됩니다."
+                          className="form-input confirmer-name-input"
+                          placeholder="확인자 성명 입력 (예: 홍길동)"
+                          value={confirmerName}
+                          onChange={e => setConfirmerName(e.target.value)}
+                          required
                         />
+                        {confirmerName && (
+                          <button
+                            type="button"
+                            className="btn-clear-input"
+                            title="이름 지우기"
+                            onClick={() => setConfirmerName('')}
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
+
+                    {/* 큼직한 서명 터치 패드 */}
+                    {confirmerSignature ? (
+                      <div
+                        className="signature-display-box"
+                        onClick={() => setIsSignatureModalOpen(true)}
+                      >
+                        <div className="signature-canvas-view">
+                          <img src={getImageUrl(confirmerSignature)} alt="확인자 서명" className="signature-result-img" />
+                        </div>
+                        <div className="signature-overlay-actions" onClick={e => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn-action-pill edit"
+                            onClick={() => setIsSignatureModalOpen(true)}
+                          >
+                            서명 다시하기
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-action-pill delete"
+                            onClick={() => setConfirmerSignature('')}
+                          >
+                            지우기
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="signature-touch-pad"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setIsSignatureModalOpen(true)}
+                      >
+                        <div className="pad-empty-state">
+                          <span className="pad-main-prompt">이곳을 터치하여 서명받기</span>
+                          <span className="pad-sub-prompt">고객 서명을 화면에 입력받습니다</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -869,86 +936,59 @@ export default function WorkReportDialog({
               </div>
             )}
 
-              {/* ── STEP 3: 서명 및 최종 제출 ── */}
+              {/* ── STEP 3: 작업 장소 및 설치 일자 확인 하고 최종 제출 ── */}
               {step === 3 && (
                 <div className="wizard-step-panel step-3-panel">
-                  {/* 확인자 서명 섹션 */}
-                  <div className="form-group signature-section">
-                    <div className="signature-header-row">
-                      <label className="form-label">
-                        <span>확인자 서명</span>
-                        <span className="required-tag">(필수)</span>
-                      </label>
-                      {confirmerSignature ? (
-                        <span className="signature-badge completed">서명 등록됨</span>
-                      ) : (
-                        <span className="signature-badge pending">서명 필요</span>
+                  {/* 단일 통합 정보 및 입력 카드 */}
+                  <div className="step-fields-card integrated-card">
+                    {/* 상단: 작업 대상 세대 정보 (관리자 화면과 완벽 통일) */}
+                    <div className="card-location-header report-target-summary">
+                      <div className="target-title-line">
+                        <Building2 size={16} />
+                        <h3>{target.siteName} {target.dong}동 {target.ho}호</h3>
+                        {target.headName && (
+                          <span className="head-badge">{target.headName} 세대주</span>
+                        )}
+                      </div>
+                      {target.address && (
+                        <p className="target-address">
+                          {target.address && target.siteName && !target.address.includes(target.siteName)
+                            ? `${target.address} (${target.siteName})`
+                            : target.address}
+                        </p>
                       )}
                     </div>
 
-                    {/* 확인자 성명 입력 */}
-                    <div className="confirmer-name-field">
-                      <div className="input-clear-wrapper">
+                    {/* 하단: 설치 일자 & 작업자 입력 */}
+                    <div className="card-fields-body">
+                      <div className="form-group">
+                        <label className="form-label">
+                          <span>설치 일자</span>
+                          <span className="required-tag">(필수)</span>
+                        </label>
                         <input
-                          type="text"
-                          className="form-input confirmer-name-input"
-                          placeholder="확인자 성명 입력 (예: 홍길동)"
-                          value={confirmerName}
-                          onChange={e => setConfirmerName(e.target.value)}
+                          type="date"
+                          className="form-input"
+                          value={installDate}
+                          onChange={e => setInstallDate(e.target.value)}
                           required
                         />
-                        {confirmerName && (
-                          <button
-                            type="button"
-                            className="btn-clear-input"
-                            title="이름 지우기"
-                            onClick={() => setConfirmerName('')}
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">
+                          <span>작업자 (보고자)</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={reporterName}
+                          readOnly
+                          tabIndex={-1}
+                          title="로그인된 작업자 본인 계정으로 자동 고정됩니다."
+                        />
                       </div>
                     </div>
-
-                    {/* 큼직한 서명 터치 패드 */}
-                    {confirmerSignature ? (
-                      <div
-                        className="signature-display-box"
-                        onClick={() => setIsSignatureModalOpen(true)}
-                      >
-                        <div className="signature-canvas-view">
-                          <img src={getImageUrl(confirmerSignature)} alt="확인자 서명" className="signature-result-img" />
-                        </div>
-                        <div className="signature-overlay-actions" onClick={e => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="btn-action-pill edit"
-                            onClick={() => setIsSignatureModalOpen(true)}
-                          >
-                            서명 다시하기
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-action-pill delete"
-                            onClick={() => setConfirmerSignature('')}
-                          >
-                            지우기
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="signature-touch-pad"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setIsSignatureModalOpen(true)}
-                      >
-                        <div className="pad-empty-state">
-                          <span className="pad-main-prompt">이곳을 터치하여 서명받기</span>
-                          <span className="pad-sub-prompt">고객 서명을 화면에 입력받습니다</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* 특이사항 및 비고 */}
