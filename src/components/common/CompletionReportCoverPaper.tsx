@@ -19,8 +19,11 @@ export default function CompletionReportCoverPaper({
   reports,
   sites = [],
 }: CompletionReportCoverPaperProps) {
-  const fireStationName = regionLabel
-    ? (regionLabel.endsWith('소방서') ? regionLabel : `${regionLabel}소방서`)
+  const cleanRegion = (regionLabel || '')
+    .replace(/\s*\(?관리자용\)?/g, '')
+    .trim();
+  const fireStationName = cleanRegion
+    ? (cleanRegion.endsWith('소방서') ? cleanRegion : `${cleanRegion}소방서`)
     : '—';
 
   const totalHouseholdCount = reports.length;
@@ -33,29 +36,58 @@ export default function CompletionReportCoverPaper({
     return site.households?.find(h => h.dong === report.dong && h.ho === report.ho);
   };
 
-  // 1페이지: 타이틀 + 설치현황 + 세부내역 헤더 감안하여 30개 수용
-  // 2페이지 이후: 타이틀 및 헤더 영역 없이 순수 테이블만 전체 채움으로 40개 수용
-  const PAGE1_MAX_ROWS = 30;
-  const OTHER_MAX_ROWS = 40;
+  // 주소 길이를 반영한 가중치 기반 동적 페이지 분할
+  // 1페이지: 타이틀 + 설치현황 + 세부내역 헤더 감안하여 최대 24줄 분량
+  // 2페이지 이후: 순수 테이블 전체 채움으로 최대 34줄 분량
+  const PAGE1_LINE_CAPACITY = 24;
+  const OTHER_LINE_CAPACITY = 34;
 
   const pages = useMemo(() => {
-    if (reports.length === 0) return [[]];
-    const result: WorkReport[][] = [];
-    result.push(reports.slice(0, PAGE1_MAX_ROWS));
+    if (reports.length === 0) return [[] as { report: WorkReport; rowNum: number }[]];
 
-    let cursor = PAGE1_MAX_ROWS;
-    while (cursor < reports.length) {
-      result.push(reports.slice(cursor, cursor + OTHER_MAX_ROWS));
-      cursor += OTHER_MAX_ROWS;
+    const result: { report: WorkReport; rowNum: number }[][] = [];
+    let currentPage: { report: WorkReport; rowNum: number }[] = [];
+    let currentCapacity = PAGE1_LINE_CAPACITY;
+    let currentWeight = 0;
+
+    reports.forEach((rep, idx) => {
+      const fullAddr = rep.address
+        ? `${rep.address} ${rep.dong}동 ${rep.ho}호`
+        : `${rep.siteName} ${rep.dong}동 ${rep.ho}호`;
+
+      const addrLen = fullAddr.length;
+      let lineWeight = 1.0;
+      if (addrLen > 64) {
+        lineWeight = 2.6;
+      } else if (addrLen > 32) {
+        lineWeight = 1.8;
+      }
+
+      if (currentWeight + lineWeight > currentCapacity && currentPage.length > 0) {
+        result.push(currentPage);
+        currentPage = [];
+        currentCapacity = OTHER_LINE_CAPACITY;
+        currentWeight = 0;
+      }
+
+      currentPage.push({
+        report: rep,
+        rowNum: idx + 1,
+      });
+      currentWeight += lineWeight;
+    });
+
+    if (currentPage.length > 0) {
+      result.push(currentPage);
     }
+
     return result;
   }, [reports]);
 
   return (
     <>
-      {pages.map((pageReports, pageIdx) => {
+      {pages.map((pageItems, pageIdx) => {
         const isFirstPage = pageIdx === 0;
-        const pageStartIdx = isFirstPage ? 0 : PAGE1_MAX_ROWS + (pageIdx - 1) * OTHER_MAX_ROWS;
         const pageId = pageIdx === 0 && id ? id : (id ? `${id}-page-${pageIdx + 1}` : undefined);
 
         return (
@@ -109,18 +141,18 @@ export default function CompletionReportCoverPaper({
                 <table className="cover-official-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '40px' }}>연번</th>
-                      <th style={{ width: '65px' }}>구분</th>
-                      <th style={{ width: '65px' }}>성명</th>
+                      <th style={{ width: '34px' }}>연번</th>
+                      <th style={{ width: '82px' }}>구분</th>
+                      <th style={{ width: '55px' }}>성명</th>
                       <th>주소</th>
-                      <th style={{ width: '80px' }}>설치일자</th>
-                      <th style={{ width: '85px' }}>연락처</th>
-                      <th style={{ width: '80px' }}>감지기 설치수량</th>
+                      <th style={{ width: '92px' }}>설치일자</th>
+                      <th style={{ width: '55px' }}>연락처</th>
+                      <th style={{ width: '45px' }} className="th-qty">감지기<br />설치수량</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pageReports.length > 0 ? (
-                      pageReports.map((rep, idx) => {
+                    {pageItems.length > 0 ? (
+                      pageItems.map(({ report: rep, rowNum }) => {
                         const hh = getHouseholdInfo(rep);
                         const targetType = (rep.targetType || hh?.targetType || 'GENERAL') as HouseholdTargetType;
                         const targetLabel = TARGET_TYPE_LABEL_MAP[targetType] || targetType;
@@ -128,17 +160,16 @@ export default function CompletionReportCoverPaper({
                           ? `${rep.address} ${rep.dong}동 ${rep.ho}호`
                           : `${rep.siteName} ${rep.dong}동 ${rep.ho}호`;
                         const installDate = rep.installDateFormatted || rep.installDate || '—';
-                        const rowNum = pageStartIdx + idx + 1;
 
                         return (
                           <tr key={rep.reportId || rowNum}>
                             <td className="center">{rowNum}</td>
-                            <td className="center">{targetLabel}</td>
+                            <td className="center target-type-cell">{targetLabel}</td>
                             <td className="center">{rep.headName || '—'}</td>
                             <td className="addr" title={fullAddr}>{fullAddr}</td>
-                            <td className="center">{installDate}</td>
+                            <td className="center date-cell">{installDate}</td>
                             <td className="center"></td>
-                            <td className="center bold">2</td>
+                            <td className="center">2</td>
                           </tr>
                         );
                       })

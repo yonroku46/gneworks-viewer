@@ -13,6 +13,10 @@
       align-items: center;
       justify-content: space-between;
       .site-badge {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.125rem;
         font-size: 0.8125rem;
         font-weight: 700;
         color: var(--manage-primary);
@@ -278,18 +282,14 @@
                 color: var(--slate-900);
               }
               .brief-head {
+                border: 1px solid var(--border);
+                color: var(--slate-600);
+                background: none;
+                border-radius: 0.25rem;
+                padding: 0.125rem 0.5rem;
                 font-size: 0.6875rem;
                 font-weight: 600;
-                color: var(--manage-primary);
-                background: var(--manage-primary-light);
-                padding: 0.0625rem 0.375rem;
-                border-radius: 9999px;
               }
-            }
-            .brief-guide {
-              font-size: 0.75rem;
-              color: var(--slate-500);
-              margin: 0;
             }
           }
         }
@@ -644,22 +644,17 @@
           display: flex;
           gap: 0.375rem;
           .btn-action-pill {
-            padding: 0.3125rem 0.625rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
-            font-weight: 700;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--slate-600);
             cursor: pointer;
-            transition: all 0.15s ease;
-            &.edit {
-              background: var(--white);
-              border: 1px solid var(--manage-primary);
-              color: var(--manage-primary);
-            }
-            &.delete {
-              background: var(--white);
-              border: 1px solid var(--danger);
-              color: var(--danger);
-            }
+            border-radius: 0.375rem;
+            align-items: center;
+            gap: 0.3125rem;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
           }
         }
       }
@@ -822,14 +817,6 @@
   .work-report-slide-dialog .form-group .signature-display-box:not(.readonly):hover {
     border-color: var(--manage-primary);
     box-shadow: 0 0 0 3px var(--manage-primary-glow);
-  }
-  .work-report-slide-dialog .form-group .signature-display-box .signature-overlay-actions .btn-action-pill.edit:hover {
-    background: var(--manage-primary);
-    color: var(--white);
-  }
-  .work-report-slide-dialog .form-group .signature-display-box .signature-overlay-actions .btn-action-pill.delete:hover {
-    background: var(--danger);
-    color: var(--white);
   }
   .work-report-dialog-footer .btn-cancel:hover,
   .work-report-dialog-footer .btn-wizard-prev:hover {

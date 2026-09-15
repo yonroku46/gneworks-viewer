@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import {
@@ -45,6 +45,9 @@ export default function PortalPage() {
   // Dialog state for viewing report & history
   const [selectedReport, setSelectedReport] = useState<WorkReport>();
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const isReportDialogOpenRef = useRef(false);
+  isReportDialogOpenRef.current = isReportDialogOpen;
+  const pendingPortalRefreshRef = useRef(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isInquiryHistoryOpen, setIsInquiryHistoryOpen] = useState(false);
   const [systemNotice, setSystemNotice] = useState<PortalNotice>();
@@ -85,7 +88,11 @@ export default function PortalPage() {
 
     if (typeof window !== 'undefined') {
       const handleRealtimeNotification = () => {
-        loadPortalData();
+        if (isReportDialogOpenRef.current) {
+          pendingPortalRefreshRef.current = true;
+        } else {
+          loadPortalData();
+        }
       };
       window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
 
@@ -338,9 +345,16 @@ export default function PortalPage() {
         onClose={() => {
           setIsReportDialogOpen(false);
           setSelectedReport(undefined);
+          if (pendingPortalRefreshRef.current) {
+            pendingPortalRefreshRef.current = false;
+            loadPortalData();
+          }
         }}
         existingReport={selectedReport}
-        onSubmitted={loadPortalData}
+        onSubmitted={() => {
+          pendingPortalRefreshRef.current = false;
+          loadPortalData();
+        }}
       />
 
       {/* ── WORK HISTORY SEARCH & FILTER DIALOG ── */}

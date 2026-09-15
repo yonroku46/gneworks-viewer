@@ -98,47 +98,63 @@ export default function WorkReportDialog({
     photos: { [key in PhotoSlotKey]?: string };
   } | undefined>(undefined);
 
+  // 현재 열려있는 대상의 고유 식별자 (SSE 알림 등으로 부모 props가 갱신되어도 작성 중인 폼 리셋 방지)
+  const initializedTargetKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (target && isOpen) {
-      setStep(1); // 열릴 때 항상 1단계부터 시작
-      const todayStr = dayjs().format('YYYY-MM-DD');
-      
-      const initInstallDate = target.existingReport?.installDate || todayStr;
-      const initReporterName = target.existingReport?.reporterName || user?.userName || '현장 작업자';
-      const rawConfirmer = target.existingReport?.confirmerName || target.headName || '';
-      const cleanConfirmer = (rawConfirmer.trim() === '-') ? '' : rawConfirmer.trim();
-      const initConfirmerName = cleanConfirmer;
-      const initRemarks = target.existingReport?.remarks || '';
-      const initSignature = target.existingReport?.confirmerSignature || '';
-
-      // 사진 초기화
-      const photoMap: { [key in PhotoSlotKey]?: string } = {};
-      if (target.existingReport) {
-        const rep = target.existingReport;
-        if (rep.photoDoor) photoMap.photoDoor = rep.photoDoor;
-        if (rep.photoBefore1) photoMap.photoBefore1 = rep.photoBefore1;
-        if (rep.photoAfter1) photoMap.photoAfter1 = rep.photoAfter1;
-        if (rep.photoBefore2) photoMap.photoBefore2 = rep.photoBefore2;
-        if (rep.photoAfter2) photoMap.photoAfter2 = rep.photoAfter2;
-      }
-
-      setInstallDate(initInstallDate);
-      setReporterName(initReporterName);
-      setConfirmerName(initConfirmerName);
-      setRemarks(initRemarks);
-      setConfirmerSignature(initSignature);
-      setPhotos(photoMap);
-
-      // 열릴 때의 원본 데이터 스냅샷 저장
-      initialSnapshotRef.current = {
-        installDate: initInstallDate,
-        reporterName: initReporterName,
-        confirmerName: initConfirmerName,
-        remarks: initRemarks,
-        confirmerSignature: initSignature,
-        photos: { ...photoMap },
-      };
+    if (!isOpen) {
+      initializedTargetKeyRef.current = null;
+      return;
     }
+
+    if (!target) return;
+
+    const currentTargetKey = `${target.siteId || ''}_${target.dong || ''}_${target.ho || ''}_${target.householdId || ''}_${target.existingReport?.reportId || 'new'}`;
+
+    // 이미 열려 있고 동일 세대/보고서를 작성 중인 경우 외부 props(site 등) 변경으로 인한 폼 리셋 방지
+    if (initializedTargetKeyRef.current === currentTargetKey) {
+      return;
+    }
+
+    initializedTargetKeyRef.current = currentTargetKey;
+    setStep(1); // 열릴 때 항상 1단계부터 시작
+    const todayStr = dayjs().format('YYYY-MM-DD');
+    
+    const initInstallDate = target.existingReport?.installDate || todayStr;
+    const initReporterName = target.existingReport?.reporterName || user?.userName || '현장 작업자';
+    const rawConfirmer = target.existingReport?.confirmerName || target.headName || '';
+    const cleanConfirmer = (rawConfirmer.trim() === '-') ? '' : rawConfirmer.trim();
+    const initConfirmerName = cleanConfirmer;
+    const initRemarks = target.existingReport?.remarks || '';
+    const initSignature = target.existingReport?.confirmerSignature || '';
+
+    // 사진 초기화
+    const photoMap: { [key in PhotoSlotKey]?: string } = {};
+    if (target.existingReport) {
+      const rep = target.existingReport;
+      if (rep.photoDoor) photoMap.photoDoor = rep.photoDoor;
+      if (rep.photoBefore1) photoMap.photoBefore1 = rep.photoBefore1;
+      if (rep.photoAfter1) photoMap.photoAfter1 = rep.photoAfter1;
+      if (rep.photoBefore2) photoMap.photoBefore2 = rep.photoBefore2;
+      if (rep.photoAfter2) photoMap.photoAfter2 = rep.photoAfter2;
+    }
+
+    setInstallDate(initInstallDate);
+    setReporterName(initReporterName);
+    setConfirmerName(initConfirmerName);
+    setRemarks(initRemarks);
+    setConfirmerSignature(initSignature);
+    setPhotos(photoMap);
+
+    // 열릴 때의 원본 데이터 스냅샷 저장
+    initialSnapshotRef.current = {
+      installDate: initInstallDate,
+      reporterName: initReporterName,
+      confirmerName: initConfirmerName,
+      remarks: initRemarks,
+      confirmerSignature: initSignature,
+      photos: { ...photoMap },
+    };
   }, [target, isOpen, user]);
 
   if (!target) return null;
@@ -314,8 +330,10 @@ export default function WorkReportDialog({
           isReadOnly ? (
             <div className="target-summary-bar">
               <div className="summary-header">
-                <span className="site-badge">{target.siteName}</span>
-                {isAdminRegion(target.regionId) && <AdminSiteBadge />}
+                <div className="site-badge">
+                  {isAdminRegion(target.regionId) && <AdminSiteBadge />}
+                  {target.siteName}
+                </div>
                 <span className="unit-badge">
                   {target.dong}동 {target.ho}호
                 </span>
@@ -330,14 +348,14 @@ export default function WorkReportDialog({
                     <>
                       <span className="target-site-badge guide">STEP 1</span>
                       <span className="target-guide-text">
-                        {target.dong}동 {target.ho}호 확인자 서명
+                        확인자 서명
                       </span>
                     </>
                   ) : step === 2 ? (
                     <>
                       <span className="target-site-badge guide">STEP 2</span>
                       <span className="target-unit-text">
-                        {target.dong}동 {target.ho}호 사진 등록
+                        사진 등록
                       </span>
                     </>
                   ) : (
@@ -656,7 +674,6 @@ export default function WorkReportDialog({
                         <span className="brief-head">{target.headName} 세대</span>
                       )}
                     </div>
-                    <p className="brief-guide">설치 확인 서명을 화면에 입력해 주세요.</p>
                   </div>
 
                   {/* 확인자 서명 섹션 */}
@@ -700,8 +717,13 @@ export default function WorkReportDialog({
                     {/* 큼직한 서명 터치 패드 */}
                     {confirmerSignature ? (
                       <div
-                        className="signature-display-box"
-                        onClick={() => setIsSignatureModalOpen(true)}
+                        className={`signature-display-box ${confirmerSignature ? 'readonly' : ''}`}
+                        onClick={() => {
+                          if (confirmerSignature) {
+                            return;
+                          }
+                          setIsSignatureModalOpen(true)
+                        }}
                       >
                         <div className="signature-canvas-view">
                           <img src={getImageUrl(confirmerSignature)} alt="확인자 서명" className="signature-result-img" />
@@ -709,17 +731,10 @@ export default function WorkReportDialog({
                         <div className="signature-overlay-actions" onClick={e => e.stopPropagation()}>
                           <button
                             type="button"
-                            className="btn-action-pill edit"
+                            className="btn-action-pill"
                             onClick={() => setIsSignatureModalOpen(true)}
                           >
-                            서명 다시하기
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-action-pill delete"
-                            onClick={() => setConfirmerSignature('')}
-                          >
-                            지우기
+                            재서명
                           </button>
                         </div>
                       </div>

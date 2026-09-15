@@ -7,7 +7,7 @@ import ExcelImportDialog from '@/components/dialog/ExcelImportDialog';
 import DataTable, { ColumnDef } from '@/components/common/DataTable';
 import AdminService from '@/api/service/AdminService';
 import AdminSiteBadge from '@/components/common/AdminSiteBadge';
-import { isAdminRegion } from '@/common/utils/regionUtils';
+import { isAdminRegion, findRegionById } from '@/common/utils/regionUtils';
 import { useSnackbar } from 'notistack';
 import {
   Building2,
@@ -188,6 +188,28 @@ export default function ManageCustomers() {
     return { totalSites, totalHouseholds, totalDongs, totalWorkers };
   }, [totalCount, sites, getWorkersForSite]);
 
+  // FireRegion Map for quick lookup by regionId
+  const fireRegionMap = useMemo(() => {
+    const map = new Map<string, FireRegion>();
+    fireRegions.forEach(fr => {
+      if (fr.regionId) map.set(fr.regionId, fr);
+    });
+    return map;
+  }, [fireRegions]);
+
+  // 관할명 포맷 함수 (예: "경기도 성남", "경기도 수원남부")
+  const getRegionDisplayName = useCallback((site: SiteDetail) => {
+    const fr = (site.regionId && fireRegionMap.get(site.regionId)) || (site.regionId ? findRegionById(site.regionId) : undefined);
+    if (fr) {
+      return fr.sidoName ? `${fr.sidoName} ${fr.name}`.trim() : fr.name;
+    }
+    const targetSido = site.sido ? normalizeSidoName(site.sido) : '';
+    if (targetSido && site.region) {
+      return `${targetSido} ${site.region}`.trim();
+    }
+    return site.region || site.sigungu || '-';
+  }, [fireRegionMap]);
+
   // Columns definition for DataTable
   const columns: ColumnDef<SiteDetail>[] = useMemo(() => [
     {
@@ -222,13 +244,16 @@ export default function ManageCustomers() {
     },
     {
       key: 'region',
-      header: '지역',
-      render: (site) => (
-        <div className="region-tag-group">
-          <span>{site.sigungu}</span>
-          <span>{site.eupmyeondong}</span>
-        </div>
-      ),
+      header: '관할',
+      width: '140px',
+      render: (site) => {
+        const displayName = getRegionDisplayName(site);
+        return (
+          <div className="region-tag-group" title={displayName}>
+            <span>{displayName}</span>
+          </div>
+        );
+      },
     },
     {
       key: 'dongCount',
@@ -249,38 +274,30 @@ export default function ManageCustomers() {
     {
       key: 'worker',
       header: '지역 담당자',
+      align: 'center',
       render: (site) => {
         const workers = getWorkersForSite(site);
-        if (workers.length === 0) {
-          return (
-            <span 
-              className="unassigned-badge clickable" 
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenDetail(site, 'workers');
-              }}
-              title="해당 지역에 배정된 담당자가 없습니다. 클릭 시 지역 담당자 현황으로 이동"
-            >
-              미배정
-            </span>
-          );
-        }
+        const count = workers.length;
+        const regionName = getRegionDisplayName(site);
         return (
-          <span
-            className="worker-count-pill"
+          <button
+            type="button"
+            className={`btn-user-perf-pill ${count === 0 ? 'empty' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
               handleOpenDetail(site, 'workers');
             }}
-            title={`${site.region || site.sigungu} 지역 담당자 ${workers.length}명 (${workers.map(w => w.userName).join(', ')})`}
+            title={count === 0
+              ? `${regionName} 관할에 배정된 담당자가 없습니다. 클릭 시 지역 담당자 현황으로 이동`
+              : `${regionName} 관할 담당자 ${count}명 (${workers.map(w => w.userName).join(', ')})`}
           >
-            <Users size={13} />
-            <span>{workers.length > 1 ? `${workers[0].userName} 외 ${workers.length - 1}명` : workers[0].userName}</span>
-          </span>
+            <Users size={12} />
+            <span>{count > 0 ? `${count}명` : '0명'}</span>
+          </button>
         );
       },
     },
-  ], [getWorkersForSite]);
+  ], [getWorkersForSite, getRegionDisplayName]);
 
   // Handle Daum Postcode Complete
   const handleCompletePostcode = (data: Address) => {

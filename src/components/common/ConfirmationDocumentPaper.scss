@@ -207,6 +207,9 @@
       font-size: 0.78rem;
       font-weight: 700;
       color: var(--slate-900);
+      white-space: normal;
+      word-break: break-all;
+      line-height: 1.25;
     }
     .doc-inline-input {
       flex: 1;

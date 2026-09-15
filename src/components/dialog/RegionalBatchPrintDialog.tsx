@@ -42,7 +42,7 @@ export default function RegionalBatchPrintDialog({
   // ── PDF Generating States ──
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [pdfProgressText, setPdfProgressText] = useState('');
-  const [isBatchCapturing, setIsBatchCapturing] = useState(false);
+  const [capturingReport, setCapturingReport] = useState<WorkReport | null>(null);
   const isCancelledRef = useRef(false);
 
   // PDF 생성 중 브라우저 탭 닫기 / 새로고침 방어
@@ -137,35 +137,19 @@ export default function RegionalBatchPrintDialog({
     isCancelledRef.current = false;
     try {
       setIsPdfGenerating(true);
-      setIsBatchCapturing(true);
       setPdfProgressText('PDF 생성 준비 중...');
 
-      // 1. 전체 세대 마운트 및 렌더링 안정화 대기
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // 1. 대지 보고서 렌더링 안정화 대기
+      await new Promise(resolve => setTimeout(resolve, 200));
       if (isCancelledRef.current) return;
 
       const coverElements = Array.from(bundleElement.querySelectorAll<HTMLElement>('.completion-report-cover-paper'));
-      const paperElements = Array.from(bundleElement.querySelectorAll<HTMLElement>('.confirmation-document-paper'));
-      if (coverElements.length === 0 || paperElements.length === 0) {
+      if (coverElements.length === 0) {
         enqueueSnackbar('출력할 서식 문서를 렌더링할 수 없습니다.', { variant: 'error' });
         return;
       }
 
-      // 2. 번들 내 모든 이미지 로드 대기
-      const imgElements = Array.from(bundleElement.querySelectorAll<HTMLImageElement>('img'));
-      await Promise.all(
-        imgElements.map(img => {
-          if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
-          return new Promise(resolve => {
-            img.onload = resolve;
-            img.onerror = resolve;
-            setTimeout(resolve, 2000);
-          });
-        })
-      );
-      if (isCancelledRef.current) return;
-
-      // 3. S3 rewrite 경로(/report/...)를 통해 CORS 없이 DataURL 변환
+      // S3 rewrite 경로(/report/...)를 통해 CORS 없이 DataURL 변환
       const s3Prefix = process.env.NEXT_PUBLIC_S3_PREFIX;
       const toSameOriginUrl = (url: string) => {
         if (!url) return '';
@@ -176,33 +160,7 @@ export default function RegionalBatchPrintDialog({
         return url;
       };
 
-      const originalSources = new Map<HTMLImageElement, string>();
-      await Promise.all(
-        imgElements.map(async (img) => {
-          const src = img.src;
-          if (!src || src.startsWith('data:')) return;
-          try {
-            const proxyUrl = toSameOriginUrl(src);
-            const res = await fetch(proxyUrl);
-            if (res.ok) {
-              const blob = await res.blob();
-              const dataUrl = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-              originalSources.set(img, src);
-              img.src = dataUrl;
-            }
-          } catch {
-            // fetch 실패 시 기존 src 유지
-          }
-        })
-      );
-      if (isCancelledRef.current) return;
-
-      // 4. jsPDF 초기화 (A4 세로)
+      // 2. jsPDF 초기화 (A4 세로)
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = 210;
       const pdfHeight = 297;
@@ -213,15 +171,15 @@ export default function RegionalBatchPrintDialog({
       let leftM = 0;
       let topM = 0;
 
-      // 5. 보급완료 보고서 대지 캡처 (1장 또는 분할된 복수 페이지)
-      const totalPages = coverElements.length + paperElements.length;
+      const totalSteps = coverElements.length + exportReports.length;
+      let currentStep = 1;
 
-      let currentPageNum = 1;
+      // 3. 보급완료 보고서 대지 캡처 (1장 또는 분할된 복수 페이지)
       for (let i = 0; i < coverElements.length; i++) {
         if (isCancelledRef.current) return;
         const coverEl = coverElements[i];
-        setPdfProgressText(`대지 보고서 작성 중... (${currentPageNum}/${totalPages})`);
-        if (currentPageNum > 1) {
+        setPdfProgressText(`대지 보고서 작성 중... (${currentStep}/${totalSteps})`);
+        if (currentStep > 1) {
           pdf.addPage();
         }
 
@@ -248,16 +206,89 @@ export default function RegionalBatchPrintDialog({
         leftM = (pdfWidth - renderW) / 2;
         topM = (pdfHeight - renderH) / 2;
         pdf.addImage(coverData, 'JPEG', leftM, topM, renderW, renderH);
-        currentPageNum++;
+
+        coverCanvas.width = 0;
+        coverCanvas.height = 0;
+        currentStep++;
       }
 
-      // 6. 세대별 보급지원확인서 캡처
-      for (let i = 0; i < paperElements.length; i++) {
+      // 4. 세대별 보급지원확인서: 단 1개의 DOM 슬롯에 1세대씩 교체 렌더링하며 순차 캡처 (화면 부하 및 메모리 누수 방지)
+      for (let i = 0; i < exportReports.length; i++) {
         if (isCancelledRef.current) return;
-        const paperEl = paperElements[i];
-        setPdfProgressText(`세대 확인서 저장 중... (${currentPageNum}/${totalPages})`);
-        pdf.addPage();
+        const rep = exportReports[i];
+        setPdfProgressText(`세대 확인서 저장 중... (${i + 1}/${exportReports.length}세대)`);
 
+        // 해당 세대로 교체 렌더링
+        setCapturingReport(rep);
+        // React 렌더링 및 DOM 커밋 안정화 대기
+        await new Promise(resolve => setTimeout(resolve, 80));
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        if (isCancelledRef.current) return;
+
+        const paperEl = document.getElementById('printable-batch-confirmation-paper');
+        if (!paperEl) continue;
+
+        // 1. 해당 세대 내 모든 이미지(작업 사진 5장 + 확인자 서명) 로드 대기
+        const imgElements = Array.from(paperEl.querySelectorAll<HTMLImageElement>('img'));
+        await Promise.all(
+          imgElements.map(img => {
+            if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
+            return new Promise(resolve => {
+              const timer = setTimeout(resolve, 2000);
+              img.onload = () => {
+                clearTimeout(timer);
+                resolve(null);
+              };
+              img.onerror = () => {
+                clearTimeout(timer);
+                resolve(null);
+              };
+            });
+          })
+        );
+        if (isCancelledRef.current) return;
+
+        // 2. 이미지 DataURL 변환 (CORS 차단 방지)
+        const originalSources = new Map<HTMLImageElement, string>();
+        await Promise.all(
+          imgElements.map(async (img) => {
+            const src = img.src;
+            if (!src || src.startsWith('data:')) return;
+            try {
+              const proxyUrl = toSameOriginUrl(src);
+              const res = await fetch(proxyUrl);
+              if (res.ok) {
+                const blob = await res.blob();
+                const dataUrl = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => resolve(reader.result as string);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(blob);
+                });
+                originalSources.set(img, src);
+                img.src = dataUrl;
+              }
+            } catch {
+              // fetch 실패 시 기존 src 유지
+            }
+          })
+        );
+        if (isCancelledRef.current) return;
+
+        // 3. 변환된 DataURL 이미지들이 브라우저 화면에 완전히 디코딩(렌더)될 때까지 대기
+        await Promise.all(
+          imgElements.map(img => {
+            if (typeof img.decode === 'function') {
+              return img.decode().catch(() => {});
+            }
+            return Promise.resolve();
+          })
+        );
+        await new Promise(resolve => setTimeout(resolve, 40));
+        if (isCancelledRef.current) return;
+
+        // 4. html2canvas 캡처
+        pdf.addPage();
         paperEl.classList.add('capturing-for-pdf');
         const canvas = await html2canvas(paperEl, {
           scale: 2,
@@ -270,7 +301,12 @@ export default function RegionalBatchPrintDialog({
         });
         paperEl.classList.remove('capturing-for-pdf');
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        // DataURL 원복
+        originalSources.forEach((origSrc, img) => {
+          img.src = origSrc;
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
         const imgProps = pdf.getImageProperties(imgData);
         renderW = maxWidth;
         renderH = (imgProps.height * renderW) / imgProps.width;
@@ -281,17 +317,16 @@ export default function RegionalBatchPrintDialog({
         leftM = (pdfWidth - renderW) / 2;
         topM = (pdfHeight - renderH) / 2;
         pdf.addImage(imgData, 'JPEG', leftM, topM, renderW, renderH);
-        currentPageNum++;
-      }
 
-      // 7. DataURL 복원
-      originalSources.forEach((origSrc, img) => {
-        img.src = origSrc;
-      });
+        // 캔버스 메모리 즉시 해제
+        canvas.width = 0;
+        canvas.height = 0;
+        currentStep++;
+      }
 
       if (isCancelledRef.current) return;
 
-      // 8. PDF 다운로드 완료
+      // 5. PDF 다운로드 완료
       const safeLabel = regionLabel ? regionLabel.replace(/\s+/g, '_') : '지역';
       const fileName = `${safeLabel}_단독경보형감지기_보급완료_일괄보고서.pdf`;
       pdf.save(fileName);
@@ -302,7 +337,7 @@ export default function RegionalBatchPrintDialog({
       enqueueSnackbar(err?.message || 'PDF 생성 중 오류가 발생했습니다.', { variant: 'error' });
     } finally {
       setIsPdfGenerating(false);
-      setIsBatchCapturing(false);
+      setCapturingReport(null);
       setPdfProgressText('');
     }
   };
@@ -548,11 +583,15 @@ export default function RegionalBatchPrintDialog({
               {/* ───────────────────────────────────────────────────────────── */}
               {/* 세대별 확인서 프리뷰 헤더 안내 뱃지 */}
               {/* ───────────────────────────────────────────────────────────── */}
-              {exportReports.length > 0 && !isBatchCapturing && (
+              {exportReports.length > 0 && (
                 <div className="preview-confirmation-header-bar">
                   <div className="preview-confirmation-title">
-                    <span>세대별 보급지원확인서 미리보기</span>
-                    <span className="current-sub">(1번째 세대)</span>
+                    <span>세대별 보급지원확인서 {isPdfGenerating ? 'PDF 변환 중' : '미리보기'}</span>
+                    <span className="current-sub">
+                      {isPdfGenerating && capturingReport
+                        ? `(${exportReports.findIndex(r => r.reportId === capturingReport.reportId) + 1}번째 세대)`
+                        : '(1번째 세대)'}
+                    </span>
                   </div>
                   {exportReports.length > 1 && (
                     <span className="preview-more-count-badge">외 {exportReports.length - 1}개 세대</span>
@@ -561,18 +600,15 @@ export default function RegionalBatchPrintDialog({
               )}
 
               {/* ───────────────────────────────────────────────────────────── */}
-              {/* PAGE M+1 ~ M+N: 세대별 단독경보형감지기 보급지원확인서 */}
-              {/* 프리뷰 최적화를 위해 1개만 렌더링, PDF 다운로드 시 전체 일괄 렌더링 */}
+              {/* PAGE M+1: 세대별 단독경보형감지기 보급지원확인서 */}
+              {/* 메모리 절약과 브라우저 부하 방지를 위해 오직 1개 슬롯만 렌더링하고 순차 교체 */}
               {/* ───────────────────────────────────────────────────────────── */}
-              {exportReports.map((rep, idx) => {
-                if (!isBatchCapturing && idx > 0) return null;
-                return (
-                  <ConfirmationDocumentPaper
-                    key={rep.reportId || idx}
-                    report={rep}
-                  />
-                );
-              })}
+              {exportReports.length > 0 && (
+                <ConfirmationDocumentPaper
+                  id="printable-batch-confirmation-paper"
+                  report={capturingReport || exportReports[0]}
+                />
+              )}
             </div>
           </div>
         )}

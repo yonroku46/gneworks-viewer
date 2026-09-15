@@ -22,6 +22,9 @@ import {
   SlidersHorizontal,
   Check,
   ArrowLeft,
+  Layers,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import './Work.scss';
 
@@ -68,9 +71,13 @@ function PortalWorkContent() {
   const [activeSiteDetail, setActiveSiteDetail] = useState<SiteDetail | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [householdSearchQuery, setHouseholdSearchQuery] = useState('');
+  const [selectedDong, setSelectedDong] = useState<string>('ALL');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [statusFilter, setStatusFilter] = useState<WorkStatusFilter>('all');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [isDongMenuOpen, setIsDongMenuOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+  const dongRef = useRef<HTMLDivElement>(null);
 
   // 지역 탭 가로 스크롤 관리
   const regionTabListRef = useRef<HTMLDivElement>(null);
@@ -81,6 +88,9 @@ function PortalWorkContent() {
   const [selectedHousehold, setSelectedHousehold] = useState<HouseholdRes>();
   const [selectedReport, setSelectedReport] = useState<WorkReport>();
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const isReportDialogOpenRef = useRef(false);
+  isReportDialogOpenRef.current = isReportDialogOpen;
+  const pendingDetailRefreshRef = useRef(false);
 
   const checkRegionScrollButtons = () => {
     if (regionTabListRef.current) {
@@ -113,14 +123,17 @@ function PortalWorkContent() {
       if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
         setIsFilterMenuOpen(false);
       }
+      if (dongRef.current && !dongRef.current.contains(e.target as Node)) {
+        setIsDongMenuOpen(false);
+      }
     };
-    if (isFilterMenuOpen) {
+    if (isFilterMenuOpen || isDongMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isFilterMenuOpen]);
+  }, [isFilterMenuOpen, isDongMenuOpen]);
 
   // 1. 현장 요약 목록 초기 로드
   const loadSitesSummary = useCallback(async () => {
@@ -165,7 +178,12 @@ function PortalWorkContent() {
     const handleRealtimeNotification = () => {
       loadSitesSummary();
       if (siteId) {
-        loadSiteDetail(siteId);
+        if (isReportDialogOpenRef.current) {
+          // 보고서 작성 모달이 열려 있을 때는 백그라운드 리패치로 인한 입력 방해를 막기 위해 모달 종료 후로 연기
+          pendingDetailRefreshRef.current = true;
+        } else {
+          loadSiteDetail(siteId);
+        }
       }
     };
     window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
@@ -182,11 +200,17 @@ function PortalWorkContent() {
     } else {
       setActiveSiteDetail(null);
     }
+    setHouseholdSearchQuery('');
+    setSelectedDong('ALL');
+    setSortOrder('asc');
+    setStatusFilter('all');
   }, [siteId, loadSiteDetail]);
 
   // 현장 카드 선택 핸들러 -> URL 변경으로 브라우저 히스토리 지원
   const handleSelectSite = (targetSiteId: string) => {
     setHouseholdSearchQuery('');
+    setSelectedDong('ALL');
+    setSortOrder('asc');
     setStatusFilter('all');
     router.push(`/portal/work?siteId=${encodeURIComponent(targetSiteId)}`);
   };
@@ -224,31 +248,53 @@ function PortalWorkContent() {
     );
   }, [assignedSites, siteSearchQuery]);
 
-  // ── [2단계 필터링] 활성 현장 내 세대 및 보고서 필터링 ──
+  // ── [2단계 데이터] 활성 현장의 동 그룹 목록 추출 (세대 수 포함, 자연 정렬) ──
+  const availableDongs = useMemo(() => {
+    if (!activeSiteDetail?.households) return [];
+    const dongCountMap = new Map<string, number>();
+    activeSiteDetail.households.forEach(h => {
+      const dong = String(h.dong || '').trim();
+      if (dong) {
+        dongCountMap.set(dong, (dongCountMap.get(dong) || 0) + 1);
+      }
+    });
+
+    return Array.from(dongCountMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+      .map(([dong, count]) => ({ dong, count }));
+  }, [activeSiteDetail]);
+
+  // ── [2단계 필터링 및 정렬] 활성 현장 내 세대 및 보고서 필터링 ──
   const filteredHouseholds = useMemo(() => {
     if (!activeSiteDetail?.households) return [];
     const query = householdSearchQuery.trim().toLowerCase();
 
-    return activeSiteDetail.households.filter(h => {
-      // 1. 검색어 필터링 (동, 호수, 세대주)
+    const filtered = activeSiteDetail.households.filter(h => {
+      // 1. 동 그룹 필터링
+      if (selectedDong !== 'ALL') {
+        if (String(h.dong || '').trim() !== selectedDong) return false;
+      }
+
+      // 2. 검색어 필터링 (동, 호수, 세대주)
       if (query) {
         const dongFormatted = `${h.dong}동`.toLowerCase();
         const hoFormatted = `${h.ho}호`.toLowerCase();
         const dongStr = String(h.dong || '').toLowerCase();
         const hoStr = String(h.ho || '').toLowerCase();
-        const headStr = String(h.headName || '').toLowerCase();
+        const headStr =
+          h.headName && h.headName.trim() !== '-' ? String(h.headName).toLowerCase() : '';
 
         const match =
           dongStr.includes(query) ||
           dongFormatted.includes(query) ||
           hoStr.includes(query) ||
           hoFormatted.includes(query) ||
-          headStr.includes(query);
+          (headStr ? headStr.includes(query) : false);
 
         if (!match) return false;
       }
 
-      // 2. 상태 필터링
+      // 3. 상태 필터링
       if (statusFilter !== 'all') {
         const statusKey = h.reportStatus ? getStatusKey(h.reportStatus) : 'unsubmitted';
         if (statusFilter === 'uncompleted') {
@@ -260,7 +306,21 @@ function PortalWorkContent() {
 
       return true;
     });
-  }, [activeSiteDetail, householdSearchQuery, statusFilter]);
+
+    // 4. 동·호수 기준 자연 순서 정렬 (오름차순 / 내림차순)
+    return filtered.sort((a, b) => {
+      const dongA = String(a.dong || '');
+      const dongB = String(b.dong || '');
+      const dongComp = dongA.localeCompare(dongB, undefined, { numeric: true });
+      if (dongComp !== 0) {
+        return sortOrder === 'asc' ? dongComp : -dongComp;
+      }
+      const hoA = String(a.ho || '');
+      const hoB = String(b.ho || '');
+      const hoComp = hoA.localeCompare(hoB, undefined, { numeric: true });
+      return sortOrder === 'asc' ? hoComp : -hoComp;
+    });
+  }, [activeSiteDetail, selectedDong, householdSearchQuery, statusFilter, sortOrder]);
 
   // 활성 현장의 세대 통계 계산
   const siteHouseholdStats = useMemo(() => {
@@ -527,70 +587,151 @@ function PortalWorkContent() {
             </div>
           </div>
 
-          {/* ── 2-1. 세대 검색 & 상태 필터 바 ── */}
-          <div className="household-search-filter-row">
-            <div className="work-search-box">
-              <Search size={18} className="search-icon" />
-              <input
-                type="text"
-                placeholder="동/호수(예: 101동 101호) 또는 세대주명 검색"
-                value={householdSearchQuery}
-                onChange={e => setHouseholdSearchQuery(e.target.value)}
-              />
-              {householdSearchQuery && (
-                <button className="clear-btn" onClick={() => setHouseholdSearchQuery('')}>
-                  ×
-                </button>
-              )}
-            </div>
+          {/* ── 2-1. 세대 검색 & 정렬 바 + 동·상태 필터 바 ── */}
+          <div className="household-controls-container">
+            {/* 1행: 검색창 + 정렬 토글 버튼 */}
+            <div className="household-search-sort-row">
+              <div className="work-search-box">
+                <Search size={18} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="동/호수(예: 101동 101호) 또는 세대주명 검색"
+                  value={householdSearchQuery}
+                  onChange={e => setHouseholdSearchQuery(e.target.value)}
+                />
+                {householdSearchQuery && (
+                  <button className="clear-btn" onClick={() => setHouseholdSearchQuery('')}>
+                    ×
+                  </button>
+                )}
+              </div>
 
-            <div className="filter-dropdown-container" ref={filterRef}>
               <button
                 type="button"
-                className={`btn-filter-trigger ${statusFilter !== 'all' ? 'active' : ''}`}
-                onClick={() => setIsFilterMenuOpen(prev => !prev)}
-                aria-label="작업 상태 필터"
+                className={`btn-sort-toggle ${sortOrder}`}
+                onClick={() => setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))}
+                title={
+                  sortOrder === 'asc'
+                    ? '동·호수 오름차순 (클릭 시 내림차순 변경)'
+                    : '동·호수 내림차순 (클릭 시 오름차순 변경)'
+                }
+                aria-label="동·호수 정렬 순서 전환"
               >
-                <SlidersHorizontal size={14} />
-                {FILTER_OPTIONS.find(o => o.value === statusFilter)?.dotClass && (
-                  <span
-                    className={`filter-status-dot ${
-                      FILTER_OPTIONS.find(o => o.value === statusFilter)?.dotClass
-                    }`}
-                  />
-                )}
-                <span className="filter-selected-text">
-                  {FILTER_OPTIONS.find(o => o.value === statusFilter)?.shortLabel || '전체'}
-                </span>
-                <ChevronDown size={14} className={`arrow-icon ${isFilterMenuOpen ? 'open' : ''}`} />
+                {sortOrder === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+                <span className="sort-label">{sortOrder === 'asc' ? '오름차순' : '내림차순'}</span>
               </button>
+            </div>
 
-              {isFilterMenuOpen && (
-                <div className="filter-dropdown-menu">
-                  <div className="dropdown-menu-header">
-                    <span>작업 상태 필터</span>
+            {/* 2행: 동 그룹 필터 & 작업 상태 필터 바 */}
+            <div className="household-filter-bar">
+              {/* 동 그룹 셀렉트바 */}
+              <div className="filter-dropdown-container dong-select-container" ref={dongRef}>
+                <button
+                  type="button"
+                  className={`btn-filter-trigger ${selectedDong !== 'ALL' ? 'active' : ''}`}
+                  onClick={() => setIsDongMenuOpen(prev => !prev)}
+                  aria-label="동 선택 필터"
+                >
+                  <div className="trigger-left">
+                    <Layers size={14} className="trigger-icon" />
+                    <span className="filter-selected-text">
+                      {selectedDong === 'ALL' ? '전체 동' : `${selectedDong}동`}
+                    </span>
                   </div>
-                  {FILTER_OPTIONS.map(opt => (
+                  <ChevronDown size={14} className={`arrow-icon ${isDongMenuOpen ? 'open' : ''}`} />
+                </button>
+
+                {isDongMenuOpen && (
+                  <div className="filter-dropdown-menu scrollable-menu">
+                    <div className="dropdown-menu-header">
+                      <span>동 선택 ({availableDongs.length}개 동)</span>
+                    </div>
                     <button
-                      key={opt.value}
                       type="button"
-                      className={`dropdown-menu-item ${statusFilter === opt.value ? 'selected' : ''}`}
+                      className={`dropdown-menu-item ${selectedDong === 'ALL' ? 'selected' : ''}`}
                       onClick={() => {
-                        setStatusFilter(opt.value);
-                        setIsFilterMenuOpen(false);
+                        setSelectedDong('ALL');
+                        setIsDongMenuOpen(false);
                       }}
                     >
                       <div className="item-label-group">
-                        {opt.dotClass && <span className={`filter-status-dot ${opt.dotClass}`} />}
-                        <span className="item-label">{opt.label}</span>
+                        <span className="item-label">전체 동</span>
+                        <span className="item-badge">{`${activeSiteDetail?.households?.length || 0}세대`}</span>
                       </div>
-                      {statusFilter === opt.value && (
-                        <Check size={14} className="item-check-icon" />
-                      )}
+                      {selectedDong === 'ALL' && <Check size={14} className="item-check-icon" />}
                     </button>
-                  ))}
-                </div>
-              )}
+                    {availableDongs.map(d => (
+                      <button
+                        key={d.dong}
+                        type="button"
+                        className={`dropdown-menu-item ${selectedDong === d.dong ? 'selected' : ''}`}
+                        onClick={() => {
+                          setSelectedDong(d.dong);
+                          setIsDongMenuOpen(false);
+                        }}
+                      >
+                        <div className="item-label-group">
+                          <span className="item-label">{d.dong}동</span>
+                          <span className="item-badge">{d.count}세대</span>
+                        </div>
+                        {selectedDong === d.dong && <Check size={14} className="item-check-icon" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 작업 상태 필터 드롭다운 */}
+              <div className="filter-dropdown-container status-select-container" ref={filterRef}>
+                <button
+                  type="button"
+                  className={`btn-filter-trigger ${statusFilter !== 'all' ? 'active' : ''}`}
+                  onClick={() => setIsFilterMenuOpen(prev => !prev)}
+                  aria-label="작업 상태 필터"
+                >
+                  <div className="trigger-left">
+                    <SlidersHorizontal size={14} className="trigger-icon" />
+                    {FILTER_OPTIONS.find(o => o.value === statusFilter)?.dotClass && (
+                      <span
+                        className={`filter-status-dot ${
+                          FILTER_OPTIONS.find(o => o.value === statusFilter)?.dotClass
+                        }`}
+                      />
+                    )}
+                    <span className="filter-selected-text">
+                      {FILTER_OPTIONS.find(o => o.value === statusFilter)?.shortLabel || '전체'}
+                    </span>
+                  </div>
+                  <ChevronDown size={14} className={`arrow-icon ${isFilterMenuOpen ? 'open' : ''}`} />
+                </button>
+
+                {isFilterMenuOpen && (
+                  <div className="filter-dropdown-menu">
+                    <div className="dropdown-menu-header">
+                      <span>작업 상태 필터</span>
+                    </div>
+                    {FILTER_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`dropdown-menu-item ${statusFilter === opt.value ? 'selected' : ''}`}
+                        onClick={() => {
+                          setStatusFilter(opt.value);
+                          setIsFilterMenuOpen(false);
+                        }}
+                      >
+                        <div className="item-label-group">
+                          {opt.dotClass && <span className={`filter-status-dot ${opt.dotClass}`} />}
+                          <span className="item-label">{opt.label}</span>
+                        </div>
+                        {statusFilter === opt.value && (
+                          <Check size={14} className="item-check-icon" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -608,16 +749,16 @@ function PortalWorkContent() {
               </div>
             ) : filteredHouseholds.length === 0 ? (
               <div className="work-empty-state">
-                <Circle size={40} className="empty-icon" />
                 <p className="empty-title">일치하는 세대 또는 보고서가 없습니다.</p>
                 <p className="empty-sub">검색어나 작업 상태 필터를 변경해 보세요.</p>
-                {(statusFilter !== 'all' || householdSearchQuery) && (
+                {(statusFilter !== 'all' || householdSearchQuery || selectedDong !== 'ALL') && (
                   <button
                     type="button"
                     className="btn-reset-filters"
                     onClick={() => {
                       setStatusFilter('all');
                       setHouseholdSearchQuery('');
+                      setSelectedDong('ALL');
                     }}
                   >
                     필터 전체 초기화
@@ -651,7 +792,7 @@ function PortalWorkContent() {
                       <div className="card-body">
                         <div className="unit-main-line">
                           <span className="unit-name">{household.dong}동 {household.ho}호</span>
-                          {household.headName && (
+                          {household.headName && household.headName.trim() !== '-' && (
                             <span className="head-name">· {household.headName} 세대</span>
                           )}
                         </div>
@@ -703,11 +844,16 @@ function PortalWorkContent() {
           setIsReportDialogOpen(false);
           setSelectedHousehold(undefined);
           setSelectedReport(undefined);
+          if (pendingDetailRefreshRef.current && siteId) {
+            pendingDetailRefreshRef.current = false;
+            loadSiteDetail(siteId);
+          }
         }}
         site={activeSiteDetail || undefined}
         household={selectedHousehold}
         existingReport={selectedReport}
         onSubmitted={() => {
+          pendingDetailRefreshRef.current = false;
           if (siteId) {
             loadSiteDetail(siteId);
           }

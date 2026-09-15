@@ -1261,6 +1261,42 @@
               color: var(--manage-primary);
             }
           }
+          .btn-user-perf-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.25rem 0.625rem;
+            border-radius: 9999px;
+            background: var(--info-bg);
+            border: 1px solid var(--info-border);
+            color: var(--info-text);
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+            span {
+              white-space: nowrap;
+            }
+            svg {
+              flex-shrink: 0;
+            }
+            &:hover {
+              background: var(--info-blue);
+              color: var(--white);
+              border-color: var(--info-blue);
+            }
+            &.empty {
+              background: var(--slate-100);
+              border-color: var(--border);
+              color: var(--slate-500);
+              &:hover {
+                background: var(--slate-200);
+                color: var(--slate-800);
+              }
+            }
+          }
           .worker-pill {
             display: inline-flex;
             align-items: center;

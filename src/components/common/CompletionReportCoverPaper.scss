@@ -11,9 +11,8 @@
   width: 182mm;
   min-width: 182mm;
   max-width: 182mm;
-  height: 275mm;
   min-height: 275mm;
-  max-height: 275mm;
+  height: fit-content;
   flex-shrink: 0;
   box-sizing: border-box;
   margin: 0 auto;
@@ -120,6 +119,7 @@
         overflow: hidden;
         .cover-official-table {
           width: 100%;
+          table-layout: fixed;
           border-collapse: collapse;
           font-size: 0.72rem;
           thead {
@@ -127,15 +127,21 @@
             tr {
               border-bottom: 1px solid var(--slate-900);
               th {
-                padding: 0.25rem 0.35rem;
+                padding: 0.25rem 0.2rem;
                 font-size: 0.6875rem;
                 font-weight: 800;
                 color: var(--slate-900);
                 text-align: center;
                 border-right: 1px solid var(--slate-900);
                 white-space: nowrap;
+                vertical-align: middle;
                 &:last-child {
                   border-right: none;
+                }
+                &.th-qty {
+                  font-size: 0.63rem;
+                  line-height: 1.15;
+                  white-space: normal;
                 }
               }
             }
@@ -156,11 +162,13 @@
                 }
               }
               td {
-                padding: 0.22rem 0.35rem;
+                padding: 0.22rem 0.25rem;
                 color: var(--slate-900);
                 border-right: 1px solid var(--slate-400);
                 vertical-align: middle;
                 white-space: nowrap;
+                font-size: 0.68rem;
+                overflow: hidden;
                 &:last-child {
                   border-right: none;
                 }
@@ -170,11 +178,20 @@
                 &.bold {
                   font-weight: 800;
                 }
+                &.target-type-cell {
+                  font-size: 0.63rem;
+                  letter-spacing: -0.4px;
+                }
+                &.date-cell {
+                  font-size: 0.65rem;
+                  letter-spacing: -0.3px;
+                }
                 &.addr {
-                  max-width: 160px;
-                  overflow: hidden;
-                  text-overflow: ellipsis;
-                  white-space: nowrap;
+                  white-space: normal;
+                  word-break: break-all;
+                  line-height: 1.25;
+                  font-size: 0.68rem;
+                  overflow: visible;
                 }
                 &.empty-cell {
                   padding: 3rem 1rem;
