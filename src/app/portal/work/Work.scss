@@ -163,6 +163,24 @@
       gap: 0.5rem;
       width: 100%;
     }
+    .site-scroll-sentinel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1rem 0.5rem;
+      color: var(--slate-400);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      .sentinel-spinner {
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid var(--border);
+        border-top-color: var(--manage-primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+    }
     .portal-site-card {
       display: flex;
       align-items: center;

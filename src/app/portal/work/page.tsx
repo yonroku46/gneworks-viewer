@@ -67,6 +67,11 @@ function PortalWorkContent() {
   const [siteSearchQuery, setSiteSearchQuery] = useState('');
   const [isSitesLoading, setIsSitesLoading] = useState(true);
 
+  // 현장 목록 무한 스크롤(점진적 렌더링) 관리
+  const SITES_PAGE_SIZE = 15;
+  const [siteDisplayCount, setSiteDisplayCount] = useState<number>(SITES_PAGE_SIZE);
+  const siteObserverTargetRef = useRef<HTMLDivElement>(null);
+
   // 2단계 선택된 현장 상세 및 세대 상태
   const [activeSiteDetail, setActiveSiteDetail] = useState<SiteDetail | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -247,6 +252,35 @@ function PortalWorkContent() {
       s => (s.name && s.name.toLowerCase().includes(q)) || (s.address && s.address.toLowerCase().includes(q))
     );
   }, [assignedSites, siteSearchQuery]);
+
+  // 검색어 또는 지역 탭 변경 시 무한 스크롤 표시 개수 초기화
+  useEffect(() => {
+    setSiteDisplayCount(SITES_PAGE_SIZE);
+  }, [siteSearchQuery, selectedRegionId]);
+
+  // 화면에 실제로 노출할 현장 목록 (무한 스크롤 / 점진적 렌더링)
+  const displayedSites = useMemo(() => {
+    return filteredSites.slice(0, siteDisplayCount);
+  }, [filteredSites, siteDisplayCount]);
+
+  const hasMoreSites = siteDisplayCount < filteredSites.length;
+
+  useEffect(() => {
+    if (!hasMoreSites) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setSiteDisplayCount(prev => prev + SITES_PAGE_SIZE);
+        }
+      },
+      { threshold: 0.1, rootMargin: '120px' }
+    );
+    const target = siteObserverTargetRef.current;
+    if (target) observer.observe(target);
+    return () => {
+      if (target) observer.unobserve(target);
+    };
+  }, [hasMoreSites]);
 
   // ── [2단계 데이터] 활성 현장의 동 그룹 목록 추출 (세대 수 포함, 자연 정렬) ──
   const availableDongs = useMemo(() => {
@@ -501,43 +535,52 @@ function PortalWorkContent() {
                 <p className="empty-sub">검색어나 선택된 지역 탭을 다시 확인해 보세요.</p>
               </div>
             ) : (
-              <div className="site-cards-grid">
-                {filteredSites.map(site => {
-                  const total = site.totalHouseholds || 0;
-                  const completed = site.completedHouseholds || 0;
-                  const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+              <>
+                <div className="site-cards-grid">
+                  {displayedSites.map(site => {
+                    const total = site.totalHouseholds || 0;
+                    const completed = site.completedHouseholds || 0;
+                    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-                  return (
-                    <div
-                      key={site.siteId}
-                      className="portal-site-card"
-                      onClick={() => handleSelectSite(site.siteId)}
-                    >
-                      <div className="site-card-icon">
-                        <Building2 size={20} />
-                      </div>
-
-                      <div className="site-card-body">
-                        <div className="site-card-title-row">
-                          <h3 className="site-card-name">{site.name}</h3>
-                          <span className="site-card-region">{site.sido} {site.region || site.sigungu}</span>
+                    return (
+                      <div
+                        key={site.siteId}
+                        className="portal-site-card"
+                        onClick={() => handleSelectSite(site.siteId)}
+                      >
+                        <div className="site-card-icon">
+                          <Building2 size={20} />
                         </div>
-                        <p className="site-card-address">{site.address || '주소 정보 없음'}</p>
-                        <div className="site-card-meta-row">
-                          <span className="meta-stats">
-                            시공완료 {completed}/{total}세대
-                          </span>
-                          <span className={`meta-rate ${rate === 100 ? 'done' : ''}`}>({rate}% 완료)</span>
+
+                        <div className="site-card-body">
+                          <div className="site-card-title-row">
+                            <h3 className="site-card-name">{site.name}</h3>
+                            <span className="site-card-region">{site.sido} {site.region || site.sigungu}</span>
+                          </div>
+                          <p className="site-card-address">{site.address || '주소 정보 없음'}</p>
+                          <div className="site-card-meta-row">
+                            <span className="meta-stats">
+                              시공완료 {completed}/{total}세대
+                            </span>
+                            <span className={`meta-rate ${rate === 100 ? 'done' : ''}`}>({rate}% 완료)</span>
+                          </div>
+                        </div>
+
+                        <div className="site-card-arrow">
+                          <ChevronRight size={18} className="arrow-icon" />
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
 
-                      <div className="site-card-arrow">
-                        <ChevronRight size={18} className="arrow-icon" />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                {hasMoreSites && (
+                  <div ref={siteObserverTargetRef} className="site-scroll-sentinel">
+                    <div className="sentinel-spinner" />
+                    <span>현장 목록을 불러오는 중... ({displayedSites.length} / {filteredSites.length})</span>
+                  </div>
+                )}
+              </>
             )}
           </section>
         </>
