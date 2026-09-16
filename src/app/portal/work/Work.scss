@@ -157,6 +157,38 @@
     flex-direction: column;
     gap: 0.75rem;
     width: 100%;
+    .work-sites-skeleton-group {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.5rem;
+      width: 100%;
+      .work-site-card-skeleton {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+        padding: 0.875rem 1.125rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 0.875rem;
+        box-sizing: border-box;
+        .skeleton-header-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          .skeleton-title-col {
+            display: flex;
+            flex-direction: column;
+            gap: 0.375rem;
+          }
+        }
+        .skeleton-progress-row {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+      }
+    }
     .site-cards-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -191,7 +223,7 @@
       gap: 0.875rem;
       cursor: pointer;
       box-shadow: 0 1px 3px var(--shadow-sm);
-      transition: all 0.2s ease;
+      transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
       position: relative;
       width: 100%;
       min-width: 0;
@@ -798,7 +830,8 @@
 
 @include pc {
   .portal-work-page {
-    .work-sites-container .site-cards-grid {
+    .work-sites-container .site-cards-grid,
+    .work-sites-container .work-sites-skeleton-group {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .site-detail-view .households-container .households-card-grid {

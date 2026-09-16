@@ -66,6 +66,7 @@ function PortalWorkContent() {
   const [totalSitesCount, setTotalSitesCount] = useState<number>(0);
   const [sitesPage, setSitesPage] = useState<number>(1);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
+  const [isRegionsLoading, setIsRegionsLoading] = useState(true);
   const [selectedRegionId, setSelectedRegionId] = useState<string>('ALL');
   const [siteSearchQuery, setSiteSearchQuery] = useState('');
   const [debouncedSiteQuery, setDebouncedSiteQuery] = useState('');
@@ -152,6 +153,7 @@ function PortalWorkContent() {
   // 배정 관할 목록 로드 (지역별 정확한 totalSites 포함)
   const loadAssignedRegions = useCallback(async () => {
     try {
+      setIsRegionsLoading(true);
       const regions = await PortalService.getAssignedRegions().catch(err => {
         console.error('[PortalWorkPage] getAssignedRegions error', err);
         return [];
@@ -159,6 +161,8 @@ function PortalWorkContent() {
       setAssignedRegions(regions || []);
     } catch (err) {
       console.error('[PortalWorkPage] loadAssignedRegions error', err);
+    } finally {
+      setIsRegionsLoading(false);
     }
   }, []);
 
@@ -441,7 +445,7 @@ function PortalWorkContent() {
           <section className="work-header-section">
             <div className="work-title-group">
               <h2 className="work-page-title">내 담당 현장 목록</h2>
-              <p className="work-page-sub">작업을 진행할 현장(단지)을 선택하세요.</p>
+              <p className="work-page-sub">작업을 진행할 현장을 선택하세요.</p>
             </div>
 
             {/* 담당 지역 탭 */}
@@ -457,7 +461,7 @@ function PortalWorkContent() {
               </button>
 
               <div className="region-tab-list" ref={regionTabListRef} onScroll={checkRegionScrollButtons}>
-                {isSitesLoading ? (
+                {isRegionsLoading ? (
                   <div className="region-tab-skeleton-list">
                     <Skeleton width={110} height={34} borderRadius={10} />
                     <Skeleton width={96} height={34} borderRadius={10} />
