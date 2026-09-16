@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 import SignatureDialog from './SignatureDialog';
@@ -11,7 +12,7 @@ import PortalService from '@/api/service/PortalService';
 import { getImageUrl } from '@/common/utils/imageUtils';
 import AdminSiteBadge from '@/components/common/AdminSiteBadge';
 import { isAdminRegion } from '@/common/utils/regionUtils';
-import { Plus, X, Check, AlertCircle, Building2, Loader2 } from 'lucide-react';
+import { Plus, X, Check, AlertCircle, Building2, Loader2, ClipboardPaste } from 'lucide-react';
 import './WorkReportDialog.scss';
 
 interface WorkReportDialogProps {
@@ -88,6 +89,16 @@ export default function WorkReportDialog({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 클립보드 붙여넣기 시 슬롯 선택 대기 중인 이미지 데이터
+  const [pendingPastedImage, setPendingPastedImage] = useState<{ rawSrc: string; file?: File } | null>(null);
+  // 드래그앤드롭 오버 중인 슬롯 키
+  const [dragOverSlot, setDragOverSlot] = useState<PhotoSlotKey | null>(null);
+  const photosRef = useRef<{ [key in PhotoSlotKey]?: string }>({});
+
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+
   // 다이얼로그 열릴 때의 원본 스냅샷 (실제 변경 사항이 있을 때만 닫기 확인 모달 띄우기 위함)
   const initialSnapshotRef = useRef<{
     installDate: string;
@@ -157,8 +168,6 @@ export default function WorkReportDialog({
     };
   }, [target, isOpen, user]);
 
-  if (!target) return null;
-
   // 1단계 -> 2단계 이동 (확인자 성명 및 서명 검증)
   const handleGoToStep2 = () => {
     if (!confirmerName.trim() || confirmerName.trim() === '-') {
@@ -177,23 +186,124 @@ export default function WorkReportDialog({
     setStep(3);
   };
 
-  // 사진 업로드 핸들러 (선택 즉시 4:3 크롭 & WebP 압축 모달 오픈)
+  // 공통 이미지 파일 처리 (선택 또는 붙여넣기 즉시 4:3 크롭 & WebP 압축 모달 오픈)
+  const processImageFile = (key: PhotoSlotKey, file: File) => {
+    const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropTarget({
+        key,
+        rawSrc: reader.result as string,
+        title: slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)',
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 사진 업로드 핸들러
   const handlePhotoUpload = (key: PhotoSlotKey, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setCropTarget({
-          key,
-          rawSrc: reader.result as string,
-          title: slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)',
-        });
-      };
-      reader.readAsDataURL(file);
+      processImageFile(key, file);
       e.target.value = '';
     }
   };
+
+  // 클립보드 붙여넣기 (Ctrl+V) 핸들러 - 사용자가 등록 위치를 직접 선택할 수 있도록 모달 오픈
+  const handleClipboardPaste = (
+    e: ClipboardEvent | React.ClipboardEvent
+  ) => {
+    if (isReadOnly || step !== 2) return;
+    if (cropTarget || isSignatureModalOpen) return;
+
+    // 텍스트 input / textarea 등에 포커스가 있을 경우 텍스트 복붙을 방해하지 않음
+    const activeEl = document.activeElement;
+    if (
+      activeEl &&
+      (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
+      (activeEl as HTMLInputElement).type !== 'file'
+    ) {
+      return;
+    }
+
+    const clipboardData = (e as any).clipboardData || (window as any).clipboardData;
+    if (!clipboardData) return;
+
+    let imageFile: File | null = null;
+    const items = clipboardData.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            imageFile = file;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!imageFile && clipboardData.files && clipboardData.files.length > 0) {
+      for (let i = 0; i < clipboardData.files.length; i++) {
+        const file = clipboardData.files[i];
+        if (file.type && file.type.startsWith('image/')) {
+          imageFile = file;
+          break;
+        }
+      }
+    }
+
+    if (!imageFile) return;
+
+    e.preventDefault();
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPendingPastedImage({
+        rawSrc: reader.result as string,
+        file: imageFile!,
+      });
+    };
+    reader.readAsDataURL(imageFile);
+  };
+
+  // 슬롯 선택 팝업에서 사용자가 슬롯을 선택했을 때 실행
+  const handleSelectPasteSlot = (key: PhotoSlotKey) => {
+    if (!pendingPastedImage) return;
+    const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
+    setCropTarget({
+      key,
+      rawSrc: pendingPastedImage.rawSrc,
+      title: slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)',
+    });
+    setPendingPastedImage(null);
+  };
+
+  // 슬롯 선택 팝업 열려있을 때 ESC 키 누르면 닫기
+  useEffect(() => {
+    if (!pendingPastedImage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPendingPastedImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingPastedImage]);
+
+  // 전역 클립보드 붙여넣기 리스너 (Step 2에서 어디서든 Ctrl+V 누르면 동작)
+  useEffect(() => {
+    if (!isOpen || step !== 2 || isReadOnly) return;
+
+    const onWindowPaste = (e: ClipboardEvent) => {
+      handleClipboardPaste(e);
+    };
+
+    window.addEventListener('paste', onWindowPaste);
+    return () => {
+      window.removeEventListener('paste', onWindowPaste);
+    };
+  }, [isOpen, step, isReadOnly]);
 
   // 등록된 사진 재편집 (크롭/위치 조정)
   const handleReCrop = (key: PhotoSlotKey) => {
@@ -209,11 +319,148 @@ export default function WorkReportDialog({
 
   // 사진 삭제 핸들러
   const handleRemovePhoto = (key: PhotoSlotKey) => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setPhotos(prev => {
       const next = { ...prev };
       delete next[key];
       return next;
     });
+  };
+
+  // 드래그앤드롭으로 특정 슬롯에 이미지를 놓았을 때 처리 (외부 웹페이지 이미지 / 파일 탐색기 드롭 지원)
+  const handleDropOnSlot = async (key: PhotoSlotKey, e: React.DragEvent) => {
+    if (isReadOnly) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const dt = e.dataTransfer;
+    if (!dt) return;
+
+    const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
+    const modalTitle = slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)';
+
+    // 1. 파일 객체 처리 (로컬 파일 탐색기 드롭 등)
+    if (dt.files && dt.files.length > 0) {
+      for (let i = 0; i < dt.files.length; i++) {
+        const file = dt.files[i];
+        if (file.type && file.type.startsWith('image/')) {
+          processImageFile(key, file);
+          return;
+        }
+      }
+    }
+
+    // 2. dataTransfer items에 파일이 있는 경우
+    if (dt.items && dt.items.length > 0) {
+      for (let i = 0; i < dt.items.length; i++) {
+        const item = dt.items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            processImageFile(key, file);
+            return;
+          }
+        }
+      }
+    }
+
+    // 3. 웹페이지에서 이미지를 끌고 온 경우 (HTML 또는 URL 추출)
+    let imageUrl: string | null = null;
+
+    const htmlData = dt.getData('text/html');
+    if (htmlData) {
+      const match = htmlData.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (match && match[1]) {
+        imageUrl = match[1];
+      }
+    }
+
+    if (!imageUrl) {
+      const uriList = dt.getData('text/uri-list');
+      if (uriList && (uriList.startsWith('http://') || uriList.startsWith('https://') || uriList.startsWith('data:image/'))) {
+        imageUrl = uriList.split('\n')[0].trim();
+      }
+    }
+
+    if (!imageUrl) {
+      const plainText = dt.getData('text/plain');
+      if (plainText && (plainText.startsWith('http://') || plainText.startsWith('https://') || plainText.startsWith('data:image/'))) {
+        imageUrl = plainText.trim();
+      }
+    }
+
+    if (!imageUrl) {
+      enqueueSnackbar('지원되지 않는 파일 형식입니다. 이미지 파일을 드래그해 주세요.', { variant: 'warning' });
+      return;
+    }
+
+    // data:image URL인 경우 바로 크롭 진입
+    if (imageUrl.startsWith('data:image/')) {
+      setCropTarget({
+        key,
+        rawSrc: imageUrl,
+        title: modalTitle,
+      });
+      return;
+    }
+
+    // 외부 HTTP/HTTPS URL인 경우 blob 변환 시도
+    try {
+      const res = await fetch(imageUrl, { mode: 'cors' });
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            setCropTarget({
+              key,
+              rawSrc: reader.result as string,
+              title: modalTitle,
+            });
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+      throw new Error('CORS or invalid blob');
+    } catch {
+      // fetch 실패 시 Image 객체 및 Canvas로 로드 시도
+      const testImg = new Image();
+      testImg.crossOrigin = 'anonymous';
+      testImg.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = testImg.naturalWidth;
+          canvas.height = testImg.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(testImg, 0, 0);
+            const dataUrl = canvas.toDataURL('image/webp', 0.85);
+            setCropTarget({
+              key,
+              rawSrc: dataUrl,
+              title: modalTitle,
+            });
+            return;
+          }
+        } catch {
+          // Tainted Canvas
+        }
+        enqueueSnackbar('외부 사이트 보안 정책(CORS)으로 인해 직접 드래그할 수 없습니다. 이미지를 우클릭하여 "이미지 복사" 후 Ctrl+V로 붙여넣어 주세요!', {
+          variant: 'warning',
+          autoHideDuration: 5000,
+        });
+      };
+      testImg.onerror = () => {
+        enqueueSnackbar('외부 사이트 보안 정책(CORS)으로 인해 직접 드래그할 수 없습니다. 이미지를 우클릭하여 "이미지 복사" 후 Ctrl+V로 붙여넣어 주세요!', {
+          variant: 'warning',
+          autoHideDuration: 5000,
+        });
+      };
+      testImg.src = imageUrl;
+    }
   };
 
   // 닫기 전 변경사항 보호 (실제 수정 내역이 발생했을 때만 확인 모달 오픈)
@@ -256,7 +503,7 @@ export default function WorkReportDialog({
   // 보고서 제출
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (isReadOnly || isSubmitting) return;
+    if (isReadOnly || isSubmitting || !target) return;
 
     if (!confirmerName.trim() || confirmerName.trim() === '-') {
       enqueueSnackbar('확인자 성명을 입력해 주세요.', { variant: 'warning' });
@@ -317,6 +564,95 @@ export default function WorkReportDialog({
     }
   };
 
+  // Step 2 사진 슬롯 렌더러
+  const renderEditablePhotoSlot = (key: PhotoSlotKey, label: string, buttonText = '사진 등록') => {
+    const hasPhoto = !!photos[key];
+    const isDragOver = dragOverSlot === key;
+
+    return (
+      <div
+        key={key}
+        className={`photo-upload-box ${isDragOver ? 'is-drag-over' : ''}`}
+        onPaste={(e) => handleClipboardPaste(e)}
+        onDragOver={(e) => {
+          if (isReadOnly) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+        }}
+        onDragEnter={(e) => {
+          if (isReadOnly) return;
+          e.preventDefault();
+          setDragOverSlot(key);
+        }}
+        onDragLeave={(e) => {
+          if (isReadOnly) return;
+          e.preventDefault();
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+          if (dragOverSlot === key) setDragOverSlot(null);
+        }}
+        onDrop={(e) => {
+          if (isReadOnly) return;
+          e.preventDefault();
+          setDragOverSlot(null);
+          handleDropOnSlot(key, e);
+        }}
+      >
+        <span className="photo-label">{label}</span>
+        {hasPhoto ? (
+          <div
+            className="photo-preview-wrapper"
+            onClick={() => handleReCrop(key)}
+            title="클릭하여 사진 자르기/위치 조절 (이미지 드래그 또는 Ctrl+V로 교체)"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleReCrop(key);
+              }
+            }}
+          >
+            <img src={getImageUrl(photos[key]!)} alt={label} className="preview-img" />
+            <button
+              type="button"
+              className="btn-remove-photo"
+              title="사진 삭제"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemovePhoto(key);
+              }}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        ) : (
+          <label
+            className="photo-placeholder-btn"
+            tabIndex={0}
+            title="클릭하여 파일 업로드, 이미지 드래그&드롭, 또는 Ctrl+V로 붙여넣기"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                const input = e.currentTarget.querySelector('input[type="file"]') as HTMLInputElement;
+                input?.click();
+              }
+            }}
+          >
+            <Plus size={20} className="plus-icon" />
+            <span className="placeholder-text">{buttonText}</span>
+            <span className="placeholder-paste-hint">또는 드래그 / Ctrl+V</span>
+            <input
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={e => handlePhotoUpload(key, e)}
+            />
+          </label>
+        )}
+      </div>
+    );
+  };
+
+  if (!target) return null;
 
   return (
     <>
@@ -759,7 +1095,13 @@ export default function WorkReportDialog({
               {step === 2 && (
                 <div className="wizard-step-panel step-2-panel">
                   <div className="step-section-header">
-                    <h4 className="section-title">현장 사진 (선택)</h4>
+                    <div className="title-with-hint">
+                      <h4 className="section-title">현장 사진 (선택)</h4>
+                      <span className="clipboard-hint-badge" title="다른 사이트나 파일 탐색기에서 이미지를 각 칸에 직접 끌어다 놓거나(드래그&드롭), 복사(Win+Shift+S 등) 후 Ctrl+V로 붙여넣을 수 있습니다.">
+                        <ClipboardPaste size={12} />
+                        <span>드래그&드롭 및 Ctrl+V 지원</span>
+                      </span>
+                    </div>
                     <span className={`photos-count-pill ${Object.keys(photos).length === 5 ? 'completed' : 'pending'}`}>
                       {Object.keys(photos).length === 5 ? '✓ 5개 완료' : `${Object.keys(photos).length} / 5개 등록`}
                     </span>
@@ -767,189 +1109,22 @@ export default function WorkReportDialog({
 
                   <div className="form-group photos-form-group">
                     <div className="photos-clean-layout">
-                    {/* 1. 신주소 대문 */}
-                    <div className="door-single-section">
-                      <div className="photo-upload-box">
-                        <span className="photo-label">1. 신주소 대문</span>
-                        {photos.photoDoor ? (
-                          <div
-                            className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('photoDoor')}
-                            title="클릭하여 사진 자르기/위치 조절"
-                          >
-                            <img src={getImageUrl(photos.photoDoor)} alt="신주소 보이는 대문 등" className="preview-img" />
-                            <button
-                              type="button"
-                              className="btn-remove-photo"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemovePhoto('photoDoor');
-                              }}
-                            >
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="photo-placeholder-btn">
-                            <Plus size={20} className="plus-icon" />
-                            <span className="placeholder-text">대문 사진 촬영/등록</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('photoDoor', e)}
-                            />
-                          </label>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 2 & 3. 감지기 1차/2차 전후 4장 그리드 */}
-                    <div className="sensor-pairs-grid">
-                      {/* 보급 전 ① */}
-                      <div className="photo-upload-box">
-                        <span className="photo-label">2. 보급 전 ①</span>
-                        {photos.photoBefore1 ? (
-                          <div
-                            className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('photoBefore1')}
-                            title="클릭하여 사진 자르기/위치 조절"
-                          >
-                            <img src={getImageUrl(photos.photoBefore1)} alt="보급 전 ①" className="preview-img" />
-                            <button
-                              type="button"
-                              className="btn-remove-photo"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemovePhoto('photoBefore1');
-                              }}
-                            >
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="photo-placeholder-btn">
-                            <Plus size={20} className="plus-icon" />
-                            <span className="placeholder-text">사진 등록</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('photoBefore1', e)}
-                            />
-                          </label>
-                        )}
+                      {/* 1. 신주소 대문 */}
+                      <div className="door-single-section">
+                        {renderEditablePhotoSlot('photoDoor', '1. 신주소 대문', '대문 사진 촬영/등록')}
                       </div>
 
-                      {/* 보급 후 ① */}
-                      <div className="photo-upload-box">
-                        <span className="photo-label">3. 보급 후 ①</span>
-                        {photos.photoAfter1 ? (
-                          <div
-                            className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('photoAfter1')}
-                            title="클릭하여 사진 자르기/위치 조절"
-                          >
-                            <img src={getImageUrl(photos.photoAfter1)} alt="보급 후 ①" className="preview-img" />
-                            <button
-                              type="button"
-                              className="btn-remove-photo"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemovePhoto('photoAfter1');
-                              }}
-                            >
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="photo-placeholder-btn">
-                            <Plus size={20} className="plus-icon" />
-                            <span className="placeholder-text">사진 등록</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('photoAfter1', e)}
-                            />
-                          </label>
-                        )}
-                      </div>
-
-                      {/* 보급 전 ② */}
-                      <div className="photo-upload-box">
-                        <span className="photo-label">4. 보급 전 ②</span>
-                        {photos.photoBefore2 ? (
-                          <div
-                            className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('photoBefore2')}
-                            title="클릭하여 사진 자르기/위치 조절"
-                          >
-                            <img src={getImageUrl(photos.photoBefore2)} alt="보급 전 ②" className="preview-img" />
-                            <button
-                              type="button"
-                              className="btn-remove-photo"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemovePhoto('photoBefore2');
-                              }}
-                            >
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="photo-placeholder-btn">
-                            <Plus size={20} className="plus-icon" />
-                            <span className="placeholder-text">사진 등록</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('photoBefore2', e)}
-                            />
-                          </label>
-                        )}
-                      </div>
-
-                      {/* 보급 후 ② */}
-                      <div className="photo-upload-box">
-                        <span className="photo-label">5. 보급 후 ②</span>
-                        {photos.photoAfter2 ? (
-                          <div
-                            className="photo-preview-wrapper"
-                            onClick={() => handleReCrop('photoAfter2')}
-                            title="클릭하여 사진 자르기/위치 조절"
-                          >
-                            <img src={getImageUrl(photos.photoAfter2)} alt="보급 후 ②" className="preview-img" />
-                            <button
-                              type="button"
-                              className="btn-remove-photo"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemovePhoto('photoAfter2');
-                              }}
-                            >
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="photo-placeholder-btn">
-                            <Plus size={20} className="plus-icon" />
-                            <span className="placeholder-text">사진 등록</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: 'none' }}
-                              onChange={e => handlePhotoUpload('photoAfter2', e)}
-                            />
-                          </label>
-                        )}
+                      {/* 2 & 3. 감지기 1차/2차 전후 4장 그리드 */}
+                      <div className="sensor-pairs-grid">
+                        {renderEditablePhotoSlot('photoBefore1', '2. 보급 전 ①')}
+                        {renderEditablePhotoSlot('photoAfter1', '3. 보급 후 ①')}
+                        {renderEditablePhotoSlot('photoBefore2', '4. 보급 전 ②')}
+                        {renderEditablePhotoSlot('photoAfter2', '5. 보급 후 ②')}
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
               {/* ── STEP 3: 작업 장소 및 설치 일자 확인 하고 최종 제출 ── */}
               {step === 3 && (
@@ -1039,6 +1214,86 @@ export default function WorkReportDialog({
         title={`${confirmerName.trim() || (target.headName && target.headName !== '-' ? target.headName : '')} 확인자 서명`}
         disableBackdropClick={true}
       />
+
+      {/* ── 클립보드 붙여넣기 슬롯 선택 팝업 모달 ── */}
+      {pendingPastedImage && typeof document !== 'undefined' && createPortal(
+        <div
+          className="photo-slot-select-modal-backdrop"
+          onClick={() => setPendingPastedImage(null)}
+        >
+          <div
+            className="photo-slot-select-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="slot-select-modal-title"
+          >
+            {/* 1. 표준 다이얼로그 헤더 (좌측 닫기 버튼, 중앙 타이틀) */}
+            <div className="dialog-header">
+              <button
+                type="button"
+                className="back-btn"
+                onClick={() => setPendingPastedImage(null)}
+                aria-label="닫기"
+              >
+                <X size={20} />
+              </button>
+              <h3 id="slot-select-modal-title" className="dialog-title">사진 등록 위치 선택</h3>
+              <div className="header-right" />
+            </div>
+
+            {/* 3. 슬롯 카드 목록 */}
+            <div className="slot-selection-body">
+              <div className="slot-selection-list">
+                {REPORT_PHOTO_SLOTS.map((slot, index) => {
+                  const hasPhoto = !!photos[slot.key];
+                  return (
+                    <button
+                      key={slot.key}
+                      type="button"
+                      className={`slot-choice-card ${hasPhoto ? 'has-photo' : 'is-empty'}`}
+                      onClick={() => handleSelectPasteSlot(slot.key)}
+                    >
+                      <div className="slot-preview-box">
+                        {hasPhoto ? (
+                          <img src={getImageUrl(photos[slot.key]!)} alt={slot.title} className="slot-thumb" />
+                        ) : (
+                          <div className="slot-empty-thumb">
+                            <Plus size={16} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="slot-meta-content">
+                        <span className="slot-index-label">{index + 1}번 사진</span>
+                        <span className="slot-title-text">{slot.title}</span>
+                      </div>
+                      <div className="slot-action-badge">
+                        {hasPhoto ? (
+                          <span className="badge-status replace">교체하기</span>
+                        ) : (
+                          <span className="badge-status select">등록하기</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4. 표준 푸터 버튼 */}
+            <div className="dialog-footer">
+              <button
+                type="button"
+                className="btn-cancel btn-close-only"
+                onClick={() => setPendingPastedImage(null)}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* ── IMAGE CROP DIALOG (4:3 WebP Compression) ── */}
       {cropTarget && (
