@@ -156,6 +156,8 @@ class PortalService {
   async getSites(params?: {
     regionId?: string;
     query?: string;
+    page?: number;
+    size?: number;
     limit?: number;
     includeHouseholds?: boolean;
   }): Promise<SiteDetail[]> {
@@ -168,6 +170,33 @@ class PortalService {
       throw new Error(response?.informations?.[0]?.message || 'Failed to fetch sites');
     } catch (error) {
       console.error('[PortalService] getSites', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 현장 목록 페이징 조회 (totalCount 포함)
+   * GET /portal/sites
+   */
+  async getSitesPaged(params?: {
+    regionId?: string;
+    query?: string;
+    page?: number;
+    size?: number;
+    includeHouseholds?: boolean;
+  }): Promise<{ list: SiteDetail[]; totalCount: number }> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.PORTAL_SITES, { params });
+      if (response && !response.hasErrors) {
+        const data = response.responseData as ListRes<SiteDetail>;
+        return {
+          list: data?.list || [],
+          totalCount: typeof data?.totalCount === 'number' ? data.totalCount : (data?.list?.length || 0),
+        };
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch sites');
+    } catch (error) {
+      console.error('[PortalService] getSitesPaged', error);
       throw error;
     }
   }

@@ -60,17 +60,26 @@ function PortalWorkContent() {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
 
-  // 1단계 현장 목록 상태
+  // 1단계 현장 목록 상태 (서버 사이드 페이징 & 디바운스 검색)
+  const SITES_PAGE_SIZE = 30;
   const [allSites, setAllSites] = useState<SiteDetail[]>([]);
+  const [totalSitesCount, setTotalSitesCount] = useState<number>(0);
+  const [sitesPage, setSitesPage] = useState<number>(1);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [selectedRegionId, setSelectedRegionId] = useState<string>('ALL');
   const [siteSearchQuery, setSiteSearchQuery] = useState('');
+  const [debouncedSiteQuery, setDebouncedSiteQuery] = useState('');
   const [isSitesLoading, setIsSitesLoading] = useState(true);
-
-  // 현장 목록 무한 스크롤(점진적 렌더링) 관리
-  const SITES_PAGE_SIZE = 15;
-  const [siteDisplayCount, setSiteDisplayCount] = useState<number>(SITES_PAGE_SIZE);
+  const [isMoreSitesLoading, setIsMoreSitesLoading] = useState(false);
   const siteObserverTargetRef = useRef<HTMLDivElement>(null);
+
+  // 검색어 300ms 디바운스 처리
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSiteQuery(siteSearchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [siteSearchQuery]);
 
   // 2단계 선택된 현장 상세 및 세대 상태
   const [activeSiteDetail, setActiveSiteDetail] = useState<SiteDetail | null>(null);
@@ -140,27 +149,96 @@ function PortalWorkContent() {
     };
   }, [isFilterMenuOpen, isDongMenuOpen]);
 
-  // 1. 현장 요약 목록 초기 로드
-  const loadSitesSummary = useCallback(async () => {
+  // 배정 관할 목록 로드 (지역별 정확한 totalSites 포함)
+  const loadAssignedRegions = useCallback(async () => {
     try {
-      setIsSitesLoading(true);
-      const [regions, siteList] = await Promise.all([
-        PortalService.getAssignedRegions().catch(err => {
-          console.error('[PortalWorkPage] getAssignedRegions error', err);
-          return [];
-        }),
-        PortalService.getSites({ includeHouseholds: false }).catch(err => {
-          console.error('[PortalWorkPage] getSites error', err);
-          return [];
-        }),
-      ]);
-
+      const regions = await PortalService.getAssignedRegions().catch(err => {
+        console.error('[PortalWorkPage] getAssignedRegions error', err);
+        return [];
+      });
       setAssignedRegions(regions || []);
-      setAllSites(siteList || []);
-    } finally {
-      setIsSitesLoading(false);
+    } catch (err) {
+      console.error('[PortalWorkPage] loadAssignedRegions error', err);
     }
   }, []);
+
+  // 서버 사이드 현장 목록 페이징 조회
+  const fetchSites = useCallback(
+    async (pageNumber: number, isAppend: boolean) => {
+      try {
+        if (isAppend) {
+          setIsMoreSitesLoading(true);
+        } else {
+          setIsSitesLoading(true);
+        }
+
+        const selectedRegion =
+          selectedRegionId !== 'ALL'
+            ? assignedRegions.find(
+                r => r.assignedRegionId === selectedRegionId || r.regionId === selectedRegionId
+              )
+            : null;
+        const targetRegionId = selectedRegion?.regionId || (selectedRegionId !== 'ALL' ? selectedRegionId : undefined);
+
+        const res = await PortalService.getSitesPaged({
+          regionId: targetRegionId,
+          query: debouncedSiteQuery.trim() || undefined,
+          page: pageNumber,
+          size: SITES_PAGE_SIZE,
+          includeHouseholds: false,
+        });
+
+        if (isAppend) {
+          setAllSites(prev => [...prev, ...(res.list || [])]);
+        } else {
+          setAllSites(res.list || []);
+        }
+        setTotalSitesCount(res.totalCount || 0);
+        setSitesPage(pageNumber);
+      } catch (err) {
+        console.error('[PortalWorkPage] fetchSites error', err);
+        if (!isAppend) {
+          setAllSites([]);
+          setTotalSitesCount(0);
+        }
+      } finally {
+        setIsSitesLoading(false);
+        setIsMoreSitesLoading(false);
+      }
+    },
+    [selectedRegionId, assignedRegions, debouncedSiteQuery]
+  );
+
+  // 초기 로드 시 배정 관할 로드
+  useEffect(() => {
+    loadAssignedRegions();
+  }, [loadAssignedRegions]);
+
+  // 검색어 또는 선택 지역 탭 변경 시 1페이지부터 새로 조회
+  useEffect(() => {
+    fetchSites(1, false);
+  }, [fetchSites]);
+
+  // 무한 스크롤(서버 페이징): 다음 페이지가 남아있는지 여부
+  const hasMoreSites = allSites.length < totalSitesCount;
+
+  // 스크롤 하단 감지 시 다음 30개 추가 조회
+  useEffect(() => {
+    if (!hasMoreSites || isMoreSitesLoading || isSitesLoading) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          fetchSites(sitesPage + 1, true);
+        }
+      },
+      { threshold: 0.1, rootMargin: '120px' }
+    );
+    const target = siteObserverTargetRef.current;
+    if (target) observer.observe(target);
+    return () => {
+      if (target) observer.unobserve(target);
+    };
+  }, [hasMoreSites, isMoreSitesLoading, isSitesLoading, sitesPage, fetchSites]);
 
   // 2. 특정 현장 상세 로드
   const loadSiteDetail = useCallback(async (targetSiteId: string) => {
@@ -178,10 +256,9 @@ function PortalWorkContent() {
   }, [enqueueSnackbar]);
 
   useEffect(() => {
-    loadSitesSummary();
-
     const handleRealtimeNotification = () => {
-      loadSitesSummary();
+      fetchSites(1, false);
+      loadAssignedRegions();
       if (siteId) {
         if (isReportDialogOpenRef.current) {
           // 보고서 작성 모달이 열려 있을 때는 백그라운드 리패치로 인한 입력 방해를 막기 위해 모달 종료 후로 연기
@@ -195,7 +272,7 @@ function PortalWorkContent() {
     return () => {
       window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
     };
-  }, [loadSitesSummary, siteId, loadSiteDetail]);
+  }, [fetchSites, loadAssignedRegions, siteId, loadSiteDetail]);
 
   // URL 쿼리 파라미터(siteId) 변경 시 상세 데이터 동기화
   useEffect(() => {
@@ -225,62 +302,10 @@ function PortalWorkContent() {
     router.push('/portal/work');
   };
 
-  // ── [1단계 필터링] 담당 지역에 속하는 현장 목록 ──
-  const assignedSites = useMemo(() => {
-    if (assignedRegions.length === 0) return [];
-
-    return allSites.filter(site => {
-      if (selectedRegionId !== 'ALL') {
-        const selectedRegion = assignedRegions.find(
-          r => r.assignedRegionId === selectedRegionId || r.regionId === selectedRegionId
-        );
-        if (!selectedRegion) return false;
-        return Boolean(selectedRegion.regionId && site.regionId && site.regionId === selectedRegion.regionId);
-      }
-
-      return assignedRegions.some(r => {
-        return Boolean(r.regionId && site.regionId && site.regionId === r.regionId);
-      });
-    });
-  }, [allSites, assignedRegions, selectedRegionId]);
-
-  // 검색어 필터링된 현장 목록
-  const filteredSites = useMemo(() => {
-    const q = siteSearchQuery.trim().toLowerCase();
-    if (!q) return assignedSites;
-    return assignedSites.filter(
-      s => (s.name && s.name.toLowerCase().includes(q)) || (s.address && s.address.toLowerCase().includes(q))
-    );
-  }, [assignedSites, siteSearchQuery]);
-
-  // 검색어 또는 지역 탭 변경 시 무한 스크롤 표시 개수 초기화
-  useEffect(() => {
-    setSiteDisplayCount(SITES_PAGE_SIZE);
-  }, [siteSearchQuery, selectedRegionId]);
-
-  // 화면에 실제로 노출할 현장 목록 (무한 스크롤 / 점진적 렌더링)
-  const displayedSites = useMemo(() => {
-    return filteredSites.slice(0, siteDisplayCount);
-  }, [filteredSites, siteDisplayCount]);
-
-  const hasMoreSites = siteDisplayCount < filteredSites.length;
-
-  useEffect(() => {
-    if (!hasMoreSites) return;
-    const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting) {
-          setSiteDisplayCount(prev => prev + SITES_PAGE_SIZE);
-        }
-      },
-      { threshold: 0.1, rootMargin: '120px' }
-    );
-    const target = siteObserverTargetRef.current;
-    if (target) observer.observe(target);
-    return () => {
-      if (target) observer.unobserve(target);
-    };
-  }, [hasMoreSites]);
+  // 전체 담당 지역에 속한 현장 총 개수 (백엔드에서 집계된 각 지역별 totalSites의 합산)
+  const totalAssignedSitesCount = useMemo(() => {
+    return assignedRegions.reduce((acc, cur) => acc + (cur.totalSites || 0), 0);
+  }, [assignedRegions]);
 
   // ── [2단계 데이터] 활성 현장의 동 그룹 목록 추출 (세대 수 포함, 자연 정렬) ──
   const availableDongs = useMemo(() => {
@@ -446,25 +471,19 @@ function PortalWorkContent() {
                       onClick={() => setSelectedRegionId('ALL')}
                     >
                       <span>전체 담당 지역</span>
-                      <span className="count-badge">{assignedSites.length}</span>
+                      <span className="count-badge">{totalAssignedSitesCount}</span>
                     </button>
-                    {assignedRegions.map(reg => {
-                      const sitesCount = allSites.filter(s => {
-                        return Boolean(reg.regionId && s.regionId && s.regionId === reg.regionId);
-                      }).length;
-
-                      return (
-                        <button
-                          key={reg.assignedRegionId}
-                          type="button"
-                          className={`region-tab-btn ${selectedRegionId === reg.assignedRegionId ? 'active' : ''}`}
-                          onClick={() => setSelectedRegionId(reg.assignedRegionId)}
-                        >
-                          <span>{reg.sido} {reg.sigungu}</span>
-                          <span className="count-badge">{sitesCount}</span>
-                        </button>
-                      );
-                    })}
+                    {assignedRegions.map(reg => (
+                      <button
+                        key={reg.assignedRegionId}
+                        type="button"
+                        className={`region-tab-btn ${selectedRegionId === reg.assignedRegionId ? 'active' : ''}`}
+                        onClick={() => setSelectedRegionId(reg.assignedRegionId)}
+                      >
+                        <span>{reg.sido} {reg.sigungu}</span>
+                        <span className="count-badge">{reg.totalSites || 0}</span>
+                      </button>
+                    ))}
                   </>
                 )}
               </div>
@@ -528,7 +547,7 @@ function PortalWorkContent() {
                   담당 지역 등록하러 가기
                 </Link>
               </div>
-            ) : filteredSites.length === 0 ? (
+            ) : allSites.length === 0 ? (
               <div className="work-empty-state">
                 <Building2 size={48} className="empty-icon" />
                 <p className="empty-title">일치하는 현장이 없습니다.</p>
@@ -537,7 +556,7 @@ function PortalWorkContent() {
             ) : (
               <>
                 <div className="site-cards-grid">
-                  {displayedSites.map(site => {
+                  {allSites.map(site => {
                     const total = site.totalHouseholds || 0;
                     const completed = site.completedHouseholds || 0;
                     const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -577,7 +596,7 @@ function PortalWorkContent() {
                 {hasMoreSites && (
                   <div ref={siteObserverTargetRef} className="site-scroll-sentinel">
                     <div className="sentinel-spinner" />
-                    <span>현장 목록을 불러오는 중... ({displayedSites.length} / {filteredSites.length})</span>
+                    <span>현장 목록을 불러오는 중... ({allSites.length} / {totalSitesCount})</span>
                   </div>
                 )}
               </>
@@ -900,7 +919,8 @@ function PortalWorkContent() {
           if (siteId) {
             loadSiteDetail(siteId);
           }
-          loadSitesSummary();
+          fetchSites(1, false);
+          loadAssignedRegions();
         }}
       />
     </div>
