@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 import SignatureDialog from './SignatureDialog';
-import ImageCropDialog from './ImageCropDialog';
+import ImageCropDialog, { autoCropCenterWebP } from './ImageCropDialog';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
 import PortalService from '@/api/service/PortalService';
@@ -47,7 +47,7 @@ export default function WorkReportDialog({
   const target = useMemo(() => {
     if (!site && !household && !existingReport) return null;
     return {
-      siteId: site?.siteId || existingReport?.siteId || '',
+      siteId: site?.siteId || existingReport?.siteId || household?.siteId || '',
       regionId: site?.regionId || existingReport?.regionId || '',
       siteName: site?.name || existingReport?.siteName || '',
       sido: site?.sido || existingReport?.sido || '',
@@ -94,6 +94,9 @@ export default function WorkReportDialog({
   // 드래그앤드롭 오버 중인 슬롯 키
   const [dragOverSlot, setDragOverSlot] = useState<PhotoSlotKey | null>(null);
   const photosRef = useRef<{ [key in PhotoSlotKey]?: string }>({});
+
+  // 관리자 여부 판별 (AuthProvider 기준과 동일: mngFlg)
+  const isManager = Boolean(user?.mngFlg);
 
   useEffect(() => {
     photosRef.current = photos;
@@ -186,16 +189,31 @@ export default function WorkReportDialog({
     setStep(3);
   };
 
-  // 공통 이미지 파일 처리 (선택 또는 붙여넣기 즉시 4:3 크롭 & WebP 압축 모달 오픈)
-  const processImageFile = (key: PhotoSlotKey, file: File) => {
-    const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
-    const reader = new FileReader();
-    reader.onload = () => {
+  // 슬롯에 이미지 적용 (관리자: 4:3 수동 크롭 다이얼로그 오픈 / 작업자: 중앙 4:3 자동 크롭 & WebP 압축 즉시 반영)
+  const applyImageToSlot = async (key: PhotoSlotKey, rawSrc: string, modalTitle?: string) => {
+    if (isManager) {
+      const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
       setCropTarget({
         key,
-        rawSrc: reader.result as string,
-        title: slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)',
+        rawSrc,
+        title: modalTitle || (slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)'),
       });
+    } else {
+      try {
+        const autoWebP = await autoCropCenterWebP(rawSrc, 4 / 3, 1200);
+        setPhotos(prev => ({ ...prev, [key]: autoWebP }));
+      } catch (err) {
+        console.error('[WorkReportDialog] autoCropCenterWebP error:', err);
+        setPhotos(prev => ({ ...prev, [key]: rawSrc }));
+      }
+    }
+  };
+
+  // 공통 이미지 파일 처리
+  const processImageFile = (key: PhotoSlotKey, file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      applyImageToSlot(key, reader.result as string);
     };
     reader.readAsDataURL(file);
   };
@@ -270,13 +288,9 @@ export default function WorkReportDialog({
   // 슬롯 선택 팝업에서 사용자가 슬롯을 선택했을 때 실행
   const handleSelectPasteSlot = (key: PhotoSlotKey) => {
     if (!pendingPastedImage) return;
-    const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
-    setCropTarget({
-      key,
-      rawSrc: pendingPastedImage.rawSrc,
-      title: slotInfo ? `${slotInfo.title} 편집` : '사진 자르기 (4:3)',
-    });
+    const rawSrc = pendingPastedImage.rawSrc;
     setPendingPastedImage(null);
+    applyImageToSlot(key, rawSrc);
   };
 
   // 슬롯 선택 팝업 열려있을 때 ESC 키 누르면 닫기
@@ -305,8 +319,9 @@ export default function WorkReportDialog({
     };
   }, [isOpen, step, isReadOnly]);
 
-  // 등록된 사진 재편집 (크롭/위치 조정)
+  // 등록된 사진 재편집 (관리자만 수동 크롭 가능)
   const handleReCrop = (key: PhotoSlotKey) => {
+    if (!isManager) return;
     if (photos[key]) {
       const slotInfo = REPORT_PHOTO_SLOTS.find(s => s.key === key);
       setCropTarget({
@@ -396,13 +411,9 @@ export default function WorkReportDialog({
       return;
     }
 
-    // data:image URL인 경우 바로 크롭 진입
+    // data:image URL인 경우 바로 적용
     if (imageUrl.startsWith('data:image/')) {
-      setCropTarget({
-        key,
-        rawSrc: imageUrl,
-        title: modalTitle,
-      });
+      applyImageToSlot(key, imageUrl, modalTitle);
       return;
     }
 
@@ -414,11 +425,7 @@ export default function WorkReportDialog({
         if (blob.type.startsWith('image/')) {
           const reader = new FileReader();
           reader.onload = () => {
-            setCropTarget({
-              key,
-              rawSrc: reader.result as string,
-              title: modalTitle,
-            });
+            applyImageToSlot(key, reader.result as string, modalTitle);
           };
           reader.readAsDataURL(blob);
           return;
@@ -438,11 +445,7 @@ export default function WorkReportDialog({
           if (ctx) {
             ctx.drawImage(testImg, 0, 0);
             const dataUrl = canvas.toDataURL('image/webp', 0.85);
-            setCropTarget({
-              key,
-              rawSrc: dataUrl,
-              title: modalTitle,
-            });
+            applyImageToSlot(key, dataUrl, modalTitle);
             return;
           }
         } catch {
@@ -600,16 +603,17 @@ export default function WorkReportDialog({
         <span className="photo-label">{label}</span>
         {hasPhoto ? (
           <div
-            className="photo-preview-wrapper"
-            onClick={() => handleReCrop(key)}
-            title="클릭하여 사진 자르기/위치 조절 (이미지 드래그 또는 Ctrl+V로 교체)"
-            tabIndex={0}
-            onKeyDown={(e) => {
+            className={`photo-preview-wrapper ${isManager ? 'is-manager' : ''}`}
+            onClick={isManager ? () => handleReCrop(key) : undefined}
+            title={isManager ? '클릭하여 사진 자르기/위치 조절 (이미지 드래그 또는 Ctrl+V로 교체)' : '등록된 사진'}
+            style={{ cursor: isManager ? 'pointer' : 'default' }}
+            tabIndex={isManager ? 0 : -1}
+            onKeyDown={isManager ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 handleReCrop(key);
               }
-            }}
+            } : undefined}
           >
             <img src={getImageUrl(photos[key]!)} alt={label} className="preview-img" />
             <button
@@ -639,10 +643,13 @@ export default function WorkReportDialog({
           >
             <Plus size={20} className="plus-icon" />
             <span className="placeholder-text">{buttonText}</span>
-            <span className="placeholder-paste-hint">또는 드래그 / Ctrl+V</span>
+            <span className="placeholder-paste-hint">
+              {isManager ? '또는 드래그 / Ctrl+V' : '카메라 촬영 또는 등록'}
+            </span>
             <input
               type="file"
               accept="image/*"
+              capture={isManager ? undefined : 'environment'}
               style={{ display: 'none' }}
               onChange={e => handlePhotoUpload(key, e)}
             />
@@ -1111,7 +1118,7 @@ export default function WorkReportDialog({
                     <div className="photos-clean-layout">
                       {/* 1. 신주소 대문 */}
                       <div className="door-single-section">
-                        {renderEditablePhotoSlot('photoDoor', '1. 신주소 대문', '대문 사진 촬영/등록')}
+                        {renderEditablePhotoSlot('photoDoor', '1. 신주소 대문', '대문 사진 등록')}
                       </div>
 
                       {/* 2 & 3. 감지기 1차/2차 전후 4장 그리드 */}

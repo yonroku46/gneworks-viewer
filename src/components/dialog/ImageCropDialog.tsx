@@ -103,6 +103,47 @@ const getCroppedImgWebP = async (
   });
 };
 
+/**
+ * 일반 작업자 전용: 기기 무관(모바일/PC) 대화상자 없이 이미지 중앙을 4:3 비율로 자동 크롭하고 WebP로 압축 반환
+ */
+export const autoCropCenterWebP = async (
+  imageSrc: string,
+  aspect = 4 / 3,
+  maxDim = 1200
+): Promise<string> => {
+  const image = await createImage(imageSrc);
+  const w = image.naturalWidth || image.width;
+  const h = image.naturalHeight || image.height;
+
+  let cropWidth = w;
+  let cropHeight = h;
+  let cropX = 0;
+  let cropY = 0;
+
+  if (w / h > aspect) {
+    // 가로가 더 긴 경우: 세로 전체를 쓰고 가로 중앙 크롭
+    cropHeight = h;
+    cropWidth = h * aspect;
+    cropX = (w - cropWidth) / 2;
+    cropY = 0;
+  } else {
+    // 세로가 더 긴 경우: 가로 전체를 쓰고 세로 중앙 크롭
+    cropWidth = w;
+    cropHeight = w / aspect;
+    cropX = 0;
+    cropY = (h - cropHeight) / 2;
+  }
+
+  const pixelCrop: CropArea = {
+    x: Math.round(cropX),
+    y: Math.round(cropY),
+    width: Math.round(cropWidth),
+    height: Math.round(cropHeight),
+  };
+
+  return getCroppedImgWebP(imageSrc, pixelCrop, maxDim);
+};
+
 export default function ImageCropDialog({
   isOpen,
   open,

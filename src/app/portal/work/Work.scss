@@ -788,6 +788,10 @@
     border: 1px dashed var(--border);
     border-radius: 1rem;
     text-align: center;
+    .empty-icon {
+      color: var(--slate-300);
+      margin-bottom: 0.625rem;
+    }
     .empty-title {
       font-size: 1rem;
       font-weight: 800;
