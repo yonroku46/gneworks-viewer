@@ -77,9 +77,23 @@ export default function SlideDialog({
   const [active, setActive] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // 모바일 환경 안정적 판별 (화면 회전 시에도 물리적 화면 특성 또는 UA를 통해 불변 유지)
+  const isMobileClient = () => {
+    if (typeof window === 'undefined') return false;
+    const minDimension = Math.min(
+      window.innerWidth,
+      window.innerHeight,
+      window.screen?.width || 9999,
+      window.screen?.height || 9999
+    );
+    const isCoarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    const isMobileUA = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
+    return minDimension <= 768 || (isCoarsePointer && minDimension <= 1024) || isMobileUA;
+  };
+
   // 관리자 페이지(manage-page)이거나 데스크톱 뷰포트에서는 가상 히스토리 조작 비활성화
   const isManagePage = Boolean(className?.includes('manage-page'));
-  const shouldEnableHistory = !disableHistoryBack && !isManagePage && (typeof window !== 'undefined' && window.innerWidth <= 768);
+  const enableHistoryRef = useRef(false);
 
   const dialogId = useRef(`slide_dialog_${Math.random().toString(36).slice(2, 9)}`).current;
 
@@ -114,14 +128,10 @@ export default function SlideDialog({
   }, [isOpen, dialogId]);
 
   // 모바일 뒤로가기 (안드로이드 시스템 백버튼 / 아이폰 좌측 스와이프) 연동 (모바일 포탈 전용)
+  // 회전(resize/orientationchange) 시 의도치 않은 history.back()이 발동되지 않도록 isOpen 라이프사이클에만 결합
   useEffect(() => {
-    if (!shouldEnableHistory) {
-      isPushedRef.current = false;
-      return;
-    }
-
     if (!isOpen) {
-      if (isPushedRef.current && !isClosingByPopstateRef.current) {
+      if (enableHistoryRef.current && isPushedRef.current && !isClosingByPopstateRef.current) {
         isPushedRef.current = false;
         if (typeof window !== 'undefined' && window.history.state?.dialogId === dialogId) {
           ignoreNextPopStateCount++;
@@ -131,6 +141,14 @@ export default function SlideDialog({
         }
       }
       isClosingByPopstateRef.current = false;
+      return;
+    }
+
+    // 모달이 열리는 시점에 1회 판별하여 열려있는 동안은 회전 등으로 인해 조건이 뒤집히지 않음
+    enableHistoryRef.current = !disableHistoryBack && !isManagePage && isMobileClient();
+
+    if (!enableHistoryRef.current) {
+      isPushedRef.current = false;
       return;
     }
 
@@ -161,7 +179,7 @@ export default function SlideDialog({
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isOpen, dialogId, shouldEnableHistory]);
+  }, [isOpen, dialogId, disableHistoryBack, isManagePage]);
 
   // 컴포넌트 언마운트 시 미처 회수되지 않은 가상 히스토리 안전 정리
   useEffect(() => {
@@ -170,7 +188,7 @@ export default function SlideDialog({
       if (idx !== -1) {
         activeDialogStack.splice(idx, 1);
       }
-      if (shouldEnableHistory && isPushedRef.current && !isClosingByPopstateRef.current) {
+      if (enableHistoryRef.current && isPushedRef.current && !isClosingByPopstateRef.current) {
         isPushedRef.current = false;
         if (typeof window !== 'undefined' && window.history.state?.dialogId === dialogId) {
           ignoreNextPopStateCount++;
@@ -180,7 +198,7 @@ export default function SlideDialog({
         }
       }
     };
-  }, [dialogId, shouldEnableHistory]);
+  }, [dialogId]);
 
   // 바디 스크롤 락 제어 (백드롭 스크롤 누수 완벽 차단)
   useEffect(() => {

@@ -112,6 +112,23 @@ export default function WorkReportDialog({
     photos: { [key in PhotoSlotKey]?: string };
   } | undefined>(undefined);
 
+  // 세대별 임시 작성 키
+  const getDraftKey = (householdId?: string, siteId?: string) => {
+    if (!householdId) return null;
+    return `gneworks_report_draft_${siteId || ''}_${householdId}`;
+  };
+
+  const clearDraft = () => {
+    if (target?.householdId && typeof window !== 'undefined') {
+      const draftKey = getDraftKey(target.householdId, target.siteId);
+      if (draftKey) {
+        try {
+          sessionStorage.removeItem(draftKey);
+        } catch {}
+      }
+    }
+  };
+
   // 현재 열려있는 대상의 고유 식별자 (SSE 알림 등으로 부모 props가 갱신되어도 작성 중인 폼 리셋 방지)
   const initializedTargetKeyRef = useRef<string | null>(null);
 
@@ -131,7 +148,6 @@ export default function WorkReportDialog({
     }
 
     initializedTargetKeyRef.current = currentTargetKey;
-    setStep(1); // 열릴 때 항상 1단계부터 시작
     const todayStr = dayjs().format('YYYY-MM-DD');
     
     const initInstallDate = target.existingReport?.installDate || todayStr;
@@ -153,23 +169,85 @@ export default function WorkReportDialog({
       if (rep.photoAfter2) photoMap.photoAfter2 = rep.photoAfter2;
     }
 
-    setInstallDate(initInstallDate);
-    setReporterName(initReporterName);
-    setConfirmerName(initConfirmerName);
-    setRemarks(initRemarks);
-    setConfirmerSignature(initSignature);
-    setPhotos(photoMap);
+    // 작성 모드일 때 이전에 작성 중이던 임시 저장(Draft) 데이터 확인 및 자동 복원
+    let restoredDraft = false;
+    if (!isReadOnly && typeof window !== 'undefined') {
+      const draftKey = getDraftKey(target.householdId, target.siteId);
+      if (draftKey) {
+        try {
+          const raw = sessionStorage.getItem(draftKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+              setStep(parsed.step || 1);
+              setInstallDate(parsed.installDate || initInstallDate);
+              setReporterName(parsed.reporterName || initReporterName);
+              setConfirmerName(parsed.confirmerName || initConfirmerName);
+              setRemarks(parsed.remarks || initRemarks);
+              setConfirmerSignature(parsed.confirmerSignature || initSignature);
+              setPhotos(parsed.photos || photoMap);
+              restoredDraft = true;
 
-    // 열릴 때의 원본 데이터 스냅샷 저장
-    initialSnapshotRef.current = {
-      installDate: initInstallDate,
-      reporterName: initReporterName,
-      confirmerName: initConfirmerName,
-      remarks: initRemarks,
-      confirmerSignature: initSignature,
-      photos: { ...photoMap },
-    };
-  }, [target, isOpen, user]);
+              initialSnapshotRef.current = {
+                installDate: initInstallDate,
+                reporterName: initReporterName,
+                confirmerName: initConfirmerName,
+                remarks: initRemarks,
+                confirmerSignature: initSignature,
+                photos: { ...photoMap },
+              };
+            }
+          }
+        } catch (err) {
+          console.warn('[WorkReportDialog] Failed to restore draft:', err);
+        }
+      }
+    }
+
+    if (!restoredDraft) {
+      setStep(1); // 열릴 때 항상 1단계부터 시작
+      setInstallDate(initInstallDate);
+      setReporterName(initReporterName);
+      setConfirmerName(initConfirmerName);
+      setRemarks(initRemarks);
+      setConfirmerSignature(initSignature);
+      setPhotos(photoMap);
+
+      // 열릴 때의 원본 데이터 스냅샷 저장
+      initialSnapshotRef.current = {
+        installDate: initInstallDate,
+        reporterName: initReporterName,
+        confirmerName: initConfirmerName,
+        remarks: initRemarks,
+        confirmerSignature: initSignature,
+        photos: { ...photoMap },
+      };
+    }
+  }, [target, isOpen, user, isReadOnly]);
+
+  // 작성 중인 데이터를 실시간으로 sessionStorage에 안전 백업 (카메라 촬영, 회전, 브라우저 백그라운드 리로드 대응)
+  useEffect(() => {
+    if (!isOpen || isReadOnly || !target?.householdId || typeof window === 'undefined') return;
+
+    const draftKey = getDraftKey(target.householdId, target.siteId);
+    if (!draftKey) return;
+
+    try {
+      const draftData = {
+        step,
+        installDate,
+        reporterName,
+        confirmerName,
+        remarks,
+        confirmerSignature,
+        photos,
+        updatedAt: Date.now(),
+      };
+      sessionStorage.setItem(draftKey, JSON.stringify(draftData));
+    } catch (e) {
+      console.warn('[WorkReportDialog] Auto-save draft error:', e);
+    }
+  }, [isOpen, isReadOnly, target?.householdId, target?.siteId, step, installDate, reporterName, confirmerName, remarks, confirmerSignature, photos]);
 
   // 1단계 -> 2단계 이동 (확인자 성명 및 서명 검증)
   const handleGoToStep2 = () => {
@@ -496,9 +574,11 @@ export default function WorkReportDialog({
 
     if (isDirty) {
       if (window.confirm('작성 중인 내용이 있습니다. 정말 닫으시겠습니까?')) {
+        clearDraft();
         onClose();
       }
     } else {
+      clearDraft();
       onClose();
     }
   };
@@ -550,6 +630,8 @@ export default function WorkReportDialog({
         photoAfter2: photos.photoAfter2 || '',
         remarks,
       });
+
+      clearDraft();
 
       enqueueSnackbar(`[${target.dong}동 ${target.ho}호] 작업 보고서가 성공적으로 등록되었습니다.`, {
         variant: 'success',

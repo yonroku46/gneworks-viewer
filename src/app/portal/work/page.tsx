@@ -106,6 +106,9 @@ function PortalWorkContent() {
   const isReportDialogOpenRef = useRef(false);
   isReportDialogOpenRef.current = isReportDialogOpen;
   const pendingDetailRefreshRef = useRef(false);
+  const savedScrollPosRef = useRef<number>(0);
+  const lastSubmittedHouseholdIdRef = useRef<string | null>(null);
+  const [justUpdatedHouseholdId, setJustUpdatedHouseholdId] = useState<string | null>(null);
 
   const checkRegionScrollButtons = () => {
     if (regionTabListRef.current) {
@@ -244,20 +247,29 @@ function PortalWorkContent() {
     };
   }, [hasMoreSites, isMoreSitesLoading, isSitesLoading, sitesPage, fetchSites]);
 
-  // 2. 특정 현장 상세 로드
-  const loadSiteDetail = useCallback(async (targetSiteId: string) => {
-    try {
-      setIsDetailLoading(true);
-      const detail = await PortalService.getSiteDetail(targetSiteId);
-      setActiveSiteDetail(detail || null);
-    } catch (err) {
-      console.error('[PortalWorkPage] getSiteDetail error', err);
-      enqueueSnackbar('현장 상세 정보를 불러오지 못했습니다.', { variant: 'error' });
-      setActiveSiteDetail(null);
-    } finally {
-      setIsDetailLoading(false);
-    }
-  }, [enqueueSnackbar]);
+  // 2. 특정 현장 상세 로드 (무중단 백그라운드 갱신 지원)
+  const loadSiteDetail = useCallback(
+    async (targetSiteId: string, options?: { silent?: boolean }) => {
+      try {
+        if (!options?.silent) {
+          setIsDetailLoading(true);
+        }
+        const detail = await PortalService.getSiteDetail(targetSiteId);
+        setActiveSiteDetail(detail || null);
+      } catch (err) {
+        console.error('[PortalWorkPage] getSiteDetail error', err);
+        enqueueSnackbar('현장 상세 정보를 불러오지 못했습니다.', { variant: 'error' });
+        if (!options?.silent) {
+          setActiveSiteDetail(null);
+        }
+      } finally {
+        if (!options?.silent) {
+          setIsDetailLoading(false);
+        }
+      }
+    },
+    [enqueueSnackbar]
+  );
 
   useEffect(() => {
     const handleRealtimeNotification = () => {
@@ -268,7 +280,7 @@ function PortalWorkContent() {
           // 보고서 작성 모달이 열려 있을 때는 백그라운드 리패치로 인한 입력 방해를 막기 위해 모달 종료 후로 연기
           pendingDetailRefreshRef.current = true;
         } else {
-          loadSiteDetail(siteId);
+          loadSiteDetail(siteId, { silent: true });
         }
       }
     };
@@ -294,6 +306,11 @@ function PortalWorkContent() {
 
   // 현장 카드 선택 핸들러 -> URL 변경으로 브라우저 히스토리 지원
   const handleSelectSite = (targetSiteId: string) => {
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('gneworks_active_household_id');
+      } catch {}
+    }
     setHouseholdSearchQuery('');
     setSelectedDong('ALL');
     setSortOrder('asc');
@@ -303,6 +320,11 @@ function PortalWorkContent() {
 
   // 현장 목록으로 돌아가기
   const handleBackToSites = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('gneworks_active_household_id');
+      } catch {}
+    }
     router.push('/portal/work');
   };
 
@@ -411,7 +433,7 @@ function PortalWorkContent() {
   }, [activeSiteDetail]);
 
   // 보고서 작성 다이얼로그 열기
-  const handleOpenReport = async (household: HouseholdRes) => {
+  const handleOpenReport = useCallback(async (household: HouseholdRes) => {
     if (household.reportId) {
       const isMyReport = Boolean(household.reportUserId && household.reportUserId === user?.userId);
       if (!isMyReport) {
@@ -430,10 +452,53 @@ function PortalWorkContent() {
       }
     }
 
+    if (typeof window !== 'undefined') {
+      savedScrollPosRef.current = window.scrollY || document.documentElement.scrollTop || 0;
+      try {
+        sessionStorage.setItem('gneworks_active_household_id', household.householdId);
+      } catch {}
+    }
+
     setSelectedHousehold(household);
     setSelectedReport(report);
     setIsReportDialogOpen(true);
-  };
+  }, [user?.userId, enqueueSnackbar]);
+
+  // 브라우저 탭 강제 리로드(모바일 카메라 촬영 등) 후 작성 중이던 세대 보고서 모달 자동 복원
+  const autoRestoredHouseholdRef = useRef(false);
+  useEffect(() => {
+    if (!activeSiteDetail || !siteId || isReportDialogOpen || autoRestoredHouseholdRef.current || typeof window === 'undefined') return;
+    const activeHouseholdId = sessionStorage.getItem('gneworks_active_household_id');
+    if (activeHouseholdId && activeSiteDetail.households) {
+      const targetHousehold = activeSiteDetail.households.find(h => h.householdId === activeHouseholdId);
+      if (targetHousehold) {
+        autoRestoredHouseholdRef.current = true;
+        handleOpenReport(targetHousehold);
+      }
+    }
+  }, [activeSiteDetail, siteId, isReportDialogOpen, handleOpenReport]);
+
+  // 보고서 제출 후 방금 작업한 세대로 부드러운 스크롤 & 하이라이트 (필터링 등으로 DOM에 없으면 기존 스크롤 위치 유지)
+  useEffect(() => {
+    const targetHouseholdId = lastSubmittedHouseholdIdRef.current;
+    if (!targetHouseholdId) return;
+
+    const timer = setTimeout(() => {
+      const cardEl = document.getElementById(`household-card-${targetHouseholdId}`);
+      if (cardEl) {
+        cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setJustUpdatedHouseholdId(targetHouseholdId);
+        setTimeout(() => {
+          setJustUpdatedHouseholdId(prev => (prev === targetHouseholdId ? null : prev));
+        }, 2500);
+      } else if (savedScrollPosRef.current > 0) {
+        window.scrollTo({ top: savedScrollPosRef.current, behavior: 'smooth' });
+      }
+      lastSubmittedHouseholdIdRef.current = null;
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [activeSiteDetail, filteredHouseholds]);
 
   return (
     <div className="portal-work-page">
@@ -845,7 +910,10 @@ function PortalWorkContent() {
                   return (
                     <div
                       key={household.householdId}
-                      className={`household-unit-card status-${statusKey}`}
+                      id={`household-card-${household.householdId}`}
+                      className={`household-unit-card status-${statusKey} ${
+                        justUpdatedHouseholdId === household.householdId ? 'just-updated' : ''
+                      }`}
                       onClick={() => handleOpenReport(household)}
                     >
                       <div className={`status-avatar ${statusKey}`}>
@@ -907,21 +975,34 @@ function PortalWorkContent() {
       <WorkReportDialog
         isOpen={isReportDialogOpen}
         onClose={() => {
+          if (typeof window !== 'undefined') {
+            try {
+              sessionStorage.removeItem('gneworks_active_household_id');
+            } catch {}
+          }
           setIsReportDialogOpen(false);
           setSelectedHousehold(undefined);
           setSelectedReport(undefined);
           if (pendingDetailRefreshRef.current && siteId) {
             pendingDetailRefreshRef.current = false;
-            loadSiteDetail(siteId);
+            loadSiteDetail(siteId, { silent: true });
           }
         }}
         site={activeSiteDetail || undefined}
         household={selectedHousehold}
         existingReport={selectedReport}
         onSubmitted={() => {
+          if (typeof window !== 'undefined') {
+            try {
+              sessionStorage.removeItem('gneworks_active_household_id');
+            } catch {}
+          }
+          if (selectedHousehold?.householdId) {
+            lastSubmittedHouseholdIdRef.current = selectedHousehold.householdId;
+          }
           pendingDetailRefreshRef.current = false;
           if (siteId) {
-            loadSiteDetail(siteId);
+            loadSiteDetail(siteId, { silent: true });
           }
           fetchSites(1, false);
           loadAssignedRegions();

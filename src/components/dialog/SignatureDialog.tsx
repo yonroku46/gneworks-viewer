@@ -37,7 +37,41 @@ export default function SignatureDialog({
         if (containerRef.current) {
           const { clientWidth, clientHeight } = containerRef.current;
           if (clientWidth > 0 && clientHeight > 0) {
-            setCanvasDimensions({ width: clientWidth, height: clientHeight });
+            // 서명이 이미 그려져 있는 경우 캔버스 크기 재조정으로 비트맵이 날아가지 않도록 벡터/이미지 백업
+            let backupData: any = null;
+            if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
+              try {
+                backupData = sigPadRef.current.toData();
+              } catch {
+                try {
+                  backupData = sigPadRef.current.toDataURL('image/png');
+                } catch {}
+              }
+            }
+
+            setCanvasDimensions(prev => {
+              if (prev.width === clientWidth && prev.height === clientHeight) {
+                return prev;
+              }
+              return { width: clientWidth, height: clientHeight };
+            });
+
+            if (backupData) {
+              setTimeout(() => {
+                if (sigPadRef.current) {
+                  try {
+                    if (Array.isArray(backupData)) {
+                      sigPadRef.current.fromData(backupData);
+                    } else if (typeof backupData === 'string') {
+                      sigPadRef.current.fromDataURL(backupData);
+                    }
+                    setHasDrawn(true);
+                  } catch (e) {
+                    console.warn('Failed to restore signature data on resize:', e);
+                  }
+                }
+              }, 50);
+            }
           }
         }
       };
