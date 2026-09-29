@@ -240,6 +240,31 @@
       color: var(--slate-900);
     }
   }
+  .dash-national-live-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4375rem 0.875rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.675rem;
+    box-shadow: 0 1px 2px var(--shadow-sm);
+    .chip-icon {
+      color: var(--slate-400);
+      flex-shrink: 0;
+    }
+    .chip-label {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--slate-600);
+      letter-spacing: -0.01em;
+    }
+    .chip-count {
+      font-size: 0.875rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+  }
 }
 
 
@@ -442,6 +467,21 @@
         font-size: 0.75rem;
         color: var(--slate-500);
         line-height: 1;
+        .kpi-info-group {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0.4rem;
+          color: var(--slate-500);
+          strong {
+            color: var(--slate-700);
+            font-weight: 700;
+          }
+          .footer-divider {
+            color: var(--slate-300);
+            font-size: 0.625rem;
+          }
+        }
         .kpi-action-link {
           display: inline-flex;
           align-items: center;
@@ -1003,6 +1043,33 @@
         }
         &.success-highlight {
           color: var(--success);
+        }
+      }
+      &.national-today-highlight {
+        background: var(--manage-primary-light);
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.625rem;
+        border: 1px solid var(--manage-primary-border);
+        .chip-label {
+          color: var(--manage-primary);
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          .inline-icon {
+            color: var(--warning);
+          }
+        }
+        .chip-val.today-count-highlight {
+          color: var(--manage-primary);
+          font-weight: 800;
+        }
+      }
+      &.national-total-chip {
+        .chip-label {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
         }
       }
     }
@@ -2042,6 +2109,14 @@
     background-color: var(--white);
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    min-height: 480px;
+    position: relative;
+    &.loading {
+      .households-table tbody {
+        opacity: 0.45;
+        transition: opacity 0.15s ease;
+      }
+    }
     .households-table {
       width: 100%;
       min-width: 600px;
@@ -2177,6 +2252,12 @@
         }
       }
     }
+  }
+  .households-pagination-wrapper {
+    margin-top: 1rem;
+    padding-bottom: 0.5rem;
+    display: flex;
+    justify-content: center;
   }
   .assigned-workers-tab-content {
     display: flex;
@@ -5514,6 +5595,9 @@
     }
   }
   .page-header-row {
+    .dash-national-live-chip {
+      margin-top: 0.625rem;
+    }
     .add-btn {
       position: fixed;
       bottom: 1.5rem;

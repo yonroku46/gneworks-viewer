@@ -9,6 +9,8 @@ import {
   ClipboardCheck,
   MessageSquare,
   ArrowRight,
+  Globe,
+  Sparkles,
 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
@@ -84,6 +86,7 @@ export default function ManageDashboard() {
     issueReportsCount: 0,
     totalWorkers: 0,
   });
+  const [nationalSummary, setNationalSummary] = useState<AdminDashboardSummaryRes | null>(null);
   const [sites, setSites] = useState<SiteDetail[]>([]);
   const [totalSiteCount, setTotalSiteCount] = useState<number>(0);
   const [workerRanking, setWorkerRanking] = useState<AdminWorkerStatRes[]>([]);
@@ -126,11 +129,12 @@ export default function ManageDashboard() {
         regionParam.regionId = region.regionId;
       }
 
-      const [summaryRes, siteRes, workerRes, issueRes, recentRes] = await Promise.all([
+      const [summaryRes, natRes, siteRes, workerRes, issueRes, recentRes] = await Promise.all([
         AdminService.getDashboardSummary(regionParam).catch(err => {
           console.error('[Dashboard] getDashboardSummary error', err);
           return null;
         }),
+        AdminService.getNationalSummary().catch(() => null),
         AdminService.getSiteList({
           ...regionParam,
           limit: 10,
@@ -167,6 +171,9 @@ export default function ManageDashboard() {
 
       if (summaryRes) {
         setSummary(summaryRes);
+      }
+      if (natRes) {
+        setNationalSummary(natRes);
       }
       setSites(siteRes?.list || []);
       setTotalSiteCount(siteRes?.totalCount || summaryRes?.totalSites || 0);
@@ -261,6 +268,13 @@ export default function ManageDashboard() {
           <h2>현장 작업 통합 대시보드</h2>
           <p>설치 현황, 진행률 및 작업자 실적을 모니터링합니다.</p>
         </div>
+        {nationalSummary && (
+          <div className="dash-national-live-chip">
+            <Globe size={13} className="chip-icon" />
+            <span className="chip-label">전국 오늘</span>
+            <strong className="chip-count">{(nationalSummary.todayReports || 0).toLocaleString()}건</strong>
+          </div>
+        )}
       </div>
 
       {/* ── 1-1. ACTION BANNER FOR PENDING INQUIRIES (답변 대기 문의 스마트 알림 배너) ── */}
@@ -329,12 +343,13 @@ export default function ManageDashboard() {
           </div>
           <div className="kpi-main">
             <h3 className="kpi-value">{summary.totalReports.toLocaleString()}<span>건</span></h3>
-            <span className="kpi-sub-text badge-tag">
-              오늘 +{summary.todayReports}건 접수
-            </span>
           </div>
           <div className="kpi-card-footer">
-            <span>승인 완료: <strong>{summary.completedReports.toLocaleString()}건</strong></span>
+            <div className="kpi-info-group">
+              <span>{region.regionId ? `${region.sigungu || region.sido} 오늘 ` : '오늘 '}<strong>{summary.todayReports.toLocaleString()}건</strong></span>
+              <span className="footer-divider">·</span>
+              <span>승인 완료 <strong>{summary.completedReports.toLocaleString()}건</strong></span>
+            </div>
           </div>
         </div>
 

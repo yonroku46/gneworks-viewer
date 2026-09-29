@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Search, Plus, Trash2, X, Info, Phone } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import SlideDialog from './SlideDialog';
@@ -12,6 +12,7 @@ import { normalizeSidoName, cleanRegionName } from '@/utils/addressUtils';
 import { findRegionById, fetchFireRegions, isAdminRegion } from '@/common/utils/regionUtils';
 import AdminSiteBadge from '@/components/common/AdminSiteBadge';
 import UserAvatar from '@/components/common/UserAvatar';
+import Pagination from '@/components/common/Pagination';
 
 export interface SiteDetailDialogProps {
   isOpen: boolean;
@@ -35,6 +36,8 @@ const formatHo = (ho: string) => {
   return ho.endsWith('호') ? ho : `${ho}호`;
 };
 
+const HOUSEHOLD_PAGE_SIZE = 30;
+
 export default function SiteDetailDialog({
   isOpen,
   onClose,
@@ -47,6 +50,7 @@ export default function SiteDetailDialog({
   onSiteUpdated,
 }: SiteDetailDialogProps) {
   const { enqueueSnackbar } = useSnackbar();
+  const modalContainerRef = useRef<HTMLDivElement>(null);
 
   // Current Site State (실시간 동기화)
   const [currentSite, setCurrentSite] = useState<SiteDetail | undefined>(initialSite);
@@ -80,6 +84,12 @@ export default function SiteDetailDialog({
   const [siteDetailTab, setSiteDetailTab] = useState<'households' | 'workers'>(initialTab);
   const [householdSearch, setHouseholdSearch] = useState('');
   const [workersTabSearch, setWorkersTabSearch] = useState('');
+
+  // Household Server-side Pagination State (서버 사이드 페이징)
+  const [householdPage, setHouseholdPage] = useState(1);
+  const [serverHouseholds, setServerHouseholds] = useState<Household[]>([]);
+  const [serverTotalCount, setServerTotalCount] = useState<number>(0);
+  const [isHouseholdsLoading, setIsHouseholdsLoading] = useState<boolean>(false);
 
   // Add Household State
   const [isAddHouseholdOpen, setIsAddHouseholdOpen] = useState(false);
@@ -154,43 +164,76 @@ export default function SiteDetailDialog({
       setWorkersTabSearch('');
       setIsAddHouseholdOpen(false);
       setIsInternalEditOpen(false);
+      setHouseholdPage(1);
     }
   }, [isOpen, initialTab, site?.siteId]);
 
-  // 유효한 세대 목록 (householdId가 존재하는 실제 등록 세대만 필터링)
-  const validHouseholds = useMemo(() => {
-    if (!site || !site.households) return [];
-    return site.households.filter(h => !!h && !!h.householdId);
-  }, [site?.households]);
-
-  // 단지 동 수 및 총 세대수 실시간 산출
+  // 단지 동 수 및 총 세대수 실시간 산출 (현장 메타 정보 우선 활용)
   const totalHouseholdsCount = useMemo(() => {
-    return validHouseholds.length;
-  }, [validHouseholds]);
+    if (site?.totalHouseholds !== undefined && site?.totalHouseholds !== null && site.totalHouseholds > 0) {
+      return site.totalHouseholds;
+    }
+    return serverTotalCount;
+  }, [site?.totalHouseholds, serverTotalCount]);
 
   const totalDongsCount = useMemo(() => {
-    return new Set(validHouseholds.map(h => h.dong)).size;
-  }, [validHouseholds]);
+    if (site?.dongCount !== undefined && site?.dongCount !== null && site.dongCount > 0) {
+      return site.dongCount;
+    }
+    return 0;
+  }, [site?.dongCount]);
 
-  // Filtered Households
-  const filteredHouseholds = useMemo(() => {
-    if (validHouseholds.length === 0) return [];
-    const query = householdSearch.trim().toLowerCase();
-    if (!query) return validHouseholds;
+  // 서버 사이드 세대 목록 로드
+  const fetchHouseholds = useCallback(async (pageToFetch: number, queryToSearch: string) => {
+    if (!site?.siteId) return;
+    try {
+      setIsHouseholdsLoading(true);
+      const res = await AdminService.getSiteHouseholdsPaged({
+        siteId: site.siteId,
+        page: pageToFetch,
+        size: HOUSEHOLD_PAGE_SIZE,
+        query: queryToSearch.trim() || undefined,
+      });
+      setServerHouseholds(res?.list || []);
+      setServerTotalCount(res?.totalCount || 0);
+    } catch (err) {
+      console.error('[SiteDetailDialog] fetchHouseholds error', err);
+      setServerHouseholds([]);
+      setServerTotalCount(0);
+    } finally {
+      setIsHouseholdsLoading(false);
+    }
+  }, [site?.siteId]);
 
-    return validHouseholds.filter(h => {
-      const dongFormatted = `${h.dong || ''}동`;
-      const hoFormatted = `${h.ho || ''}호`;
-      return (
-        (h.dong && h.dong.toLowerCase().includes(query)) ||
-        dongFormatted.toLowerCase().includes(query) ||
-        (h.ho && h.ho.toLowerCase().includes(query)) ||
-        hoFormatted.toLowerCase().includes(query) ||
-        (h.headName && h.headName.toLowerCase().includes(query)) ||
-        (h.remarks && h.remarks.toLowerCase().includes(query))
-      );
-    });
-  }, [validHouseholds, householdSearch]);
+  // 검색어 입력 시 디바운스 및 1페이지 조회
+  useEffect(() => {
+    if (!isOpen || !site?.siteId || siteDetailTab !== 'households') return;
+    const timer = setTimeout(() => {
+      setHouseholdPage(1);
+      fetchHouseholds(1, householdSearch);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [householdSearch, isOpen, site?.siteId, siteDetailTab, fetchHouseholds]);
+
+  // 페이지 변경 처리
+  const handlePageChange = (newPage: number) => {
+    setHouseholdPage(newPage);
+    fetchHouseholds(newPage, householdSearch);
+
+    // 페이지 변경 시 다이얼로그 본문 스크롤을 최상단으로 이동 (다음 페이지 첫 행부터 바로 확인 가능)
+    if (modalContainerRef.current) {
+      const dialogBody = modalContainerRef.current.closest('.dialog-body');
+      if (dialogBody) {
+        dialogBody.scrollTo({ top: 0 });
+      } else {
+        modalContainerRef.current.scrollIntoView({ block: 'start' });
+      }
+    }
+  };
+
+  const totalHouseholdPages = useMemo(() => {
+    return Math.max(1, Math.ceil(serverTotalCount / HOUSEHOLD_PAGE_SIZE));
+  }, [serverTotalCount]);
 
   // Handle Delete Household
   const handleDeleteHousehold = async (household: Household) => {
@@ -202,6 +245,14 @@ export default function SiteDetailDialog({
 
     try {
       await AdminService.deleteHousehold(site.siteId, household.householdId);
+      // 현재 페이지의 남은 항목 확인하여 페이지 보정
+      const isLastItemOnPage = serverHouseholds.length <= 1 && householdPage > 1;
+      const targetPage = isLastItemOnPage ? householdPage - 1 : householdPage;
+      if (isLastItemOnPage) {
+        setHouseholdPage(targetPage);
+      }
+      fetchHouseholds(targetPage, householdSearch);
+
       const updatedSite = await AdminService.getSiteDetail(site.siteId);
       setCurrentSite(updatedSite);
       if (onSiteUpdated) {
@@ -232,6 +283,9 @@ export default function SiteDetailDialog({
         targetType: newHousehold.targetType,
         remarks: newHousehold.remarks.trim() || undefined,
       });
+
+      setHouseholdPage(1);
+      fetchHouseholds(1, '');
 
       const updatedSite = await AdminService.getSiteDetail(site.siteId);
       setCurrentSite(updatedSite);
@@ -370,7 +424,7 @@ export default function SiteDetailDialog({
           ) : undefined
         }
       >
-        <div className="site-detail-modal">
+        <div className="site-detail-modal" ref={modalContainerRef}>
           {/* Top Site Header Summary */}
           <div className="site-detail-header-card">
             <div className="site-header-left">
@@ -402,7 +456,7 @@ export default function SiteDetailDialog({
               onClick={() => setSiteDetailTab('households')}
             >
               <span>세대 관리</span>
-              <span className="tab-count-badge">{validHouseholds.length}</span>
+              <span className="tab-count-badge">{totalHouseholdsCount}</span>
             </button>
             <button
               type="button"
@@ -520,7 +574,7 @@ export default function SiteDetailDialog({
               )}
 
               {/* Households Table List */}
-              <div className="households-table-container">
+              <div className={`households-table-container ${isHouseholdsLoading ? 'loading' : ''}`}>
                 <table className="households-table">
                   <thead>
                     <tr>
@@ -534,11 +588,17 @@ export default function SiteDetailDialog({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredHouseholds.length > 0 ? (
-                      filteredHouseholds.map((household, idx) => (
+                    {serverHouseholds.length === 0 && isHouseholdsLoading ? (
+                      <tr>
+                        <td colSpan={7} className="empty-households">
+                          세대 목록을 조회하는 중입니다...
+                        </td>
+                      </tr>
+                    ) : serverHouseholds.length > 0 ? (
+                      serverHouseholds.map((household, idx) => (
                         <tr key={household.householdId}>
                           <td className="col-num">
-                            <span className="row-index">{idx + 1}</span>
+                            <span className="row-index">{(householdPage - 1) * HOUSEHOLD_PAGE_SIZE + idx + 1}</span>
                           </td>
                           <td className="col-unit">
                             <strong>{formatDong(household.dong)} {formatHo(household.ho)}</strong>
@@ -574,13 +634,28 @@ export default function SiteDetailDialog({
                     ) : (
                       <tr>
                         <td colSpan={7} className="empty-households">
-                          조회된 세대 정보가 없습니다.
+                          {householdSearch.trim() ? '검색 조건에 일치하는 세대 정보가 없습니다.' : '조회된 세대 정보가 없습니다.'}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+
+              {/* 세대 목록 페이지네이션 (서버 사이드 페이징) */}
+              {serverTotalCount > HOUSEHOLD_PAGE_SIZE && (
+                <div className="households-pagination-wrapper">
+                  <Pagination
+                    page={householdPage}
+                    totalPages={totalHouseholdPages}
+                    totalCount={serverTotalCount}
+                    pageSize={HOUSEHOLD_PAGE_SIZE}
+                    onPageChange={handlePageChange}
+                    showInfo={false}
+                    showSizeSelector={false}
+                  />
+                </div>
+              )}
             </>
           ) : (
             /* Tab 2: 지역 담당자 Content (행정구역 단위 귀속) */

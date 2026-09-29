@@ -4,6 +4,8 @@ import ApiRoutes from '@/api/module/ApiRoutes';
 class AdminService {
   private static instance: AdminService;
   private fireRegionsPromise: Promise<FireRegion[]> | null = null;
+  private nationalSummaryCache: { data: AdminDashboardSummaryRes; timestamp: number } | null = null;
+  private nationalSummaryPromise: Promise<AdminDashboardSummaryRes> | null = null;
 
   private constructor() {}
 
@@ -370,6 +372,32 @@ class AdminService {
   }
 
   /**
+   * 현장별 세대 목록 페이징 조회 (서버 사이드 페이징 및 검색 지원)
+   * GET /admin/site/{siteId}/households/paged
+   */
+  async getSiteHouseholdsPaged(params: {
+    siteId: string;
+    query?: string;
+    page?: number;
+    size?: number;
+  }): Promise<PageRes<Household>> {
+    try {
+      const { siteId, ...queryParams } = params;
+      const response: ApiResponse = await ApiInstance.get(
+        ApiRoutes.ADMIN_SITE_HOUSEHOLDS_PAGED(siteId),
+        { params: queryParams }
+      );
+      if (response && !response.hasErrors) {
+        return response.responseData as PageRes<Household>;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch site households');
+    } catch (error) {
+      console.error('[AdminService] getSiteHouseholdsPaged', error);
+      throw error;
+    }
+  }
+
+  /**
    * 세대 삭제
    * DELETE /admin/site/{siteId}/household/{householdId}
    */
@@ -724,6 +752,36 @@ class AdminService {
       console.error('[AdminService] getDashboardSummary', error);
       throw error;
     }
+  }
+
+  /**
+   * 전국 종합 메트릭 집계 (경량 실시간 조회, 동시 호출 디바운싱 및 에러 폴백 적용)
+   * GET /admin/dashboard/summary (regionId 파라미터 없음)
+   */
+  async getNationalSummary(forceRefresh: boolean = false): Promise<AdminDashboardSummaryRes> {
+    if (this.nationalSummaryPromise && !forceRefresh) {
+      return this.nationalSummaryPromise;
+    }
+    this.nationalSummaryPromise = (async () => {
+      try {
+        const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_DASHBOARD_SUMMARY);
+        if (response && !response.hasErrors) {
+          const data = response.responseData as AdminDashboardSummaryRes;
+          this.nationalSummaryCache = { data, timestamp: Date.now() };
+          return data;
+        }
+        throw new Error(response?.informations?.[0]?.message || 'Failed to fetch national summary');
+      } catch (error) {
+        console.error('[AdminService] getNationalSummary', error);
+        if (this.nationalSummaryCache) {
+          return this.nationalSummaryCache.data;
+        }
+        throw error;
+      } finally {
+        this.nationalSummaryPromise = null;
+      }
+    })();
+    return this.nationalSummaryPromise;
   }
 
   /**
