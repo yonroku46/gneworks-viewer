@@ -88,6 +88,21 @@ export default function ManageCustomers() {
       setSites(res.list || []);
       setTotalCount(res.totalCount || 0);
 
+      // 백엔드에서 제공하는 전체 필터 조건 기준의 요약 통계 반영
+      if (res.summary) {
+        setSummaryMetrics({
+          totalSites: res.summary.totalSites ?? res.totalCount ?? 0,
+          totalHouseholds: res.summary.totalHouseholds ?? 0,
+          totalDongs: res.summary.totalDongs ?? 0,
+          totalWorkers: res.summary.totalWorkers ?? 0,
+        });
+      } else if (page === 1) {
+        setSummaryMetrics(prev => ({
+          ...prev,
+          totalSites: res.totalCount || 0,
+        }));
+      }
+
       // 현장들의 고유 regionId 수집 및 작업자 목록 로드 (캐시 우선 활용하여 불필요한 N+1 호출 방어)
       const regionIdSet = new Set<string>();
       (res.list || []).forEach(s => {
@@ -153,11 +168,37 @@ export default function ManageCustomers() {
     try {
       setIsExporting(true);
       const isNational = region.sido === 'ALL' || !region.regionId;
+
+      // 1. 관할 지역명 판별 (예: 분당, 성남, 전국 등)
+      let regionName = '전국';
+      if (!isNational && region.regionId) {
+        const found = fireRegions.find(fr => fr.regionId === region.regionId) || findRegionById(region.regionId);
+        regionName = found?.name || region.sigungu || region.sido || '지역';
+      }
+      regionName = regionName.replace(/[\/\\:*?"<>|]/g, '').trim();
+
+      // 2. YYMMDD 날짜 포맷 (예: 261001)
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const dateStr = `${yy}${mm}${dd}`;
+
+      // 3. 파일명 구성: {지역명}_{필터?}_세대목록_{YYMMDD}.xlsx
+      const fileNameParts = [regionName];
+      if (searchQuery.trim()) {
+        fileNameParts.push('필터');
+      }
+      fileNameParts.push('세대목록');
+      fileNameParts.push(dateStr);
+      const downloadFileName = `${fileNameParts.join('_')}.xlsx`;
+
       await AdminService.exportSitesExcel({
         regionId: !isNational && region.regionId ? region.regionId : undefined,
         query: searchQuery.trim() || undefined,
+        fileName: downloadFileName,
       });
-      enqueueSnackbar('현장 목록 엑셀 파일이 다운로드되었습니다.', { variant: 'success' });
+      enqueueSnackbar(`[${downloadFileName}] 파일이 다운로드되었습니다.`, { variant: 'success' });
     } catch (error) {
       console.error('Failed to export excel:', error);
       enqueueSnackbar('엑셀 다운로드에 실패했습니다.', { variant: 'error' });
@@ -172,21 +213,13 @@ export default function ManageCustomers() {
     return regionWorkersMap[site.regionId] || [];
   }, [regionWorkersMap]);
 
-  // Summary Metrics (Sites, Households, Regional Worker count)
-  const metrics = useMemo(() => {
-    const totalSites = totalCount;
-    const totalHouseholds = sites.reduce((sum, s) => sum + (s.totalHouseholds || 0), 0);
-    const totalDongs = sites.reduce((sum, s) => sum + (s.dongCount || 0), 0);
-
-    const uniqueWorkerIds = new Set<string>();
-    sites.forEach(s => {
-      const workers = getWorkersForSite(s);
-      workers.forEach(w => uniqueWorkerIds.add(w.userId));
-    });
-    const totalWorkers = uniqueWorkerIds.size;
-
-    return { totalSites, totalHouseholds, totalDongs, totalWorkers };
-  }, [totalCount, sites, getWorkersForSite]);
+  // Summary Metrics State (서버에서 페이징 1페이지 또는 필터 변경 시 전달되는 전체 요약 통계)
+  const [summaryMetrics, setSummaryMetrics] = useState({
+    totalSites: 0,
+    totalHouseholds: 0,
+    totalDongs: 0,
+    totalWorkers: 0,
+  });
 
   // FireRegion Map for quick lookup by regionId
   const fireRegionMap = useMemo(() => {
@@ -559,21 +592,21 @@ export default function ManageCustomers() {
           </div>
           <div className="summary-main-info">
             <span className="summary-label">총 관리 현장</span>
-            <strong className="summary-val">{metrics.totalSites}개소</strong>
+            <strong className="summary-val">{summaryMetrics.totalSites}개소</strong>
           </div>
         </div>
         <div className="summary-sub-chips">
           <div className="summary-sub-chip">
             <span className="chip-label">총 관리단지</span>
-            <strong className="chip-val">{metrics.totalDongs}개 동</strong>
+            <strong className="chip-val">{summaryMetrics.totalDongs}개 동</strong>
           </div>
           <div className="summary-sub-chip">
             <span className="chip-label">총 보급대상</span>
-            <strong className="chip-val highlight">{metrics.totalHouseholds.toLocaleString()}세대</strong>
+            <strong className="chip-val highlight">{summaryMetrics.totalHouseholds.toLocaleString()}세대</strong>
           </div>
           <div className="summary-sub-chip">
             <span className="chip-label">지역 담당자</span>
-            <strong className="chip-val highlight">{metrics.totalWorkers}명</strong>
+            <strong className="chip-val highlight">{summaryMetrics.totalWorkers}명</strong>
           </div>
         </div>
       </div>

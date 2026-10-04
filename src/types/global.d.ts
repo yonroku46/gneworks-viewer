@@ -148,6 +148,12 @@ declare global {
     totalPages: number;
     hasNext: boolean;
     hasPrev: boolean;
+    summary?: {
+      totalSites?: number;
+      totalDongs?: number;
+      totalHouseholds?: number;
+      totalWorkers?: number;
+    };
   }
   interface CountRes {
     count: number;
@@ -416,6 +422,38 @@ declare global {
     rejectedReports: number;
     completedReports: number;
     issueReportsCount: number;
+  }
+  interface RegionMonthlyStat {
+    regionId: string;
+    sidoName: string;
+    regionName: string;
+    displayName: string;
+    totalSites: number;
+    totalTarget: number;
+    completedTarget: number;
+    progressRate: number;
+    totalReports: number;
+    completedReports: number;
+    pendingReports: number;
+    issueReportsCount: number;
+    totalWorkers: number;
+  }
+  interface ServiceStatisticsRes {
+    yearMonth: string;
+    baseDate?: string;
+    totalRegionCount: number;
+    summary: {
+      totalSites: number;
+      totalTarget: number;
+      completedTarget: number;
+      overallProgressRate: number;
+      totalReports: number;
+      completedReports: number;
+      pendingReports: number;
+      issueReportsCount: number;
+      totalWorkers: number;
+    };
+    list: RegionMonthlyStat[];
   }
 }
 

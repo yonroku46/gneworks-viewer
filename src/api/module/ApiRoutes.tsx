@@ -69,9 +69,11 @@ const ADMIN_REPORT_DELETE = (reportId: string) => `${ADMIN_ROOT}/report/${report
 const ADMIN_REPORT_BATCH_DELETE = `${ADMIN_ROOT}/report/batch-delete`;
 const ADMIN_REPORT_DELETED_PAGED = `${ADMIN_ROOT}/report/deleted`;
 
-// admin (dashboard)
+// admin (dashboard & statistics)
 const ADMIN_WORKER_RANKING = `${ADMIN_ROOT}/worker/ranking`;
 const ADMIN_DASHBOARD_SUMMARY = `${ADMIN_ROOT}/dashboard/summary`;
+const ADMIN_STATISTICS_MONTHLY = `${ADMIN_ROOT}/statistics/monthly`;
+const ADMIN_STATISTICS_EXPORT_EXCEL = `${ADMIN_ROOT}/statistics/export/excel`;
 
 // admin (data import)
 const ADMIN_IMPORT_EXCEL = `${ADMIN_ROOT}/data/import-excel`;
@@ -148,6 +150,8 @@ const ApiRoutes = {
   ADMIN_REPORT_DELETED_PAGED,
   ADMIN_WORKER_RANKING,
   ADMIN_DASHBOARD_SUMMARY,
+  ADMIN_STATISTICS_MONTHLY,
+  ADMIN_STATISTICS_EXPORT_EXCEL,
   ADMIN_IMPORT_EXCEL,
   ADMIN_SETTINGS,
   PORTAL_PROFILE,

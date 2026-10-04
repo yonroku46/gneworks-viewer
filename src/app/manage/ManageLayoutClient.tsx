@@ -7,7 +7,7 @@ import UserAvatar from '@/components/common/UserAvatar';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, servicePrefix } from '@/providers/AuthProvider';
 import { useSnackbar } from 'notistack';
-import { LayoutDashboard, ClipboardCheck, Building2, MessageSquare, ShieldCheck, Settings, LogOut, Bell, Menu, X } from 'lucide-react';
+import { LayoutDashboard, BarChart3, ClipboardCheck, Building2, MessageSquare, ShieldCheck, Settings, LogOut, Bell, Menu, X } from 'lucide-react';
 import { ManageRegionProvider } from '@/providers/ManageRegionProvider';
 import { useNotification } from '@/providers/NotificationProvider';
 import SlideDialog from '@/components/dialog/SlideDialog';
@@ -44,6 +44,7 @@ function ManageLayoutInner({ children }: { children: React.ReactNode }) {
       groupTitle: '개요',
       items: [
         { label: '대시보드', href: '/manage/dashboard', icon: LayoutDashboard },
+        { label: '서비스 통계', href: '/manage/statistics', icon: BarChart3 },
       ],
     },
     {

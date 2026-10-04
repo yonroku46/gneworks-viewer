@@ -1,5 +1,6 @@
 import ApiInstance from '@/api';
 import ApiRoutes from '@/api/module/ApiRoutes';
+import { KOREA_ADMIN_REGIONS } from '@/constants/regions';
 
 class AdminService {
   private static instance: AdminService;
@@ -212,10 +213,12 @@ class AdminService {
   async exportSitesExcel(params?: {
     regionId?: string;
     query?: string;
+    fileName?: string;
   }): Promise<void> {
     try {
+      const { fileName, ...apiParams } = params || {};
       const blobData: any = await ApiInstance.get(ApiRoutes.ADMIN_SITE_EXPORT_EXCEL, {
-        params,
+        params: apiParams,
         responseType: 'blob',
       });
       const blob = new Blob([blobData], {
@@ -224,7 +227,15 @@ class AdminService {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `현장목록_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+      // YYMMDD (예: 261001) 포맷
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const fallbackName = `세대목록_${yy}${mm}${dd}.xlsx`;
+
+      link.setAttribute('download', fileName || fallbackName);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -930,6 +941,25 @@ class AdminService {
       throw new Error(response?.informations?.[0]?.message || 'Failed to update settings');
     } catch (error) {
       console.error('[AdminService] updateSettings', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 서비스 통계 (월별 소방관할 집계 통계)
+   * GET /admin/statistics/monthly?yearMonth=YYYY-MM
+   */
+  async getServiceStatistics(yearMonth: string, refresh = false): Promise<ServiceStatisticsRes> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_STATISTICS_MONTHLY, {
+        params: { yearMonth, refresh },
+      });
+      if (response && !response.hasErrors && response.responseData) {
+        return response.responseData as ServiceStatisticsRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch statistics');
+    } catch (error) {
+      console.error('[AdminService] getServiceStatistics error:', error);
       throw error;
     }
   }
