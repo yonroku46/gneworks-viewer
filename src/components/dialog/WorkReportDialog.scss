@@ -1022,8 +1022,7 @@
     }
   }
   .work-report-slide-dialog .photos-clean-layout .photo-upload-box .photo-preview-wrapper .btn-remove-photo:hover {
-    background: var(--danger);
-    transform: scale(1.08);
+    background: var(--danger) !important;
   }
   .work-report-slide-dialog .photos-clean-layout .photo-upload-box .photo-placeholder-btn:hover {
     border-color: var(--manage-primary);

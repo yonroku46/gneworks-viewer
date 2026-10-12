@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
-import { X, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import './ImageCropDialog.scss';
 
 interface CropArea {
@@ -409,6 +409,35 @@ export const autoCropCenterWebP = async (
   }
 };
 
+/**
+ * 이미지를 시계방향으로 90도 회전하여 WebP DataURL로 반환
+ */
+export const rotateImage90Cw = async (imageSrc: string): Promise<string> => {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const w = image.naturalWidth || image.width;
+  const h = image.naturalHeight || image.height;
+
+  // 90도 회전 시 폭과 높이가 서로 바뀜
+  canvas.width = h;
+  canvas.height = w;
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: false });
+  if (!ctx) throw new Error('Canvas 2D Context 오류');
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((90 * Math.PI) / 180);
+  ctx.drawImage(image, -w / 2, -h / 2);
+
+  const res = await canvasToDataUrl(canvas, 0.85);
+  canvas.width = 0;
+  canvas.height = 0;
+  return res;
+};
+
 export default function ImageCropDialog({
   isOpen,
   open,
@@ -419,10 +448,17 @@ export default function ImageCropDialog({
   title = '사진 자르기 (4:3)',
   disableBackdropClick = true,
 }: ImageCropDialogProps) {
+  const [currentSrc, setCurrentSrc] = useState<string>(imageSrc);
   const [crop, setCrop] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState<number>(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea>();
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    setCurrentSrc(imageSrc);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+  }, [imageSrc]);
 
   const isShow = isOpen ?? open ?? false;
   if (!isShow || !imageSrc) return null;
@@ -439,11 +475,27 @@ export default function ImageCropDialog({
     setCroppedAreaPixels(croppedPixels);
   };
 
+  // 시계방향 90도 회전 핸들러
+  const handleRotate = async () => {
+    if (isProcessing) return;
+    try {
+      setIsProcessing(true);
+      const rotated = await rotateImage90Cw(currentSrc);
+      setCurrentSrc(rotated);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+    } catch (err) {
+      console.error('이미지 회전 실패:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleApply = async () => {
     if (!croppedAreaPixels) return;
     try {
       setIsProcessing(true);
-      const croppedDataUrl = await getCroppedImgWebP(imageSrc, croppedAreaPixels, 1200);
+      const croppedDataUrl = await getCroppedImgWebP(currentSrc, croppedAreaPixels, 1200);
       onCropComplete(croppedDataUrl);
       onClose();
     } catch (err) {
@@ -467,6 +519,7 @@ export default function ImageCropDialog({
             className="crop-header-btn back"
             onClick={onClose}
             disabled={isProcessing}
+            title="닫기"
           >
             <X size={20} />
           </button>
@@ -476,7 +529,7 @@ export default function ImageCropDialog({
 
         <div className="crop-cropper-body">
           <Cropper
-            image={imageSrc}
+            image={currentSrc}
             crop={crop}
             zoom={zoom}
             aspect={aspect}
@@ -489,6 +542,16 @@ export default function ImageCropDialog({
             onZoomChange={handleZoomChange}
             onCropComplete={handleCropAreaChange}
           />
+          <button
+            type="button"
+            className="btn-cropper-rotate"
+            onClick={handleRotate}
+            disabled={isProcessing}
+            title="시계방향 90° 회전"
+          >
+            <RotateCw size={15} />
+            <span>90° 회전</span>
+          </button>
         </div>
 
         <div className="crop-footer">
