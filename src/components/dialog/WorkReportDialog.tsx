@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import SlideDialog from './SlideDialog';
 import SignatureDialog from './SignatureDialog';
-import ImageCropDialog, { autoCropCenterWebP } from './ImageCropDialog';
+import ImageCropDialog, { autoCropCenterWebP, prepareSafeImageSrc } from './ImageCropDialog';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '@/providers/AuthProvider';
 import PortalService from '@/api/service/PortalService';
@@ -287,13 +287,19 @@ export default function WorkReportDialog({
     }
   };
 
-  // 공통 이미지 파일 처리
-  const processImageFile = (key: PhotoSlotKey, file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      applyImageToSlot(key, reader.result as string);
-    };
-    reader.readAsDataURL(file);
+  // 공통 이미지 파일 처리 (초고화소 카메라 OOM 방지를 위한 백그라운드 사전 다운스케일링 적용)
+  const processImageFile = async (key: PhotoSlotKey, file: File) => {
+    try {
+      const safeSrc = await prepareSafeImageSrc(file, 1600);
+      applyImageToSlot(key, safeSrc);
+    } catch (err) {
+      console.error('[WorkReportDialog] processImageFile error:', err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        applyImageToSlot(key, reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // 사진 업로드 핸들러
@@ -352,15 +358,27 @@ export default function WorkReportDialog({
     if (!imageFile) return;
 
     e.preventDefault();
+    const targetFile = imageFile;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPendingPastedImage({
-        rawSrc: reader.result as string,
-        file: imageFile!,
-      });
-    };
-    reader.readAsDataURL(imageFile);
+    // 클립보드 이미지 사전 압축 및 다운스케일링 (메모리 폭증 방지)
+    (async () => {
+      try {
+        const safeSrc = await prepareSafeImageSrc(targetFile, 1600);
+        setPendingPastedImage({
+          rawSrc: safeSrc,
+          file: targetFile,
+        });
+      } catch {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setPendingPastedImage({
+            rawSrc: reader.result as string,
+            file: targetFile,
+          });
+        };
+        reader.readAsDataURL(targetFile);
+      }
+    })();
   };
 
   // 슬롯 선택 팝업에서 사용자가 슬롯을 선택했을 때 실행
