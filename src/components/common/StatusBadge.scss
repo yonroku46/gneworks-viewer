@@ -32,6 +32,11 @@
     color: var(--danger);
     border-color: rgba(239, 68, 68, 0.2);
   }
+  &.status-refused {
+    background: var(--refused-light);
+    color: var(--refused-dark);
+    border-color: var(--refused-border);
+  }
   &.status-scheduled {
     background: var(--info-bg);
     color: var(--info-text);

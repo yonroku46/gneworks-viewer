@@ -150,7 +150,7 @@ export default function WorkReportDetailDialog({
         reporterName: report.reporterName || '',
         visitorName: report.visitorName || report.reporterName || '',
         confirmerName: report.confirmerName || report.headName || '',
-        confirmerSignature: report.confirmerSignature || '/assets/img/sample_signature.svg',
+        confirmerSignature: report.confirmerSignature || '',
         remarks: report.remarks || '',
       });
       setStatusFormData({
@@ -320,7 +320,7 @@ export default function WorkReportDetailDialog({
         reporterName: report.reporterName || '',
         visitorName: report.visitorName || report.reporterName || '',
         confirmerName: report.confirmerName || report.headName || '',
-        confirmerSignature: report.confirmerSignature || '/assets/img/sample_signature.svg',
+        confirmerSignature: report.confirmerSignature || '',
         remarks: report.remarks || '',
       });
     }
@@ -353,7 +353,7 @@ export default function WorkReportDetailDialog({
       reporterName: docFormData.reporterName,
       visitorName: docFormData.visitorName,
       confirmerName: docFormData.confirmerName,
-      confirmerSignature: docFormData.confirmerSignature || report.confirmerSignature || '/assets/img/sample_signature.svg',
+      confirmerSignature: docFormData.confirmerSignature || report.confirmerSignature || '',
       remarks: docFormData.remarks,
     };
 
@@ -634,7 +634,35 @@ export default function WorkReportDetailDialog({
                 </>
               ) : (
                 <>
-                  {report.status !== 'COMPLETED' ? (
+                  {report.status === 'REFUSED' ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-status-action btn-reject-action btn-flex-secondary"
+                        onClick={handleOpenRejectModal}
+                        title="작업자에게 재확인을 요청하려면 반려하세요"
+                      >
+                        <XCircle size={14} />
+                        <span>반려</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-status-action btn-edit-trigger btn-flex-secondary"
+                        onClick={handleOpenStatusModal}
+                        title="상태를 직접 변경하려면 클릭하세요"
+                      >
+                        <RotateCcw size={14} />
+                        <span>상태 변경</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-status-action btn-close-action btn-flex-primary"
+                        onClick={handleSafeClose}
+                      >
+                        <span>닫기</span>
+                      </button>
+                    </>
+                  ) : report.status !== 'COMPLETED' ? (
                     <>
                       <button
                         type="button"
@@ -903,12 +931,16 @@ export default function WorkReportDetailDialog({
                 </div>
                 <div className="confirmer-sign-col">
                   <div className="signature-preview-frame">
-                    <img 
-                      src={getImageUrl(report.confirmerSignature) || '/assets/img/sample_signature.svg'} 
-                      alt="확인자 서명" 
-                      className="confirmer-signature-img" 
-                      decoding="async"
-                    />
+                    {report.confirmerSignature ? (
+                      <img 
+                        src={getImageUrl(report.confirmerSignature)} 
+                        alt="확인자 서명" 
+                        className="confirmer-signature-img" 
+                        decoding="async"
+                      />
+                    ) : (
+                      <span className="no-signature-text">서명 없음</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1014,6 +1046,7 @@ export default function WorkReportDetailDialog({
           >
             <option value="PENDING">검토대기 (관리자 확인 대기)</option>
             <option value="REJECTED">수정필요 (사진 이상/재촬영 등 보완 요청)</option>
+            <option value="REFUSED">설치거부 (세대주 설치 거부)</option>
             <option value="COMPLETED">확인완료 (정상 제출 승인 완료)</option>
           </CustomSelect>
         </div>

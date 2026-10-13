@@ -41,7 +41,7 @@ export default function ConfirmationDocumentPaper({
     ? (rawSignature.startsWith('/assets') || rawSignature.startsWith('data:') || rawSignature.startsWith('http')
         ? rawSignature
         : getImageUrl(rawSignature))
-    : '/assets/img/sample_signature.svg';
+    : undefined;
 
   const defaultFormattedAddress = report.address && report.siteName && !report.address.includes(report.siteName)
     ? `${report.address} (${report.siteName})`
@@ -85,12 +85,16 @@ export default function ConfirmationDocumentPaper({
             <tr className="sign-row">
               <td className="stamp-cell stamp-sign-cell">
                 <div className="stamp-signature-frame">
-                  <img
-                    src={signatureUrl}
-                    alt="확인자 서명"
-                    className="stamp-signature-img"
-                    decoding="async"
-                  />
+                  {signatureUrl ? (
+                    <img
+                      src={signatureUrl}
+                      alt="확인자 서명"
+                      className="stamp-signature-img"
+                      decoding="async"
+                    />
+                  ) : (
+                    <span className="no-stamp-signature">(서명 없음)</span>
+                  )}
                 </div>
               </td>
             </tr>

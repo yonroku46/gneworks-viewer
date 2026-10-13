@@ -34,8 +34,8 @@ export default function WorkHistoryDialog({
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>('ALL');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
-  // Server-side Infinite Scroll State
-  const PAGE_CHUNK_SIZE = 20;
+  // Server-side Pagination / Chunk Size
+  const PAGE_CHUNK_SIZE = 500;
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [hasMore, setHasMore] = useState<boolean>(false);
@@ -126,7 +126,6 @@ export default function WorkHistoryDialog({
         size: PAGE_CHUNK_SIZE,
         query: searchQuery.trim() || undefined,
         regionId: targetReg?.regionId || undefined,
-        status: statusFilter !== 'ALL' ? statusFilter : undefined,
         installStartDate: start,
         installEndDate: end,
       });
@@ -152,7 +151,7 @@ export default function WorkHistoryDialog({
     }
   };
 
-  // 필터 조건 변경 시 1페이지부터 다시 취득
+  // 검색어, 지역, 날짜 조건 변경 시 1페이지부터 다시 취득 (상태 필터는 클라이언트 필터링)
   useEffect(() => {
     if (isOpen) {
       fetchReports(1, false);
@@ -164,7 +163,6 @@ export default function WorkHistoryDialog({
     datePreset,
     customStartDate,
     customEndDate,
-    statusFilter,
   ]);
 
   // 다음 페이지 로드 핸들러
@@ -193,14 +191,30 @@ export default function WorkHistoryDialog({
     };
   }, [hasMore, isLoading, isLoadingMore, currentPage]);
 
+  // 상태별 집계 (상태 필터를 변경해도 다른 상태 카운트가 0으로 변하지 않고 온전하게 유지됨)
+  const statusCounts = useMemo(() => {
+    return {
+      all: reports.length,
+      completed: reports.filter(r => r.status === 'COMPLETED').length,
+      pending: reports.filter(r => r.status === 'PENDING').length,
+      rejected: reports.filter(r => r.status === 'REJECTED').length,
+      refused: reports.filter(r => r.status === 'REFUSED').length,
+    };
+  }, [reports]);
+
+  // 상태 필터 적용된 목록
+  const filteredReports = useMemo(() => {
+    if (statusFilter === 'ALL') return reports;
+    return reports.filter(r => r.status === statusFilter);
+  }, [reports, statusFilter]);
+
   const sortedReports = useMemo(() => {
-    if (sortOrder === 'desc') return reports;
-    return [...reports].sort((a, b) => {
+    return [...filteredReports].sort((a, b) => {
       const timeA = a.reportTime || a.installDate || '';
       const timeB = b.reportTime || b.installDate || '';
-      return timeA.localeCompare(timeB);
+      return sortOrder === 'desc' ? timeB.localeCompare(timeA) : timeA.localeCompare(timeB);
     });
-  }, [reports, sortOrder]);
+  }, [filteredReports, sortOrder]);
 
   const groupedBySite = useMemo(() => {
     const map = new Map<string, { siteName: string; address: string; items: WorkReport[] }>();
@@ -219,15 +233,6 @@ export default function WorkHistoryDialog({
 
     return Array.from(map.values());
   }, [sortedReports]);
-
-  const statusCounts = useMemo(() => {
-    return {
-      all: totalCount,
-      completed: reports.filter(r => r.status === 'COMPLETED').length,
-      pending: reports.filter(r => r.status === 'PENDING').length,
-      rejected: reports.filter(r => r.status === 'REJECTED').length,
-    };
-  }, [reports, totalCount]);
 
   const handleReset = () => {
     setSearchQuery('');
@@ -429,6 +434,14 @@ export default function WorkHistoryDialog({
               >
                 <span className="status-dot red" />
                 <span>수정필요 ({statusCounts.rejected})</span>
+              </button>
+              <button
+                type="button"
+                className={`pill-btn status-refused ${statusFilter === 'REFUSED' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('REFUSED')}
+              >
+                <span className="status-dot rose" />
+                <span>설치거부 ({statusCounts.refused})</span>
               </button>
             </div>
           </div>

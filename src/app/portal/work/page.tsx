@@ -25,13 +25,14 @@ import {
   Layers,
   ArrowUp,
   ArrowDown,
+  Ban,
 } from 'lucide-react';
 import './Work.scss';
 
 export const normalizeReportStatus = (status?: string): ReportStatus => {
   if (!status) return 'UNSUBMITTED';
   const s = String(status).toUpperCase();
-  if (s === 'COMPLETED' || s === 'PENDING' || s === 'REJECTED') return s as ReportStatus;
+  if (s === 'COMPLETED' || s === 'PENDING' || s === 'REJECTED' || s === 'REFUSED') return s as ReportStatus;
   return 'UNSUBMITTED';
 };
 
@@ -40,6 +41,7 @@ const getStatusKey = (status?: ReportStatus | string): WorkStatusFilter => {
   if (normalized === 'COMPLETED') return 'completed';
   if (normalized === 'PENDING') return 'pending';
   if (normalized === 'REJECTED') return 'revise';
+  if (normalized === 'REFUSED') return 'refused';
   return 'unsubmitted';
 };
 
@@ -49,6 +51,7 @@ const FILTER_OPTIONS: { value: WorkStatusFilter; label: string; shortLabel: stri
   { value: 'unsubmitted', label: '미제출 세대 (작업대기)', shortLabel: '미제출', dotClass: 'unsubmitted' },
   { value: 'pending', label: '검토대기 세대', shortLabel: '검토대기', dotClass: 'pending' },
   { value: 'revise', label: '수정필요 세대', shortLabel: '수정필요', dotClass: 'revise' },
+  { value: 'refused', label: '설치거부 세대', shortLabel: '설치거부', dotClass: 'refused' },
   { value: 'completed', label: '확인완료 세대', shortLabel: '확인완료', dotClass: 'completed' },
 ];
 
@@ -381,7 +384,8 @@ function PortalWorkContent() {
 
       // 3. 상태 필터링
       if (statusFilter !== 'all') {
-        const statusKey = h.reportStatus ? getStatusKey(h.reportStatus) : 'unsubmitted';
+        const effectiveStatus = h.reportStatus || (h.installStatus === 'REFUSED' ? 'REFUSED' : undefined);
+        const statusKey = effectiveStatus ? getStatusKey(effectiveStatus) : 'unsubmitted';
         if (statusFilter === 'uncompleted') {
           if (statusKey === 'completed') return false;
         } else if (statusKey !== statusFilter) {
@@ -410,26 +414,29 @@ function PortalWorkContent() {
   // 활성 현장의 세대 통계 계산
   const siteHouseholdStats = useMemo(() => {
     if (!activeSiteDetail?.households) {
-      return { total: 0, completed: 0, pending: 0, revise: 0, unsubmitted: 0, rate: 0 };
+      return { total: 0, completed: 0, pending: 0, revise: 0, refused: 0, unsubmitted: 0, rate: 0 };
     }
     const allH = activeSiteDetail.households;
     let completed = 0;
     let pending = 0;
     let revise = 0;
+    let refused = 0;
     let unsubmitted = 0;
 
     allH.forEach(h => {
-      const key = h.reportStatus ? getStatusKey(h.reportStatus) : 'unsubmitted';
+      const effectiveStatus = h.reportStatus || (h.installStatus === 'REFUSED' ? 'REFUSED' : undefined);
+      const key = effectiveStatus ? getStatusKey(effectiveStatus) : 'unsubmitted';
       if (key === 'completed') completed += 1;
       else if (key === 'pending') pending += 1;
       else if (key === 'revise') revise += 1;
+      else if (key === 'refused') refused += 1;
       else unsubmitted += 1;
     });
 
     const total = allH.length;
     const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-    return { total, completed, pending, revise, unsubmitted, rate };
+    return { total, completed, pending, revise, refused, unsubmitted, rate };
   }, [activeSiteDetail]);
 
   // 보고서 작성 다이얼로그 열기
@@ -702,7 +709,9 @@ function PortalWorkContent() {
               <div className="detail-progress-box">
                 <div className="progress-labels">
                   <span className="lbl-left">
-                    시공 완료 <strong>{siteHouseholdStats.completed}</strong> / {siteHouseholdStats.total}세대
+                    시공 완료 <strong>{siteHouseholdStats.completed}</strong>
+                    <span className="refused-stat-pill"> · 거부 {siteHouseholdStats.refused}</span>
+                    {' '}/ {siteHouseholdStats.total}세대
                   </span>
                   <span className={`lbl-right ${siteHouseholdStats.rate === 100 ? 'done' : ''}`}>
                     {siteHouseholdStats.rate}%
@@ -899,8 +908,9 @@ function PortalWorkContent() {
             ) : (
               <div className="households-card-grid">
                 {filteredHouseholds.map(household => {
-                  const statusType: ReportStatus = household.reportStatus
-                    ? normalizeReportStatus(household.reportStatus)
+                  const effectiveStatus = household.reportStatus || (household.installStatus === 'REFUSED' ? 'REFUSED' : undefined);
+                  const statusType: ReportStatus = effectiveStatus
+                    ? normalizeReportStatus(effectiveStatus)
                     : 'UNSUBMITTED';
                   const statusKey = getStatusKey(statusType);
                   const isOtherWorker = Boolean(
@@ -920,6 +930,7 @@ function PortalWorkContent() {
                         {statusType === 'COMPLETED' && <Check size={16} strokeWidth={2.5} />}
                         {statusType === 'PENDING' && <Hourglass size={15} />}
                         {statusType === 'REJECTED' && <AlertCircle size={15} />}
+                        {statusType === 'REFUSED' && <Ban size={15} />}
                         {statusType === 'UNSUBMITTED' && <CircleDashed size={15} strokeWidth={2} />}
                       </div>
 
@@ -936,6 +947,7 @@ function PortalWorkContent() {
                             {statusType === 'COMPLETED' && '확인완료'}
                             {statusType === 'PENDING' && '검토대기'}
                             {statusType === 'REJECTED' && '수정필요'}
+                            {statusType === 'REFUSED' && '설치거부'}
                             {statusType === 'UNSUBMITTED' && '작업대기'}
                           </span>
                           {(household.reportTime || household.remarks) && <span className="dot">•</span>}
@@ -954,7 +966,7 @@ function PortalWorkContent() {
                         <span className={`action-badge ${statusKey}`}>
                           {isOtherWorker
                             ? '타작업자 완료'
-                            : statusType === 'COMPLETED'
+                            : (statusType === 'COMPLETED' || statusType === 'REFUSED')
                               ? '조회'
                               : statusType === 'UNSUBMITTED'
                                 ? '작업하기'

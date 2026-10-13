@@ -172,6 +172,7 @@ export default function ProfilePage() {
   const completedCount = reportSummary.completedReports;
   const pendingCount = reportSummary.pendingReports;
   const reviseCount = reportSummary.rejectedReports;
+  const refusedCount = reportSummary.refusedReports;
   const totalReportsCount = reportSummary.totalReports;
 
   const displayName = user?.userName || '사용자';
@@ -275,6 +276,10 @@ export default function ProfilePage() {
             <span className="sub-sep">•</span>
             <span className="sub-item">
               확인완료 <strong>{completedCount}</strong>건
+            </span>
+            <span className="sub-sep">•</span>
+            <span className="sub-item">
+              설치거부 <strong>{refusedCount}</strong>건
             </span>
           </div>
         </div>

@@ -198,6 +198,9 @@
               &.red {
                 background: var(--danger);
               }
+              &.rose {
+                background: var(--refused-color);
+              }
             }
             &.active {
               background: var(--slate-800);

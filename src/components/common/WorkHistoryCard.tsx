@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import { AlertCircle, Calendar, Check, ChevronRight, Hourglass } from 'lucide-react';
+import { AlertCircle, Calendar, Check, ChevronRight, Hourglass, Ban } from 'lucide-react';
 import './WorkHistoryCard.scss';
 
 interface WorkHistoryCardProps {
@@ -21,6 +21,8 @@ export default function WorkHistoryCard({
       ? 'completed'
       : report.status === 'PENDING'
       ? 'pending'
+      : report.status === 'REFUSED'
+      ? 'refused'
       : 'revise';
 
   const statusConfig = {
@@ -35,6 +37,10 @@ export default function WorkHistoryCard({
     revise: {
       icon: AlertCircle,
       label: '수정필요',
+    },
+    refused: {
+      icon: Ban,
+      label: '설치거부',
     },
   }[statusKey];
 

@@ -108,6 +108,7 @@ export default function PortalPage() {
       completed: reportSummary.completedReports,
       pending: reportSummary.pendingReports,
       revise: reportSummary.rejectedReports,
+      refused: reportSummary.refusedReports,
       todayCount: reportSummary.todayReports,
     };
   }, [reportSummary]);
@@ -171,7 +172,7 @@ export default function PortalPage() {
             )}
           </div>
           <div className="stat-footer">
-            <span className="sub-note">승인 완료된 보고서</span>
+            <span className="sub-note">승인 완료 (설치거부 {stats.refused}건)</span>
           </div>
         </div>
 

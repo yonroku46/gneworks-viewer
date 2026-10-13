@@ -37,6 +37,7 @@ export const STATUS_LABEL_MAP: Record<string, string> = {
   COMPLETED: '확인완료',
   PENDING: '검토대기',
   REJECTED: '수정필요',
+  REFUSED: '설치거부',
   UNSUBMITTED: '미제출',
 
   // 세대 설치 상태 (InstallStatus)
@@ -83,7 +84,12 @@ export function getStatusVariant(status: string): StatusVariant {
     case '수정필요':
       return 'needs-fix';
 
-    // 3. 보류 / 부재 / 검토대기 / 답변대기 / 처리중
+    // 3. 설치거부
+    case 'REFUSED':
+    case '설치거부':
+      return 'refused';
+
+    // 4. 보류 / 부재 / 검토대기 / 답변대기 / 처리중
     case 'PENDING':
     case 'WAITING':
     case 'HOLD':
@@ -98,12 +104,12 @@ export function getStatusVariant(status: string): StatusVariant {
     case '검토대기':
       return 'hold';
 
-    // 4. 방문예정
+    // 5. 방문예정
     case 'SCHEDULED':
     case '방문예정':
       return 'scheduled';
 
-    // 5. 미설치 / 미제출
+    // 6. 미설치 / 미제출
     case 'UNINSTALLED':
     case 'UNSUBMITTED':
     case '미설치':

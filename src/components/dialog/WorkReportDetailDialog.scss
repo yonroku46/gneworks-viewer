@@ -277,6 +277,11 @@
             max-height: 100%;
             object-fit: contain;
           }
+          .no-signature-text {
+            font-size: 0.75rem;
+            color: var(--slate-400);
+            font-weight: 600;
+          }
         }
       }
     }

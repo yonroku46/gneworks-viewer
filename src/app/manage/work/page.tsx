@@ -90,10 +90,10 @@ function ManageWorkContent() {
   }, [isMoreMenuOpen]);
 
   // Summary Metrics (권역 단위 종합 통계)
-  const [metrics, setMetrics] = useState({ total: 0, pending: 0, needsFix: 0 });
+  const [metrics, setMetrics] = useState({ total: 0, pending: 0, needsFix: 0, refused: 0 });
 
   // Applied Filter States (실제 목록에 적용되는 상태)
-  const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | 'PENDING' | 'REJECTED' | 'COMPLETED'>('ALL');
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState<'ALL' | 'PENDING' | 'REJECTED' | 'COMPLETED' | 'REFUSED'>('ALL');
   const [appliedInstallStartDate, setAppliedInstallStartDate] = useState('');
   const [appliedInstallEndDate, setAppliedInstallEndDate] = useState('');
   const [appliedReportStartDate, setAppliedReportStartDate] = useState('');
@@ -101,7 +101,7 @@ function ManageWorkContent() {
 
   // Dialog Draft Filter States (다이얼로그 내부 임시 상태)
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
-  const [draftStatusFilter, setDraftStatusFilter] = useState<'ALL' | 'PENDING' | 'REJECTED' | 'COMPLETED'>('ALL');
+  const [draftStatusFilter, setDraftStatusFilter] = useState<'ALL' | 'PENDING' | 'REJECTED' | 'COMPLETED' | 'REFUSED'>('ALL');
   const [draftInstallStartDate, setDraftInstallStartDate] = useState('');
   const [draftInstallEndDate, setDraftInstallEndDate] = useState('');
   const [draftReportStartDate, setDraftReportStartDate] = useState('');
@@ -303,6 +303,7 @@ function ManageWorkContent() {
           total: summaryRes.totalReports || 0,
           pending: summaryRes.pendingReports || 0,
           needsFix: summaryRes.rejectedReports || 0,
+          refused: summaryRes.refusedReports || 0,
         });
       }
     } finally {
@@ -611,6 +612,10 @@ function ManageWorkContent() {
             <span className="chip-label">수정 필요</span>
             <strong className="chip-val danger-highlight">{metrics.needsFix}건</strong>
           </div>
+          <div className="summary-sub-chip">
+            <span className="chip-label">설치 거부</span>
+            <strong className="chip-val refused-highlight">{metrics.refused}건</strong>
+          </div>
         </div>
       </div>
 
@@ -769,6 +774,7 @@ function ManageWorkContent() {
               >
                 <option value="PENDING">검토대기 (관리자 확인 대기)</option>
                 <option value="REJECTED">수정필요 (사진 이상/재촬영 등 보완 요청)</option>
+                <option value="REFUSED">설치거부 (세대주 설치 거부)</option>
                 <option value="COMPLETED">확인완료 (정상 제출 승인 완료)</option>
               </CustomSelect>
             </div>
@@ -998,6 +1004,13 @@ function ManageWorkContent() {
                 onClick={() => setDraftStatusFilter('REJECTED')}
               >
                 수정필요
+              </button>
+              <button
+                type="button"
+                className={`filter-choice-btn ${draftStatusFilter === 'REFUSED' ? 'active' : ''}`}
+                onClick={() => setDraftStatusFilter('REFUSED')}
+              >
+                설치거부
               </button>
               <button
                 type="button"

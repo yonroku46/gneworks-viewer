@@ -53,6 +53,7 @@ export default function ManageStatisticsPage() {
           totalReports: 0,
           completedReports: 0,
           pendingReports: 0,
+          refusedReports: 0,
           issueReportsCount: 0,
           totalWorkers: 0,
         });
@@ -83,6 +84,7 @@ export default function ManageStatisticsPage() {
           totalReports: 0,
           completedReports: 0,
           pendingReports: 0,
+          refusedReports: 0,
           issueReportsCount: 0,
           totalWorkers: 0,
         },
@@ -155,6 +157,7 @@ export default function ManageStatisticsPage() {
     let sumReports = 0;
     let sumCompletedReports = 0;
     let sumPendingReports = 0;
+    let sumRefusedReports = 0;
     let sumIssueReports = 0;
 
     filteredList.forEach((item) => {
@@ -164,6 +167,7 @@ export default function ManageStatisticsPage() {
       sumReports += item.totalReports;
       sumCompletedReports += item.completedReports;
       sumPendingReports += item.pendingReports;
+      sumRefusedReports += item.refusedReports || 0;
       sumIssueReports += item.issueReportsCount;
     });
 
@@ -175,6 +179,7 @@ export default function ManageStatisticsPage() {
       totalReports: sumReports,
       completedReports: sumCompletedReports,
       pendingReports: sumPendingReports,
+      refusedReports: sumRefusedReports,
       issueReportsCount: sumIssueReports,
     };
   }, [filteredList]);
@@ -276,7 +281,7 @@ export default function ManageStatisticsPage() {
                   현장 수
                 </th>
                 <th colSpan={2}>보급 세대 현황</th>
-                <th colSpan={4}>제출 확인서 현황</th>
+                <th colSpan={5}>제출 확인서 현황</th>
                 <th rowSpan={2} className="col-rate">
                   진행률
                 </th>
@@ -288,13 +293,14 @@ export default function ManageStatisticsPage() {
                 <th>누적 제출</th>
                 <th>승인 완료</th>
                 <th>검토 대기</th>
+                <th>설치 거부</th>
                 <th className="col-last-issue">특이사항</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr className="empty-row">
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     지역별 통계 데이터를 집계 중입니다...
                   </td>
                 </tr>
@@ -308,6 +314,7 @@ export default function ManageStatisticsPage() {
                     <td className="col-num">{row.totalReports.toLocaleString()}건</td>
                     <td className="col-num">{row.completedReports.toLocaleString()}건</td>
                     <td className="col-num">{row.pendingReports > 0 ? `${row.pendingReports}건` : '-'}</td>
+                    <td className="col-num">{row.refusedReports && row.refusedReports > 0 ? `${row.refusedReports}건` : '-'}</td>
                     <td className="col-num col-last-issue">{row.issueReportsCount > 0 ? `${row.issueReportsCount}건` : '-'}</td>
                     <td className="col-rate">{row.progressRate}%</td>
                   </tr>
@@ -325,6 +332,7 @@ export default function ManageStatisticsPage() {
                   <td>{summary.totalReports.toLocaleString()}건</td>
                   <td>{summary.completedReports.toLocaleString()}건</td>
                   <td>{summary.pendingReports.toLocaleString()}건</td>
+                  <td>{summary.refusedReports.toLocaleString()}건</td>
                   <td className="col-last-issue">{summary.issueReportsCount.toLocaleString()}건</td>
                   <td className="col-rate">{summary.overallProgressRate}%</td>
                 </tr>

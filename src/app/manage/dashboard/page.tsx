@@ -342,13 +342,18 @@ export default function ManageDashboard() {
             </div>
           </div>
           <div className="kpi-main">
-            <h3 className="kpi-value">{summary.totalReports.toLocaleString()}<span>건</span></h3>
+            <h3 className="kpi-value">
+              {summary.totalReports.toLocaleString()}<span>건</span>
+              <span className="kpi-value-detail">
+                <span>승인 {summary.completedReports.toLocaleString()}건</span>
+                <span>/</span>
+                <span>거부 {(summary.refusedReports || 0).toLocaleString()}건</span>
+              </span>
+            </h3>
           </div>
           <div className="kpi-card-footer">
             <div className="kpi-info-group">
-              <span>{region.regionId ? `${region.sigungu || region.sido} 오늘 ` : '오늘 '}<strong>{summary.todayReports.toLocaleString()}건</strong></span>
-              <span className="footer-divider">·</span>
-              <span>승인 완료 <strong>{summary.completedReports.toLocaleString()}건</strong></span>
+              <span>오늘 <strong>{summary.todayReports.toLocaleString()}건</strong></span>
             </div>
           </div>
         </div>
@@ -497,6 +502,7 @@ export default function ManageDashboard() {
                         <span>완료 {w.completed}</span>
                         {w.pending > 0 && <span>· 대기 {w.pending}</span>}
                         {w.rejected > 0 && <span>· 반려 {w.rejected}</span>}
+                        {typeof w.refused === 'number' && w.refused > 0 && <span>· 거부 {w.refused}</span>}
                       </div>
                     </div>
                   </div>
@@ -526,10 +532,13 @@ export default function ManageDashboard() {
                 const isCompleted = rep.status === 'COMPLETED';
                 const isRejected = rep.status === 'REJECTED';
                 const isPending = rep.status === 'PENDING';
+                const isRefused = rep.status === 'REFUSED';
                 const hasRemarks = Boolean(rep.remarks && rep.remarks.trim() !== '' && !rep.remarks.includes('특이사항 없음'));
 
                 let itemThemeClass = 'is-completed';
-                if (isRejected) {
+                if (isRefused) {
+                  itemThemeClass = 'is-refused';
+                } else if (isRejected) {
                   itemThemeClass = 'is-rejected';
                 } else if (isPending) {
                   itemThemeClass = hasRemarks ? 'is-warning' : 'is-pending';
@@ -555,10 +564,10 @@ export default function ManageDashboard() {
                       </div>
                     </div>
 
-                    {(isRejected || hasRemarks) && (
-                      <div className={`feed-reason-bubble ${isRejected ? 'rejected' : isCompleted ? 'completed-note' : 'remarks'}`}>
+                    {(isRejected || isRefused || hasRemarks) && (
+                      <div className={`feed-reason-bubble ${isRefused ? 'refused' : isRejected ? 'rejected' : isCompleted ? 'completed-note' : 'remarks'}`}>
                         <span className="reason-badge">
-                          {isRejected ? '보완요청' : isCompleted ? '현장비고' : '특이사항'}
+                          {isRefused ? '설치거부' : isRejected ? '보완요청' : isCompleted ? '현장비고' : '특이사항'}
                         </span>
                         <p>
                           {isRejected ? (rep.fixReason || '보완 요청 사유가 기재되지 않았습니다.') : rep.remarks}
@@ -606,10 +615,13 @@ export default function ManageDashboard() {
                   const isCompleted = rep.status === 'COMPLETED';
                   const isRejected = rep.status === 'REJECTED';
                   const isPending = rep.status === 'PENDING';
+                  const isRefused = rep.status === 'REFUSED';
                   const hasRemarks = Boolean(rep.remarks && rep.remarks.trim() !== '' && !rep.remarks.includes('특이사항 없음'));
 
                   let itemThemeClass = 'is-completed';
-                  if (isRejected) {
+                  if (isRefused) {
+                    itemThemeClass = 'is-refused';
+                  } else if (isRejected) {
                     itemThemeClass = 'is-rejected';
                   } else if (isPending) {
                     itemThemeClass = hasRemarks ? 'is-warning' : 'is-pending';
@@ -635,10 +647,10 @@ export default function ManageDashboard() {
                         </div>
                       </div>
 
-                      {(isRejected || hasRemarks) && (
-                        <div className={`feed-reason-bubble ${isRejected ? 'rejected' : isCompleted ? 'completed-note' : 'remarks'}`}>
+                      {(isRejected || isRefused || hasRemarks) && (
+                        <div className={`feed-reason-bubble ${isRefused ? 'refused' : isRejected ? 'rejected' : isCompleted ? 'completed-note' : 'remarks'}`}>
                           <span className="reason-badge">
-                            {isRejected ? '보완요청' : isCompleted ? '현장비고' : '특이사항'}
+                            {isRefused ? '설치거부' : isRejected ? '보완요청' : isCompleted ? '현장비고' : '특이사항'}
                           </span>
                           <p>
                             {isRejected ? (rep.fixReason || '보완 요청 사유가 기재되지 않았습니다.') : rep.remarks}

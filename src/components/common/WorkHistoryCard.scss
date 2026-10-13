@@ -35,6 +35,11 @@
       color: var(--danger);
       border: 1px solid var(--danger-border);
     }
+    &.refused {
+      background: var(--refused-bg);
+      color: var(--refused-color);
+      border: 1px solid var(--refused-border);
+    }
   }
   .card-body {
     flex: 1;
@@ -91,6 +96,9 @@
         }
         &.revise {
           color: var(--danger);
+        }
+        &.refused {
+          color: var(--refused-color);
         }
       }
       .info-date {

@@ -12,7 +12,7 @@ import PortalService from '@/api/service/PortalService';
 import { getImageUrl } from '@/common/utils/imageUtils';
 import AdminSiteBadge from '@/components/common/AdminSiteBadge';
 import { isAdminRegion } from '@/common/utils/regionUtils';
-import { Plus, X, Check, AlertCircle, Building2, Loader2, ClipboardPaste } from 'lucide-react';
+import { Plus, X, Check, AlertCircle, Building2, Loader2, ClipboardPaste, Ban, FileText } from 'lucide-react';
 import './WorkReportDialog.scss';
 
 interface WorkReportDialogProps {
@@ -69,8 +69,8 @@ export default function WorkReportDialog({
     return !authorId || authorId === user?.userId;
   }, [existingReport, user?.userId]);
 
-  // 확인 완료 상태이거나 다른 작업자가 작성한 보고서인 경우 수정 불가 (읽기 전용)
-  const isReadOnly = existingReport?.status === 'COMPLETED' || !isMyReport;
+  // 확인 완료 상태이거나 설치 거부 상태, 또는 다른 작업자가 작성한 보고서인 경우 수정 불가 (읽기 전용)
+  const isReadOnly = existingReport?.status === 'COMPLETED' || existingReport?.status === 'REFUSED' || !isMyReport;
 
   const [installDate, setInstallDate] = useState('');
   const [reporterName, setReporterName] = useState('');
@@ -87,6 +87,7 @@ export default function WorkReportDialog({
 
   // 3-Step 마법사 진행 상태 (1: 세대·일자 확인, 2: 시공 사진 등록, 3: 서명 및 최종 제출)
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [reportMode, setReportMode] = useState<'INSTALL' | 'REFUSAL'>('INSTALL');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 클립보드 붙여넣기 시 슬롯 선택 대기 중인 이미지 데이터
@@ -206,6 +207,7 @@ export default function WorkReportDialog({
 
     if (!restoredDraft) {
       setStep(1); // 열릴 때 항상 1단계부터 시작
+      setReportMode(target.existingReport?.status === 'REFUSED' ? 'REFUSAL' : 'INSTALL');
       setInstallDate(initInstallDate);
       setReporterName(initReporterName);
       setConfirmerName(initConfirmerName);
@@ -667,6 +669,60 @@ export default function WorkReportDialog({
     }
   };
 
+  // 설치 거부 제출 핸들러 (증빙 사진 및 서명 없이 간소화 등록)
+  const handleRefusalSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isSubmitting || !target) return;
+
+    if (!installDate) {
+      enqueueSnackbar('방문/확인 일자를 입력해 주세요.', { variant: 'warning' });
+      return;
+    }
+
+    if (!user?.userId) {
+      enqueueSnackbar('작업자 로그인 정보가 확인되지 않습니다.', { variant: 'error' });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await PortalService.submitReport({
+        householdId: target.householdId,
+        siteId: target.siteId,
+        dong: target.dong,
+        ho: target.ho,
+        headName: target.headName,
+        installDate,
+        reporterName: reporterName || user?.userName || '현장 작업자',
+        confirmerName: confirmerName.trim() || '거주자(설치거부)',
+        confirmerSignature: confirmerSignature || '',
+        photoDoor: photos.photoDoor || '',
+        photoBefore1: photos.photoBefore1 || '',
+        photoAfter1: photos.photoAfter1 || '',
+        photoBefore2: photos.photoBefore2 || '',
+        photoAfter2: photos.photoAfter2 || '',
+        status: 'REFUSED',
+        remarks: remarks.trim() || '설치 거부',
+      });
+
+      clearDraft();
+
+      enqueueSnackbar(`[${target.dong}동 ${target.ho}호] 설치 거부로 등록되었습니다.`, {
+        variant: 'success',
+      });
+
+      if (onSubmitted) {
+        onSubmitted();
+      }
+      onClose();
+    } catch (err: any) {
+      console.error('[WorkReportDialog] submitRefusal error:', err);
+      enqueueSnackbar(err?.message || '설치 거부 등록 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Step 2 사진 슬롯 렌더러
   const renderEditablePhotoSlot = (key: PhotoSlotKey, label: string, buttonText = '사진 등록') => {
     const hasPhoto = !!photos[key];
@@ -783,6 +839,15 @@ export default function WorkReportDialog({
                 <span className="head-badge">{target.headName} 세대</span>
               </div>
             </div>
+          ) : reportMode === 'REFUSAL' ? (
+            <div className="wizard-sub-header refusal-mode-header">
+              <div className="wizard-header-line">
+                <div className="wizard-target-info">
+                  <span className="target-site-badge refusal">설치 거부</span>
+                  <span className="target-guide-text">방문 거부 및 사유 확인</span>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="wizard-sub-header">
               <div className="wizard-header-line">
@@ -858,9 +923,15 @@ export default function WorkReportDialog({
         footer={
           isReadOnly ? (
             <>
-              <div className="readonly-notice-banner footer-banner">
+              <div className={`readonly-notice-banner footer-banner ${existingReport?.status === 'REFUSED' ? 'refused' : ''}`}>
                 <Check size={13} />
-                <span>관리자 확인이 완료되어 수정이 불가합니다.</span>
+                <span>
+                  {existingReport?.status === 'REFUSED'
+                    ? '설치 거부 처리되어 수정이 불가합니다.'
+                    : !isMyReport
+                    ? '다른 작업자가 작성한 보고서로 수정이 불가합니다.'
+                    : '관리자 확인이 완료되어 수정이 불가합니다.'}
+                </span>
               </div>
               <div className="work-report-dialog-footer">
                 <button
@@ -872,6 +943,28 @@ export default function WorkReportDialog({
                 </button>
               </div>
             </>
+          ) : reportMode === 'REFUSAL' ? (
+            <div className="work-report-dialog-footer">
+              <div className="wizard-footer-actions">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  disabled={isSubmitting}
+                  onClick={handleSafeClose}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="btn-submit refusal-submit-btn"
+                  disabled={isSubmitting}
+                  onClick={handleRefusalSubmit}
+                >
+                  {isSubmitting && <Loader2 size={16} className="btn-spinner" />}
+                  <span>{isSubmitting ? '등록 중...' : '설치 거부로 등록 완료'}</span>
+                </button>
+              </div>
+            </div>
           ) : (
             <>
               {target?.existingReport?.status === 'REJECTED' && (
@@ -947,13 +1040,101 @@ export default function WorkReportDialog({
           )
         }
       >
-        <form className="work-report-form" onSubmit={handleSubmit}>
+        <form className="work-report-form" onSubmit={reportMode === 'REFUSAL' ? handleRefusalSubmit : handleSubmit}>
+          {/* 작업 유형 전환 토글 바 (일반 보고 vs 설치 거부 처리) */}
+          {!isReadOnly && (
+            <div className="report-mode-segment-bar">
+              <button
+                type="button"
+                className={`segment-btn ${reportMode === 'INSTALL' ? 'active' : ''}`}
+                onClick={() => setReportMode('INSTALL')}
+              >
+                <FileText size={14} />
+                <span>일반</span>
+              </button>
+              <button
+                type="button"
+                className={`segment-btn refusal ${reportMode === 'REFUSAL' ? 'active' : ''}`}
+                onClick={() => setReportMode('REFUSAL')}
+              >
+                <Ban size={14} />
+                <span>설치 거부</span>
+              </button>
+            </div>
+          )}
 
           {/* ══════════════════════════════════════════════════
-              [모드 A] 읽기 전용 뷰 (isReadOnly === true)
-              전체 폼을 한 번에 스크롤하며 확인하는 요약 뷰
+              [모드 C] 설치 거부 등록 뷰 (reportMode === 'REFUSAL')
           ══════════════════════════════════════════════════ */}
-          {isReadOnly ? (
+          {!isReadOnly && reportMode === 'REFUSAL' ? (
+            <div className="refusal-form-content">
+              {/* 단일 통합 정보 및 입력 카드 (Step 3의 step-fields-card integrated-card와 완벽 통일) */}
+              <div className="step-fields-card integrated-card">
+                {/* 상단: 작업 대상 세대 정보 */}
+                <div className="card-location-header report-target-summary">
+                  <div className="target-title-line">
+                    <Building2 size={16} />
+                    <h3>{target.siteName} {target.dong}동 {target.ho}호</h3>
+                    {target.headName && (
+                      <span className="head-badge">{target.headName} 세대주</span>
+                    )}
+                  </div>
+                  {target.address && (
+                    <p className="target-address">
+                      {target.address && target.siteName && !target.address.includes(target.siteName)
+                        ? `${target.address} (${target.siteName})`
+                        : target.address}
+                    </p>
+                  )}
+                </div>
+
+                {/* 하단: 설치 일자 & 작업자 입력 */}
+                <div className="card-fields-body">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>설치 일자</span>
+                      <span className="required-tag">(필수)</span>
+                    </label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={installDate}
+                      onChange={e => setInstallDate(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>작업자 (보고자)</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={reporterName}
+                      readOnly
+                      tabIndex={-1}
+                      title="로그인된 작업자 본인 계정으로 자동 고정됩니다."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 거부 사유 및 특이사항 (기존 유지) */}
+              <div className="form-group">
+                <label className="form-label">
+                  <span>거부 사유 및 특이사항</span>
+                </label>
+                <textarea
+                  className="form-textarea"
+                  rows={3}
+                  placeholder="예: 인테리어 훼손 우려로 감지기 부착을 거부함"
+                  value={remarks}
+                  onChange={e => setRemarks(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : isReadOnly ? (
             <div className="readonly-report-wrapper">
               {/* 기본 정보 통합 카드 (관리자 보고서 다이얼로그와 통일) */}
               <div className="step-location-card">
@@ -1114,7 +1295,7 @@ export default function WorkReportDialog({
                       <Building2 size={16} />
                       <span className="brief-unit">{target.siteName} {target.dong}동 {target.ho}호</span>
                       {target.headName && (
-                        <span className="brief-head">{target.headName} 세대</span>
+                        <span className="brief-head">{target.headName} 세대주</span>
                       )}
                     </div>
                   </div>

@@ -37,7 +37,7 @@ declare global {
     eupmyeondongs: string[];
   }
   type DatePreset = 'all' | 'today' | 'week' | 'month' | 'custom';
-  type StatusFilterType = 'ALL' | 'COMPLETED' | 'PENDING' | 'REJECTED';
+  type StatusFilterType = 'ALL' | 'COMPLETED' | 'PENDING' | 'REJECTED' | 'REFUSED';
   // Region & Address (지역 & 행정구역)
   interface FireRegion {
     regionId: string;
@@ -46,15 +46,16 @@ declare global {
     name: string;
     eupmyeondongs: string[];
   }
-  type StatusVariant = 'installed' | 'needs-fix' | 'hold' | 'scheduled' | 'uninstalled';
+  type StatusVariant = 'installed' | 'needs-fix' | 'hold' | 'scheduled' | 'uninstalled' | 'refused';
   type WorkStatusFilter =
     | 'all'
     | 'uncompleted'
     | 'unsubmitted'
     | 'pending'
     | 'revise'
-    | 'completed';
-  type ReportStatus = 'COMPLETED' | 'PENDING' | 'REJECTED' | 'UNSUBMITTED';
+    | 'completed'
+    | 'refused';
+  type ReportStatus = 'COMPLETED' | 'PENDING' | 'REJECTED' | 'UNSUBMITTED' | 'REFUSED';
   type PhotoSlotKey = 'photoDoor' | 'photoBefore1' | 'photoAfter1' | 'photoBefore2' | 'photoAfter2';
   interface WorkReport {
     reportId: string;
@@ -320,7 +321,7 @@ declare global {
   }
   // Site & Household & Assignment (현장, 세대, 작업자 배정)
   type HouseholdTargetType = 'ELDERLY' | 'CHILD' | 'DISABLED' | 'GENERAL';
-  type InstallStatus = 'INSTALLED' | 'SCHEDULED' | 'HOLD' | 'UNINSTALLED';
+  type InstallStatus = 'INSTALLED' | 'SCHEDULED' | 'HOLD' | 'UNINSTALLED' | 'REFUSED';
   type SiteStatus = 'IN_PROGRESS' | 'READY' | 'COMPLETED';
   interface Site {
     siteId: string;
@@ -394,6 +395,7 @@ declare global {
     completed: number;
     pending: number;
     rejected: number;
+    refused?: number;
   }
   interface AdminDashboardSummaryRes {
     totalSites: number;
@@ -405,6 +407,7 @@ declare global {
     pendingReports: number;
     rejectedReports: number;
     completedReports: number;
+    refusedReports?: number;
     issueReportsCount: number;
     totalWorkers: number;
   }
@@ -421,6 +424,7 @@ declare global {
     pendingReports: number;
     rejectedReports: number;
     completedReports: number;
+    refusedReports?: number;
     issueReportsCount: number;
   }
   interface RegionMonthlyStat {
@@ -435,6 +439,7 @@ declare global {
     totalReports: number;
     completedReports: number;
     pendingReports: number;
+    refusedReports?: number;
     issueReportsCount: number;
     totalWorkers: number;
   }
@@ -450,6 +455,7 @@ declare global {
       totalReports: number;
       completedReports: number;
       pendingReports: number;
+      refusedReports?: number;
       issueReportsCount: number;
       totalWorkers: number;
     };

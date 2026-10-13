@@ -125,6 +125,11 @@
             object-fit: contain;
             display: block;
           }
+          .no-stamp-signature {
+            font-size: 0.625rem;
+            color: var(--slate-400);
+            white-space: nowrap;
+          }
         }
       }
     }

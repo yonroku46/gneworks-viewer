@@ -379,6 +379,10 @@
               strong {
                 font-weight: 800;
               }
+              .refused-stat-pill {
+                color: var(--refused-dark);
+                font-weight: 700;
+              }
             }
             .lbl-right {
               color: var(--slate-700);
@@ -471,6 +475,9 @@
             }
             &.revise {
               background: var(--danger);
+            }
+            &.refused {
+              background: var(--refused-color);
             }
             &.unsubmitted {
               background: var(--slate-300);
@@ -666,6 +673,11 @@
             color: var(--danger);
             border: 1px solid var(--danger-border);
           }
+          &.refused {
+            background: var(--refused-light);
+            color: var(--refused-dark);
+            border: 1px solid var(--refused-border);
+          }
           &.unsubmitted {
             background: var(--slate-100);
             color: var(--slate-500);
@@ -720,6 +732,9 @@
               &.revise {
                 color: var(--danger);
               }
+              &.refused {
+                color: var(--refused-dark);
+              }
               &.unsubmitted {
                 color: var(--slate-500);
               }
@@ -754,6 +769,10 @@
             &.revise {
               background: var(--warning-surface);
               color: var(--warning-text);
+            }
+            &.refused {
+              background: var(--refused-light);
+              color: var(--refused-dark);
             }
             &.unsubmitted {
               background: var(--manage-primary-tint);

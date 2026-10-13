@@ -236,7 +236,7 @@ export default function AccountDetailDialog({
   const [perfPreset, setPerfPreset] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
   const [perfStartDate, setPerfStartDate] = useState('');
   const [perfEndDate, setPerfEndDate] = useState('');
-  const [perfStatusFilter, setPerfStatusFilter] = useState<'ALL' | 'COMPLETED' | 'PENDING' | 'REJECTED'>('ALL');
+  const [perfStatusFilter, setPerfStatusFilter] = useState<'ALL' | 'COMPLETED' | 'PENDING' | 'REJECTED' | 'REFUSED'>('ALL');
   const [perfPage, setPerfPage] = useState<number>(1);
   const PERF_PAGE_SIZE = 20;
 
@@ -455,6 +455,7 @@ export default function AccountDetailDialog({
       completed: baseUserReports.filter(r => r.status === 'COMPLETED').length,
       pending: baseUserReports.filter(r => r.status === 'PENDING').length,
       rejected: baseUserReports.filter(r => r.status === 'REJECTED').length,
+      refused: baseUserReports.filter(r => r.status === 'REFUSED').length,
     };
   }, [baseUserReports]);
 
@@ -946,6 +947,14 @@ export default function AccountDetailDialog({
                     >
                       <span className="status-dot red" />
                       <span>수정필요 ({statusCounts.rejected})</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`pill-btn status-refused ${perfStatusFilter === 'REFUSED' ? 'active' : ''}`}
+                      onClick={() => setPerfStatusFilter('REFUSED')}
+                    >
+                      <span className="status-dot rose" />
+                      <span>설치거부 ({statusCounts.refused})</span>
                     </button>
                   </div>
                 </div>
