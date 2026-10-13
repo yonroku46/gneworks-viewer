@@ -151,7 +151,7 @@ export default function SiteDetailDialog({
       sido: normalizedSido,
       sigungu: sigungu,
       eupmyeondong: eupmyeondong,
-      regionId: matchedFr ? matchedFr.regionId : prev.regionId,
+      regionId: prev.regionId ? prev.regionId : (matchedFr ? matchedFr.regionId : prev.regionId),
       name: prev.name.trim() ? prev.name : (data.buildingName ? data.buildingName : prev.name),
     }));
   };

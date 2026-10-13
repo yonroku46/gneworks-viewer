@@ -44,12 +44,15 @@ export interface AccountDetailDialogProps {
   onReportClick?: (report: WorkReport) => void;
 }
 
+const EMPTY_REPORTS: WorkReport[] = [];
+const EMPTY_SITES: SiteDetail[] = [];
+
 export default function AccountDetailDialog({
   isOpen,
   onClose,
   user: initialUser,
-  reports = [],
-  sites = [],
+  reports = EMPTY_REPORTS,
+  sites = EMPTY_SITES,
   initialTab = 'profile',
   showEditButton = true,
   showDeleteButton = true,
@@ -182,6 +185,7 @@ export default function AccountDetailDialog({
   const [userAssignedRegions, setUserAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [isRegionAssignOpen, setIsRegionAssignOpen] = useState(false);
   const [isRegionLoading, setIsRegionLoading] = useState(false);
+  const lastFetchedRegionUserIdRef = React.useRef<string | null>(null);
 
   const fetchAssignedRegions = async (userId: string) => {
     setIsRegionLoading(true);
@@ -198,19 +202,30 @@ export default function AccountDetailDialog({
 
   useEffect(() => {
     if (isOpen && user?.userId) {
-      fetchAssignedRegions(user.userId);
+      if (lastFetchedRegionUserIdRef.current !== user.userId) {
+        lastFetchedRegionUserIdRef.current = user.userId;
+        fetchAssignedRegions(user.userId);
+      }
     } else if (!isOpen) {
+      lastFetchedRegionUserIdRef.current = null;
       setUserAssignedRegions([]);
     }
   }, [user?.userId, isOpen]);
 
-  // Sites State (Props 우선, 없을 시 자체 서버 조회)
+  // Sites State (Props 우선, 없을 시 1회 자체 서버 조회)
   const [internalSites, setInternalSites] = useState<SiteDetail[]>(sites || []);
+  const hasFetchedSitesRef = React.useRef<boolean>(false);
 
   useEffect(() => {
+    if (!isOpen) {
+      hasFetchedSitesRef.current = false;
+      return;
+    }
+
     if (sites && sites.length > 0) {
       setInternalSites(sites);
-    } else if (isOpen) {
+    } else if (!hasFetchedSitesRef.current) {
+      hasFetchedSitesRef.current = true;
       AdminService.getSiteList()
         .then(res => setInternalSites(res?.list || []))
         .catch(err => {

@@ -15,15 +15,18 @@ interface WorkHistoryDialogProps {
   onSelectReport?: (report: WorkReport) => void;
 }
 
+const EMPTY_SITES: SiteDetail[] = [];
+
 export default function WorkHistoryDialog({
   isOpen,
   onClose,
-  sites = [],
+  sites = EMPTY_SITES,
   onSelectReport,
 }: WorkHistoryDialogProps) {
   const [reports, setReports] = useState<WorkReport[]>([]);
   const [assignedRegions, setAssignedRegions] = useState<UserAssignedRegionDetail[]>([]);
   const [internalSites, setInternalSites] = useState<SiteDetail[]>(sites || []);
+  const hasLoadedInitDataRef = useRef<boolean>(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,24 +47,32 @@ export default function WorkHistoryDialog({
   const observerTargetRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      hasLoadedInitDataRef.current = false;
+      return;
+    }
 
-    PortalService.getAssignedRegions()
-      .then(regs => setAssignedRegions(regs || []))
-      .catch(err => {
-        console.error('[WorkHistoryDialog] getAssignedRegions error:', err);
-        setAssignedRegions([]);
-      });
-
-    if (sites && sites.length > 0) {
-      setInternalSites(sites);
-    } else {
-      PortalService.getSites()
-        .then(res => setInternalSites(res || []))
+    if (!hasLoadedInitDataRef.current) {
+      hasLoadedInitDataRef.current = true;
+      PortalService.getAssignedRegions()
+        .then(regs => setAssignedRegions(regs || []))
         .catch(err => {
-          console.error('[WorkHistoryDialog] getSites error:', err);
-          setInternalSites([]);
+          console.error('[WorkHistoryDialog] getAssignedRegions error:', err);
+          setAssignedRegions([]);
         });
+
+      if (sites && sites.length > 0) {
+        setInternalSites(sites);
+      } else {
+        PortalService.getSites()
+          .then(res => setInternalSites(res || []))
+          .catch(err => {
+            console.error('[WorkHistoryDialog] getSites error:', err);
+            setInternalSites([]);
+          });
+      }
+    } else if (sites && sites.length > 0) {
+      setInternalSites(sites);
     }
   }, [isOpen, sites]);
 
