@@ -344,10 +344,17 @@ function ManageWorkContent() {
 
   // 엑셀 다운로드 핸들러
   const handleExportExcel = async () => {
+    const isNational = region.sido === 'ALL' || !region.regionId;
+    if (isNational) {
+      enqueueSnackbar('서버 과부하 방지를 위해 전국 단위 엑셀 다운로드는 제한됩니다. 관할 지역을 선택해 주세요.', {
+        variant: 'warning',
+      });
+      return;
+    }
+
     try {
       setIsExporting(true);
-      const isNational = region.sido === 'ALL' || !region.regionId;
-      const regionParam = !isNational && region.regionId ? { regionId: region.regionId } : {};
+      const regionParam = region.regionId ? { regionId: region.regionId } : {};
       await AdminService.exportReportsExcel({
         ...regionParam,
         status: appliedStatusFilter !== 'ALL' ? appliedStatusFilter : undefined,
@@ -719,6 +726,10 @@ function ManageWorkContent() {
         excelAction={{
           onExport: handleExportExcel,
           isExporting,
+          disabled: region.sido === 'ALL' || !region.regionId,
+          tooltip: (region.sido === 'ALL' || !region.regionId)
+            ? '서버 과부하 방지를 위해 전국 단위 엑셀 다운로드는 제한됩니다. 관할 지역을 선택해 주세요.'
+            : '현재 필터 조건으로 엑셀 파일 다운로드',
         }}
       />
 

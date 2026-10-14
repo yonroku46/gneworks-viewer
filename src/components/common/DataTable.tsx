@@ -19,6 +19,8 @@ export interface DataTableExcelAction {
   onExport: () => void | Promise<void>;
   isExporting?: boolean;
   label?: string;
+  disabled?: boolean;
+  tooltip?: string;
 }
 
 export interface DataTableBatchAction {
@@ -208,10 +210,10 @@ export default function DataTable<T>({
             {excelAction && (
               <button
                 type="button"
-                className="btn-excel-export"
+                className={`btn-excel-export ${excelAction.disabled ? 'is-disabled' : ''}`}
                 onClick={excelAction.onExport}
                 disabled={excelAction.isExporting || effectiveTotalCount === 0}
-                title="현재 필터 조건으로 엑셀 파일 다운로드"
+                title={excelAction.tooltip || '현재 필터 조건으로 엑셀 파일 다운로드'}
               >
                 {excelAction.isExporting ? (
                   <>

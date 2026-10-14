@@ -706,6 +706,20 @@ class AdminService {
         params,
         responseType: 'blob',
       });
+
+      // 서버에서 BaseResponse 실패 응답(JSON)을 반환한 경우 처리
+      if (blobData && blobData.type && blobData.type.includes('json')) {
+        const text = await blobData.text();
+        let errorMsg = '엑셀 다운로드 중 오류가 발생했습니다.';
+        try {
+          const json = JSON.parse(text);
+          errorMsg = json?.informations?.[0]?.message || errorMsg;
+        } catch {
+          // ignore
+        }
+        throw new Error(errorMsg);
+      }
+
       const blob = new Blob([blobData], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
