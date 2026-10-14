@@ -289,10 +289,10 @@ function ManageWorkContent() {
           console.error('[ManageWorkPage] getReportListPaged error', err);
           return { list: [], totalCount: 0, page: 1, size: 30, totalPages: 0, hasNext: false, hasPrev: false };
         }),
-        // 전국 검색 시에는 3중 조인 부하가 큰 전국 집계를 회피하여 DB 서버 보호
-        !isNational
-          ? AdminService.getDashboardSummary(regionParam).catch(() => null)
-          : Promise.resolve(null),
+        AdminService.getDashboardSummary(regionParam).catch(err => {
+          console.error('[ManageWorkPage] getDashboardSummary error', err);
+          return null;
+        }),
       ]);
 
       setReports(pagedRes?.list || []);
@@ -304,6 +304,13 @@ function ManageWorkContent() {
           pending: summaryRes.pendingReports || 0,
           needsFix: summaryRes.rejectedReports || 0,
           refused: summaryRes.refusedReports || 0,
+        });
+      } else {
+        setMetrics({
+          total: pagedRes?.totalCount || 0,
+          pending: 0,
+          needsFix: 0,
+          refused: 0,
         });
       }
     } finally {
@@ -483,6 +490,7 @@ function ManageWorkContent() {
       enqueueSnackbar(`[${updatedReport.siteName} ${updatedReport.dong}동 ${updatedReport.ho}호] 상태가 '${statusLabel}'(으)로 변경되었습니다.`, {
         variant: 'success',
       });
+      loadData();
     } catch (err: any) {
       console.error('[ManageWorkPage] updateReportStatus error:', err);
       enqueueSnackbar(err?.message || '상태 변경 중 오류가 발생했습니다.', { variant: 'error' });
@@ -602,7 +610,7 @@ function ManageWorkContent() {
           </div>
           <div className="summary-main-info">
             <span className="summary-label">총 제출 확인서</span>
-            <strong className="summary-val">{metrics.total}건</strong>
+            <strong className="summary-val">{metrics.total.toLocaleString()}건</strong>
           </div>
         </div>
 
@@ -611,15 +619,15 @@ function ManageWorkContent() {
         <div className="summary-sub-chips">
           <div className="summary-sub-chip">
             <span className="chip-label">검토 대기</span>
-            <strong className="chip-val">{metrics.pending}건</strong>
+            <strong className="chip-val">{metrics.pending.toLocaleString()}건</strong>
           </div>
           <div className="summary-sub-chip">
             <span className="chip-label">수정 필요</span>
-            <strong className="chip-val danger-highlight">{metrics.needsFix}건</strong>
+            <strong className="chip-val danger-highlight">{metrics.needsFix.toLocaleString()}건</strong>
           </div>
           <div className="summary-sub-chip">
             <span className="chip-label">설치 거부</span>
-            <strong className="chip-val refused-highlight">{metrics.refused}건</strong>
+            <strong className="chip-val refused-highlight">{metrics.refused.toLocaleString()}건</strong>
           </div>
         </div>
       </div>
@@ -723,6 +731,7 @@ function ManageWorkContent() {
         onReportUpdated={(updated) => {
           setSelectedReport(updated);
           setReports(prev => prev.map(r => r.reportId === updated.reportId ? updated : r));
+          loadData();
         }}
         onDeleteSuccess={(deletedId) => {
           setReports(prev => prev.filter(r => r.reportId !== deletedId));

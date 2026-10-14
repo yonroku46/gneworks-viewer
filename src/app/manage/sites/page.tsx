@@ -592,13 +592,13 @@ export default function ManageCustomers() {
           </div>
           <div className="summary-main-info">
             <span className="summary-label">총 관리 현장</span>
-            <strong className="summary-val">{summaryMetrics.totalSites}개소</strong>
+            <strong className="summary-val">{summaryMetrics.totalSites.toLocaleString()}개소</strong>
           </div>
         </div>
         <div className="summary-sub-chips">
           <div className="summary-sub-chip">
             <span className="chip-label">총 관리단지</span>
-            <strong className="chip-val">{summaryMetrics.totalDongs}개 동</strong>
+            <strong className="chip-val">{summaryMetrics.totalDongs.toLocaleString()}개 동</strong>
           </div>
           <div className="summary-sub-chip">
             <span className="chip-label">총 보급대상</span>
@@ -606,7 +606,7 @@ export default function ManageCustomers() {
           </div>
           <div className="summary-sub-chip">
             <span className="chip-label">지역 담당자</span>
-            <strong className="chip-val highlight">{summaryMetrics.totalWorkers}명</strong>
+            <strong className="chip-val highlight">{summaryMetrics.totalWorkers.toLocaleString()}명</strong>
           </div>
         </div>
       </div>

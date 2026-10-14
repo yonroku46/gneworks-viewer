@@ -507,7 +507,7 @@ export default function RegionalBatchPrintDialog({
                       <th>현장(아파트명)</th>
                       <th>동 / 호수</th>
                       <th>세대주</th>
-                      <th>보급 대상 구분</th>
+                      <th>구분</th>
                       <th>설치 일자</th>
                       <th>작업자</th>
                       <th style={{ textAlign: 'center' }}>감지기 수량</th>

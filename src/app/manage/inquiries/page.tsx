@@ -368,7 +368,7 @@ export default function ManageInquiriesPage() {
           </div>
           <div className="summary-main-info">
             <span className="summary-label">총 접수 문의</span>
-            <strong className="summary-val">{metrics.total}건</strong>
+            <strong className="summary-val">{metrics.total.toLocaleString()}건</strong>
           </div>
         </div>
 
@@ -377,7 +377,7 @@ export default function ManageInquiriesPage() {
         <div className="summary-sub-chips">
           <div className="summary-sub-chip">
             <span className="chip-label">답변 대기</span>
-            <strong className="chip-val danger-highlight">{metrics.pending}건</strong>
+            <strong className="chip-val danger-highlight">{metrics.pending.toLocaleString()}건</strong>
           </div>
         </div>
       </div>

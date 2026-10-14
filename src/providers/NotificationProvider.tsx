@@ -25,6 +25,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { user } = useAuth();
    const [sseStatus, setSseStatus] = useState<'connecting' | 'connected' | 'error' | 'disconnected'>('disconnected');
   const eventSourceRef = useRef<any>(null);
+  const retryCountRef = useRef<number>(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
