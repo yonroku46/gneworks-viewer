@@ -275,20 +275,25 @@ function PortalWorkContent() {
   );
 
   useEffect(() => {
+    let debounceTimer: NodeJS.Timeout | null = null;
     const handleRealtimeNotification = () => {
-      fetchSites(1, false);
-      loadAssignedRegions();
-      if (siteId) {
-        if (isReportDialogOpenRef.current) {
-          // 보고서 작성 모달이 열려 있을 때는 백그라운드 리패치로 인한 입력 방해를 막기 위해 모달 종료 후로 연기
-          pendingDetailRefreshRef.current = true;
-        } else {
-          loadSiteDetail(siteId, { silent: true });
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchSites(1, false);
+        loadAssignedRegions();
+        if (siteId) {
+          if (isReportDialogOpenRef.current) {
+            // 보고서 작성 모달이 열려 있을 때는 백그라운드 리패치로 인한 입력 방해를 막기 위해 모달 종료 후로 연기
+            pendingDetailRefreshRef.current = true;
+          } else {
+            loadSiteDetail(siteId, { silent: true });
+          }
         }
-      }
+      }, 1000);
     };
     window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
     };
   }, [fetchSites, loadAssignedRegions, siteId, loadSiteDetail]);

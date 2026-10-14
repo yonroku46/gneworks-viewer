@@ -314,11 +314,16 @@ function ManageWorkContent() {
   React.useEffect(() => {
     loadData();
 
+    let debounceTimer: NodeJS.Timeout | null = null;
     const handleRealtimeNotification = () => {
-      loadData();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadData();
+      }, 1000);
     };
     window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
     };
   }, [loadData]);

@@ -100,12 +100,17 @@ export default function ManageInquiriesPage() {
     loadInquiries();
     loadPendingCount();
 
+    let debounceTimer: NodeJS.Timeout | null = null;
     const handleRealtimeNotification = () => {
-      loadInquiries();
-      loadPendingCount();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadInquiries();
+        loadPendingCount();
+      }, 1000);
     };
     window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
     };
   }, [loadInquiries, loadPendingCount]);

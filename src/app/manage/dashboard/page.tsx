@@ -196,10 +196,14 @@ export default function ManageDashboard() {
     loadPendingInquirySummary();
     loadDashboardData();
 
-    // 1. 실시간 알림(SSE / Web Push) 수신 시 답변 대기 문의 요약 및 대시보드 실시간 갱신
+    // 1. 실시간 알림(SSE / Web Push) 수신 시 답변 대기 문의 요약 및 대시보드 실시간 갱신 (1초 디바운스)
+    let debounceTimer: NodeJS.Timeout | null = null;
     const handleRealtimeNotification = () => {
-      loadPendingInquirySummary();
-      loadDashboardData();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadPendingInquirySummary();
+        loadDashboardData();
+      }, 1000);
     };
 
     if (typeof window !== 'undefined') {
@@ -212,6 +216,7 @@ export default function ManageDashboard() {
     }, 30000);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       if (typeof window !== 'undefined') {
         window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
       }

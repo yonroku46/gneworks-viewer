@@ -87,16 +87,21 @@ export default function PortalPage() {
     loadPortalData();
 
     if (typeof window !== 'undefined') {
+      let debounceTimer: NodeJS.Timeout | null = null;
       const handleRealtimeNotification = () => {
-        if (isReportDialogOpenRef.current) {
-          pendingPortalRefreshRef.current = true;
-        } else {
-          loadPortalData();
-        }
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          if (isReportDialogOpenRef.current) {
+            pendingPortalRefreshRef.current = true;
+          } else {
+            loadPortalData();
+          }
+        }, 1000);
       };
       window.addEventListener('gneworks-notification-received', handleRealtimeNotification);
 
       return () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
         window.removeEventListener('gneworks-notification-received', handleRealtimeNotification);
       };
     }

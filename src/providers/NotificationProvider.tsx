@@ -27,10 +27,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const eventSourceRef = useRef<any>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const retryCountRef = useRef<number>(0);
+  const lastFetchTimeRef = useRef<number>(0);
+  const notifyDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchNotifications = React.useCallback(async () => {
+  const fetchNotifications = React.useCallback(async (force = false) => {
     if (!user) return;
+    const now = Date.now();
+    if (!force && now - lastFetchTimeRef.current < 10000) {
+      return;
+    }
+    lastFetchTimeRef.current = now;
     setIsLoading(true);
     try {
       const data = await AppNotificationService.getNotifications();
@@ -89,10 +95,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } catch {
           // ignore
         }
-        fetchNotifications();
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('gneworks-notification-received', { detail: parsedData }));
+
+        // 1. SSE 이벤트 페이로드에 이미 도착한 알림 데이터가 있으면 로컬 상태에 즉시 추가 (전체 목록 API 재조회 불필요!)
+        if (parsedData && parsedData.appNotificationId) {
+          setNotifications(prev => [parsedData, ...prev.filter(n => n.appNotificationId !== parsedData.appNotificationId)]);
+        } else {
+          fetchNotifications(true);
         }
+
+        // 2. 관리자 페이지 데이터 갱신 이벤트는 2.5초 디바운스로 전송 (연속 알림 시 폭포수 API 호출 방지)
+        if (notifyDebounceTimerRef.current) {
+          clearTimeout(notifyDebounceTimerRef.current);
+        }
+        notifyDebounceTimerRef.current = setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('gneworks-notification-received', { detail: parsedData }));
+          }
+        }, 2500);
       });
 
       es.addEventListener('connect', () => {
@@ -162,10 +181,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // 2. Service Worker로부터 Web Push 도착 메시지 수신 처리
     const handleSwMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'GNEWORKS_PUSH_NOTIFICATION') {
-        fetchNotifications();
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('gneworks-notification-received', { detail: event.data.payload }));
+        const payload = event.data.payload;
+        if (payload && payload.appNotificationId) {
+          setNotifications(prev => [payload, ...prev.filter(n => n.appNotificationId !== payload.appNotificationId)]);
+        } else {
+          fetchNotifications(true);
         }
+        if (notifyDebounceTimerRef.current) {
+          clearTimeout(notifyDebounceTimerRef.current);
+        }
+        notifyDebounceTimerRef.current = setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('gneworks-notification-received', { detail: payload }));
+          }
+        }, 2500);
       }
     };
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
@@ -179,9 +208,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         disconnectSSE();
         stopPolling();
       } else if (document.visibilityState === 'visible') {
-        // 화면 켜짐 / 복귀: 즉시 최신 데이터 갱신 및 SSE 재연결
+        // 화면 켜짐 / 복귀: 마지막 조회로부터 30초 이상 경과 시에만 재조회
         retryCountRef.current = 0;
-        fetchNotifications();
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current > 30000) {
+          fetchNotifications(true);
+        }
         setupSSE();
         startPolling();
       }
