@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSnackbar } from 'notistack';
+import { Download, Loader2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import AdminService from '@/api/service/AdminService';
 import CustomSelect from '@/components/common/CustomSelect';
 import { KOREA_ADMIN_REGIONS } from '@/constants/regions';
@@ -23,8 +25,8 @@ export default function ManageStatisticsPage() {
   const [activeYearMonth, setActiveYearMonth] = useState<string>(currentYearMonth);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // 시/도 지역 필터 (디폴트: 'ALL' 전국)
   const [selectedSido, setSelectedSido] = useState<string>('ALL');
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   // 통계 데이터 상태
   const [statsData, setStatsData] = useState<ServiceStatisticsRes | null>(null);
@@ -202,6 +204,81 @@ export default function ManageStatisticsPage() {
     return `${baseDate}`;
   };
 
+  // 서비스 통계 엑셀 내보내기 핸들러
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      const [, month] = activeYearMonth.split('-');
+      const monthNum = parseInt(month, 10);
+      const regionName = selectedSido === 'ALL' ? '전국' : selectedSido;
+      const fileName = `서비스통계_${monthNum}월_${regionName}.xlsx`;
+
+      const headerRow1 = ['지역', '현장 수', '보급 세대 현황', '', '제출 확인서 현황', '', '', '', '', '진행률'];
+      const headerRow2 = ['', '', '대상 세대', '완료 세대', '누적 제출', '승인 완료', '검토 대기', '설치 거부', '특이사항', ''];
+
+      const dataRows = filteredList.map((item) => [
+        item.displayName,
+        item.totalSites,
+        item.totalTarget,
+        item.completedTarget,
+        item.totalReports,
+        item.completedReports,
+        item.pendingReports,
+        item.refusedReports || 0,
+        item.issueReportsCount,
+        `${item.progressRate}%`,
+      ]);
+
+      const footerRow = [
+        '전체 합계',
+        summary.totalSites,
+        summary.totalTarget,
+        summary.completedTarget,
+        summary.totalReports,
+        summary.completedReports,
+        summary.pendingReports,
+        summary.refusedReports,
+        summary.issueReportsCount,
+        `${summary.overallProgressRate}%`,
+      ];
+
+      const wsData = [headerRow1, headerRow2, ...dataRows, footerRow];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+        { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
+        { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } },
+        { s: { r: 0, c: 4 }, e: { r: 0, c: 8 } },
+        { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } },
+      ];
+
+      ws['!cols'] = [
+        { wch: 24 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 10 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `${monthNum}월_${regionName}`);
+      XLSX.writeFile(wb, fileName);
+
+      enqueueSnackbar(`[${fileName}] 파일이 다운로드되었습니다.`, { variant: 'success' });
+    } catch (error) {
+      console.error('Failed to export statistics excel:', error);
+      enqueueSnackbar('엑셀 파일 생성 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="manage-statistics-page">
       {/* ── 관리자 표준 페이지 헤더 ── */}
@@ -249,6 +326,33 @@ export default function ManageStatisticsPage() {
               ))}
             </CustomSelect>
           </div>
+        </div>
+      </div>
+
+      {/* ── 테이블 상단 툴바 (내보내기 버튼) ── */}
+      <div className="stats-toolbar">
+        <div className="toolbar-left">
+        </div>
+        <div className="toolbar-right">
+          <button
+            type="button"
+            className="btn-excel-export"
+            onClick={handleExportExcel}
+            disabled={isExporting || isLoading || filteredList.length === 0}
+            title="현재 통계 데이터를 엑셀 파일로 다운로드"
+          >
+            {isExporting ? (
+              <>
+                <span>다운로드 중...</span>
+                <Loader2 size={16} className="animate-spin" />
+              </>
+            ) : (
+              <>
+                <Download size={16} />
+                <span>내보내기</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
