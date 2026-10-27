@@ -160,177 +160,214 @@ export default function RegionalBatchPrintDialog({
         return url;
       };
 
-      // 2. jsPDF 초기화 (A4 세로)
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const CHUNK_SIZE = 500;
+      const totalChunks = Math.ceil(exportReports.length / CHUNK_SIZE);
+      const safeLabel = regionLabel ? regionLabel.replace(/\s+/g, '_') : '지역';
+
       const pdfWidth = 210;
       const pdfHeight = 297;
       const maxWidth = 196;
       const maxHeight = 282;
-      let renderW = maxWidth;
-      let renderH = maxHeight;
-      let leftM = 0;
-      let topM = 0;
 
-      const totalSteps = coverElements.length + exportReports.length;
-      let currentStep = 1;
-
-      // 3. 보급완료 보고서 대지 캡처 (1장 또는 분할된 복수 페이지)
-      for (let i = 0; i < coverElements.length; i++) {
-        if (isCancelledRef.current) return;
-        const coverEl = coverElements[i];
-        setPdfProgressText(`대지 보고서 작성 중... (${currentStep}/${totalSteps})`);
-        if (currentStep > 1) {
-          pdf.addPage();
-        }
-
-        coverEl.classList.add('capturing-for-pdf');
-        const coverCanvas = await html2canvas(coverEl, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#ffffff',
-          logging: false,
-          width: coverEl.offsetWidth,
-          height: coverEl.offsetHeight,
-        });
-        coverEl.classList.remove('capturing-for-pdf');
-
-        const coverData = coverCanvas.toDataURL('image/jpeg', 0.98);
-        const coverProps = pdf.getImageProperties(coverData);
-        renderW = maxWidth;
-        renderH = (coverProps.height * renderW) / coverProps.width;
-        if (renderH > maxHeight) {
-          renderH = maxHeight;
-          renderW = (coverProps.width * renderH) / coverProps.height;
-        }
-        leftM = (pdfWidth - renderW) / 2;
-        topM = (pdfHeight - renderH) / 2;
-        pdf.addImage(coverData, 'JPEG', leftM, topM, renderW, renderH);
-
-        coverCanvas.width = 0;
-        coverCanvas.height = 0;
-        currentStep++;
-      }
-
-      // 4. 세대별 보급지원확인서: 단 1개의 DOM 슬롯에 1세대씩 교체 렌더링하며 순차 캡처 (화면 부하 및 메모리 누수 방지)
-      for (let i = 0; i < exportReports.length; i++) {
-        if (isCancelledRef.current) return;
-        const rep = exportReports[i];
-        setPdfProgressText(`세대 확인서 저장 중... (${i + 1}/${exportReports.length}세대)`);
-
-        // 해당 세대로 교체 렌더링
-        setCapturingReport(rep);
-        // React 렌더링 및 DOM 커밋 안정화 대기
-        await new Promise(resolve => setTimeout(resolve, 80));
-        await new Promise(resolve => requestAnimationFrame(resolve));
+      for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
         if (isCancelledRef.current) return;
 
-        const paperEl = document.getElementById('printable-batch-confirmation-paper');
-        if (!paperEl) continue;
+        const startIdx = chunkIdx * CHUNK_SIZE;
+        const endIdx = Math.min((chunkIdx + 1) * CHUNK_SIZE, exportReports.length);
+        const currentChunkReports = exportReports.slice(startIdx, endIdx);
 
-        // 1. 해당 세대 내 모든 이미지(작업 사진 5장 + 확인자 서명) 로드 대기
-        const imgElements = Array.from(paperEl.querySelectorAll<HTMLImageElement>('img'));
-        await Promise.all(
-          imgElements.map(img => {
-            if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
-            return new Promise(resolve => {
-              const timer = setTimeout(resolve, 2000);
-              img.onload = () => {
-                clearTimeout(timer);
-                resolve(null);
-              };
-              img.onerror = () => {
-                clearTimeout(timer);
-                resolve(null);
-              };
+        // 청크별 jsPDF 인스턴스 신규 생성 (500세대 단위로 메모리 및 V8 문자열 한계 격리)
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        let isFirstPageInPdf = true;
+        let renderW = maxWidth;
+        let renderH = maxHeight;
+        let leftM = 0;
+        let topM = 0;
+
+        // 3. 첫 번째 파일(Part 1)의 첫머리에 보급완료 보고서 대지 캡처 추가
+        if (chunkIdx === 0) {
+          for (let i = 0; i < coverElements.length; i++) {
+            if (isCancelledRef.current) return;
+            const coverEl = coverElements[i];
+            setPdfProgressText(`대지 보고서 작성 중... (${i + 1}/${coverElements.length})`);
+            if (!isFirstPageInPdf) {
+              pdf.addPage();
+            }
+            isFirstPageInPdf = false;
+
+            coverEl.classList.add('capturing-for-pdf');
+            const coverCanvas = await html2canvas(coverEl, {
+              scale: 2,
+              useCORS: true,
+              allowTaint: false,
+              backgroundColor: '#ffffff',
+              logging: false,
+              width: coverEl.offsetWidth,
+              height: coverEl.offsetHeight,
             });
-          })
-        );
-        if (isCancelledRef.current) return;
+            coverEl.classList.remove('capturing-for-pdf');
 
-        // 2. 이미지 DataURL 변환 (CORS 차단 방지)
-        const originalSources = new Map<HTMLImageElement, string>();
-        await Promise.all(
-          imgElements.map(async (img) => {
-            const src = img.src;
-            if (!src || src.startsWith('data:')) return;
-            try {
-              const proxyUrl = toSameOriginUrl(src);
-              const res = await fetch(proxyUrl);
-              if (res.ok) {
-                const blob = await res.blob();
-                const dataUrl = await new Promise<string>((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onloadend = () => resolve(reader.result as string);
-                  reader.onerror = reject;
-                  reader.readAsDataURL(blob);
-                });
-                originalSources.set(img, src);
-                img.src = dataUrl;
-              }
-            } catch {
-              // fetch 실패 시 기존 src 유지
+            const coverData = coverCanvas.toDataURL('image/jpeg', 0.85);
+            const coverProps = pdf.getImageProperties(coverData);
+            renderW = maxWidth;
+            renderH = (coverProps.height * renderW) / coverProps.width;
+            if (renderH > maxHeight) {
+              renderH = maxHeight;
+              renderW = (coverProps.width * renderH) / coverProps.height;
             }
-          })
-        );
-        if (isCancelledRef.current) return;
+            leftM = (pdfWidth - renderW) / 2;
+            topM = (pdfHeight - renderH) / 2;
+            pdf.addImage(coverData, 'JPEG', leftM, topM, renderW, renderH);
 
-        // 3. 변환된 DataURL 이미지들이 브라우저 화면에 완전히 디코딩(렌더)될 때까지 대기
-        await Promise.all(
-          imgElements.map(img => {
-            if (typeof img.decode === 'function') {
-              return img.decode().catch(() => {});
-            }
-            return Promise.resolve();
-          })
-        );
-        await new Promise(resolve => setTimeout(resolve, 40));
-        if (isCancelledRef.current) return;
-
-        // 4. html2canvas 캡처
-        pdf.addPage();
-        paperEl.classList.add('capturing-for-pdf');
-        const canvas = await html2canvas(paperEl, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#ffffff',
-          logging: false,
-          width: paperEl.offsetWidth,
-          height: paperEl.offsetHeight,
-        });
-        paperEl.classList.remove('capturing-for-pdf');
-
-        // DataURL 원복
-        originalSources.forEach((origSrc, img) => {
-          img.src = origSrc;
-        });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        const imgProps = pdf.getImageProperties(imgData);
-        renderW = maxWidth;
-        renderH = (imgProps.height * renderW) / imgProps.width;
-        if (renderH > maxHeight) {
-          renderH = maxHeight;
-          renderW = (imgProps.width * renderH) / imgProps.height;
+            coverCanvas.width = 0;
+            coverCanvas.height = 0;
+          }
         }
-        leftM = (pdfWidth - renderW) / 2;
-        topM = (pdfHeight - renderH) / 2;
-        pdf.addImage(imgData, 'JPEG', leftM, topM, renderW, renderH);
 
-        // 캔버스 메모리 즉시 해제
-        canvas.width = 0;
-        canvas.height = 0;
-        currentStep++;
+        // 4. 세대별 보급지원확인서: 단 1개의 DOM 슬롯에 1세대씩 교체 렌더링하며 순차 캡처
+        for (let i = 0; i < currentChunkReports.length; i++) {
+          if (isCancelledRef.current) return;
+          const rep = currentChunkReports[i];
+          const globalIdx = startIdx + i + 1;
+
+          if (totalChunks > 1) {
+            setPdfProgressText(`[${chunkIdx + 1}/${totalChunks}번 파일] 세대 확인서 저장 중... (${i + 1}/${currentChunkReports.length}세대, 전체 ${globalIdx}/${exportReports.length})`);
+          } else {
+            setPdfProgressText(`세대 확인서 저장 중... (${globalIdx}/${exportReports.length}세대)`);
+          }
+
+          // 해당 세대로 교체 렌더링
+          setCapturingReport(rep);
+          // React 렌더링 및 DOM 커밋 안정화 대기
+          await new Promise(resolve => setTimeout(resolve, 80));
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          if (isCancelledRef.current) return;
+
+          const paperEl = document.getElementById('printable-batch-confirmation-paper');
+          if (!paperEl) continue;
+
+          // 1. 해당 세대 내 모든 이미지(작업 사진 5장 + 확인자 서명) 로드 대기
+          const imgElements = Array.from(paperEl.querySelectorAll<HTMLImageElement>('img'));
+          await Promise.all(
+            imgElements.map(img => {
+              if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
+              return new Promise(resolve => {
+                const timer = setTimeout(resolve, 2000);
+                img.onload = () => {
+                  clearTimeout(timer);
+                  resolve(null);
+                };
+                img.onerror = () => {
+                  clearTimeout(timer);
+                  resolve(null);
+                };
+              });
+            })
+          );
+          if (isCancelledRef.current) return;
+
+          // 2. 이미지 DataURL 변환 (CORS 차단 방지)
+          const originalSources = new Map<HTMLImageElement, string>();
+          await Promise.all(
+            imgElements.map(async (img) => {
+              const src = img.src;
+              if (!src || src.startsWith('data:')) return;
+              try {
+                const proxyUrl = toSameOriginUrl(src);
+                const res = await fetch(proxyUrl);
+                if (res.ok) {
+                  const blob = await res.blob();
+                  const dataUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                  });
+                  originalSources.set(img, src);
+                  img.src = dataUrl;
+                }
+              } catch {
+                // fetch 실패 시 기존 src 유지
+              }
+            })
+          );
+          if (isCancelledRef.current) return;
+
+          // 3. 변환된 DataURL 이미지들이 브라우저 화면에 완전히 디코딩(렌더)될 때까지 대기
+          await Promise.all(
+            imgElements.map(img => {
+              if (typeof img.decode === 'function') {
+                return img.decode().catch(() => {});
+              }
+              return Promise.resolve();
+            })
+          );
+          await new Promise(resolve => setTimeout(resolve, 40));
+          if (isCancelledRef.current) return;
+
+          // 4. html2canvas 캡처
+          if (!isFirstPageInPdf) {
+            pdf.addPage();
+          }
+          isFirstPageInPdf = false;
+
+          paperEl.classList.add('capturing-for-pdf');
+          const canvas = await html2canvas(paperEl, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: false,
+            backgroundColor: '#ffffff',
+            logging: false,
+            width: paperEl.offsetWidth,
+            height: paperEl.offsetHeight,
+          });
+          paperEl.classList.remove('capturing-for-pdf');
+
+          // DataURL 원복
+          originalSources.forEach((origSrc, img) => {
+            img.src = origSrc;
+          });
+
+          const imgData = canvas.toDataURL('image/jpeg', 0.90);
+          const imgProps = pdf.getImageProperties(imgData);
+          renderW = maxWidth;
+          renderH = (imgProps.height * renderW) / imgProps.width;
+          if (renderH > maxHeight) {
+            renderH = maxHeight;
+            renderW = (imgProps.width * renderH) / imgProps.height;
+          }
+          leftM = (pdfWidth - renderW) / 2;
+          topM = (pdfHeight - renderH) / 2;
+          pdf.addImage(imgData, 'JPEG', leftM, topM, renderW, renderH);
+
+          // 캔버스 메모리 즉시 해제
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+
+        if (isCancelledRef.current) return;
+
+        // 5. 해당 파트 PDF 다운로드
+        let fileName = '';
+        if (totalChunks === 1) {
+          fileName = `${safeLabel}_단독경보형감지기_보급완료_일괄보고서.pdf`;
+        } else {
+          fileName = `${safeLabel}_단독경보형감지기_보급완료_일괄보고서_part${chunkIdx + 1}(${startIdx + 1}-${endIdx}세대).pdf`;
+        }
+        pdf.save(fileName);
+
+        // 다음 파일 다운로드 전 브라우저 팝업/다운로드 스로틀링 방지 및 GC 회수를 위한 1초 대기
+        if (chunkIdx < totalChunks - 1) {
+          setPdfProgressText(`[${chunkIdx + 1}/${totalChunks}번 파일] 저장 완료. 다음 파일 준비 중...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
 
-      if (isCancelledRef.current) return;
-
-      // 5. PDF 다운로드 완료
-      const safeLabel = regionLabel ? regionLabel.replace(/\s+/g, '_') : '지역';
-      const fileName = `${safeLabel}_단독경보형감지기_보급완료_일괄보고서.pdf`;
-      pdf.save(fileName);
-      enqueueSnackbar('PDF가 성공적으로 다운로드되었습니다.', { variant: 'success' });
+      if (totalChunks > 1) {
+        enqueueSnackbar(`총 ${totalChunks}개 파일로 분할 다운로드되었습니다. (500세대 단위)`, { variant: 'success' });
+      } else {
+        enqueueSnackbar('PDF가 성공적으로 다운로드되었습니다.', { variant: 'success' });
+      }
     } catch (err: any) {
       if (isCancelledRef.current) return;
       console.error('Batch PDF 다운로드 실패:', err);
