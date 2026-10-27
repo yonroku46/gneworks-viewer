@@ -409,6 +409,30 @@ class AdminService {
   }
 
   /**
+   * 세대 정보 수정
+   * PUT /admin/site/{siteId}/household/{householdId}
+   */
+  async updateHousehold(siteId: string, householdId: string, req: {
+    dong: string;
+    ho: string;
+    headName?: string;
+    targetType?: HouseholdTargetType;
+    installStatus?: InstallStatus;
+    remarks?: string;
+  }): Promise<ActionRes> {
+    try {
+      const response: ApiResponse = await ApiInstance.put(ApiRoutes.ADMIN_HOUSEHOLD_UPDATE(siteId, householdId), req);
+      if (response && !response.hasErrors) {
+        return response.responseData as ActionRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to update household');
+    } catch (error) {
+      console.error('[AdminService] updateHousehold', error);
+      throw error;
+    }
+  }
+
+  /**
    * 세대 삭제
    * DELETE /admin/site/{siteId}/household/{householdId}
    */

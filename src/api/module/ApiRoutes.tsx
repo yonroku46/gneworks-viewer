@@ -41,6 +41,7 @@ const ADMIN_SITE_UPDATE = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}`;
 const ADMIN_SITE_DELETE = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}`;
 const ADMIN_SITE_BATCH_DELETE = `${ADMIN_ROOT}/site/batch-delete`;
 const ADMIN_HOUSEHOLD_ADD = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}/household`;
+const ADMIN_HOUSEHOLD_UPDATE = (siteId: string, householdId: string) => `${ADMIN_ROOT}/site/${siteId}/household/${householdId}`;
 const ADMIN_HOUSEHOLD_DELETE = (siteId: string, householdId: string) => `${ADMIN_ROOT}/site/${siteId}/household/${householdId}`;
 const ADMIN_SITE_HOUSEHOLDS_PAGED = (siteId: string) => `${ADMIN_ROOT}/site/${siteId}/households/paged`;
 
@@ -127,6 +128,7 @@ const ApiRoutes = {
   ADMIN_SITE_DELETE,
   ADMIN_SITE_BATCH_DELETE,
   ADMIN_HOUSEHOLD_ADD,
+  ADMIN_HOUSEHOLD_UPDATE,
   ADMIN_HOUSEHOLD_DELETE,
   ADMIN_SITE_HOUSEHOLDS_PAGED,
   ADMIN_FIRE_REGION_LIST,

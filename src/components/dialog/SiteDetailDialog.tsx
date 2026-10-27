@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Search, Plus, Trash2, X, Info, Phone } from 'lucide-react';
+import { Search, Plus, Trash2, X, Info, Phone, MoreVertical, Edit3 } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import SlideDialog from './SlideDialog';
 import StatusBadge, { TARGET_TYPE_LABEL_MAP } from '@/components/common/StatusBadge';
@@ -91,8 +91,9 @@ export default function SiteDetailDialog({
   const [serverTotalCount, setServerTotalCount] = useState<number>(0);
   const [isHouseholdsLoading, setIsHouseholdsLoading] = useState<boolean>(false);
 
-  // Add Household State
+  // Add & Edit Household State
   const [isAddHouseholdOpen, setIsAddHouseholdOpen] = useState(false);
+  const [editingHousehold, setEditingHousehold] = useState<Household | null>(null);
   const [newHousehold, setNewHousehold] = useState<{
     dong: string;
     ho: string;
@@ -106,6 +107,11 @@ export default function SiteDetailDialog({
     targetType: 'GENERAL',
     remarks: '',
   });
+
+  // Action Menu State (더보기 ... 메뉴)
+  const [activeMenuHouseholdId, setActiveMenuHouseholdId] = useState<string | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
+  const householdFormRef = useRef<HTMLFormElement>(null);
 
   // 내장 현장 정보 수정 모달 상태 (외부에서 onEditSite를 넘기지 않았을 때 자체 지원)
   const [isInternalEditOpen, setIsInternalEditOpen] = useState(false);
@@ -163,10 +169,27 @@ export default function SiteDetailDialog({
       setHouseholdSearch('');
       setWorkersTabSearch('');
       setIsAddHouseholdOpen(false);
+      setEditingHousehold(null);
+      setActiveMenuHouseholdId(null);
       setIsInternalEditOpen(false);
       setHouseholdPage(1);
     }
   }, [isOpen, initialTab, site?.siteId]);
+
+  // Click outside to close action menu
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setActiveMenuHouseholdId(null);
+      }
+    };
+    if (activeMenuHouseholdId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeMenuHouseholdId]);
 
   // 단지 동 수 및 총 세대수 실시간 산출 (현장 메타 정보 우선 활용)
   const totalHouseholdsCount = useMemo(() => {
@@ -265,8 +288,67 @@ export default function SiteDetailDialog({
     }
   };
 
-  // Handle Add Household
-  const handleAddHousehold = async (e: React.FormEvent) => {
+  // Handle Cancel Household Form
+  const handleCancelHouseholdForm = () => {
+    setIsAddHouseholdOpen(false);
+    setEditingHousehold(null);
+    setNewHousehold({
+      dong: '',
+      ho: '',
+      headName: '',
+      targetType: 'GENERAL',
+      remarks: '',
+    });
+  };
+
+  // Toggle Add Mode
+  const handleToggleAddHousehold = () => {
+    if (isAddHouseholdOpen && !editingHousehold) {
+      setIsAddHouseholdOpen(false);
+    } else {
+      setEditingHousehold(null);
+      setNewHousehold({
+        dong: '',
+        ho: '',
+        headName: '',
+        targetType: 'GENERAL',
+        remarks: '',
+      });
+      setIsAddHouseholdOpen(true);
+      setTimeout(() => {
+        if (householdFormRef.current) {
+          householdFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const dongInput = householdFormRef.current.querySelector<HTMLInputElement>('input[name="dong"]');
+          dongInput?.focus();
+        }
+      }, 50);
+    }
+  };
+
+  // Start Edit Household
+  const handleStartEditHousehold = (household: Household) => {
+    setActiveMenuHouseholdId(null);
+    setEditingHousehold(household);
+    setNewHousehold({
+      dong: household.dong || '',
+      ho: household.ho || '',
+      headName: household.headName && household.headName !== '-' ? household.headName : '',
+      targetType: household.targetType || 'GENERAL',
+      remarks: household.remarks || '',
+    });
+    setIsAddHouseholdOpen(true);
+
+    setTimeout(() => {
+      if (householdFormRef.current) {
+        householdFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const dongInput = householdFormRef.current.querySelector<HTMLInputElement>('input[name="dong"]');
+        dongInput?.focus();
+      }
+    }, 60);
+  };
+
+  // Handle Submit Household (Add or Edit)
+  const handleSubmitHousehold = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!site) return;
 
@@ -275,37 +357,61 @@ export default function SiteDetailDialog({
       return;
     }
 
-    try {
-      await AdminService.addHousehold(site.siteId, {
-        dong: newHousehold.dong.trim(),
-        ho: newHousehold.ho.trim(),
-        headName: newHousehold.headName.trim() || '세대주',
-        targetType: newHousehold.targetType,
-        remarks: newHousehold.remarks.trim() || undefined,
-      });
+    const dongTrim = newHousehold.dong.trim();
+    const hoTrim = newHousehold.ho.trim();
+    const dongHo = `${formatDong(dongTrim)} ${formatHo(hoTrim)}`;
 
-      setHouseholdPage(1);
-      fetchHouseholds(1, '');
+    if (editingHousehold) {
+      // ── 세대 수정 ──
+      try {
+        await AdminService.updateHousehold(site.siteId, editingHousehold.householdId, {
+          dong: dongTrim,
+          ho: hoTrim,
+          headName: newHousehold.headName.trim() || '세대주',
+          targetType: newHousehold.targetType,
+          remarks: newHousehold.remarks.trim() || undefined,
+        });
 
-      const updatedSite = await AdminService.getSiteDetail(site.siteId);
-      setCurrentSite(updatedSite);
-      if (onSiteUpdated) {
-        onSiteUpdated(updatedSite);
+        fetchHouseholds(householdPage, householdSearch);
+
+        const updatedSite = await AdminService.getSiteDetail(site.siteId);
+        setCurrentSite(updatedSite);
+        if (onSiteUpdated) {
+          onSiteUpdated(updatedSite);
+        }
+
+        handleCancelHouseholdForm();
+        enqueueSnackbar(`[${dongHo}] 세대 정보가 수정되었습니다.`, { variant: 'success' });
+      } catch (error: any) {
+        console.error('Failed to update household:', error);
+        enqueueSnackbar('세대 정보 수정에 실패했습니다.', { variant: 'error' });
       }
+    } else {
+      // ── 세대 신규 추가 ──
+      try {
+        await AdminService.addHousehold(site.siteId, {
+          dong: dongTrim,
+          ho: hoTrim,
+          headName: newHousehold.headName.trim() || '세대주',
+          targetType: newHousehold.targetType,
+          remarks: newHousehold.remarks.trim() || undefined,
+        });
 
-      const dongHo = `${formatDong(newHousehold.dong.trim())} ${formatHo(newHousehold.ho.trim())}`;
-      setNewHousehold({
-        dong: '',
-        ho: '',
-        headName: '',
-        targetType: 'GENERAL',
-        remarks: '',
-      });
-      setIsAddHouseholdOpen(false);
-      enqueueSnackbar(`[${dongHo}] 세대가 추가되었습니다.`, { variant: 'success' });
-    } catch (error: any) {
-      console.error('Failed to add household:', error);
-      enqueueSnackbar('세대 등록에 실패했습니다.', { variant: 'error' });
+        setHouseholdPage(1);
+        fetchHouseholds(1, '');
+
+        const updatedSite = await AdminService.getSiteDetail(site.siteId);
+        setCurrentSite(updatedSite);
+        if (onSiteUpdated) {
+          onSiteUpdated(updatedSite);
+        }
+
+        handleCancelHouseholdForm();
+        enqueueSnackbar(`[${dongHo}] 세대가 추가되었습니다.`, { variant: 'success' });
+      } catch (error: any) {
+        console.error('Failed to add household:', error);
+        enqueueSnackbar('세대 등록에 실패했습니다.', { variant: 'error' });
+      }
     }
   };
 
@@ -497,21 +603,38 @@ export default function SiteDetailDialog({
 
                 <button
                   type="button"
-                  className="btn-add-household"
-                  onClick={() => setIsAddHouseholdOpen(!isAddHouseholdOpen)}
+                  className={`btn-add-household ${isAddHouseholdOpen && !editingHousehold ? 'active' : ''}`}
+                  onClick={handleToggleAddHousehold}
                 >
                   <Plus size={14} />
                   <span>세대 추가</span>
                 </button>
               </div>
 
-              {/* Collapsible Add Household Form */}
+              {/* Collapsible Add & Edit Household Form */}
               {isAddHouseholdOpen && (
-                <form className="add-household-inline-form" onSubmit={handleAddHousehold}>
+                <form
+                  ref={householdFormRef}
+                  className={`add-household-inline-form ${editingHousehold ? 'is-editing' : ''}`}
+                  onSubmit={handleSubmitHousehold}
+                >
+                  {editingHousehold && (
+                    <div className="form-mode-indicator">
+                      <div className="indicator-badge">
+                        <Edit3 size={13} />
+                        <span>세대 정보 수정</span>
+                      </div>
+                      <span className="indicator-target">
+                        수정 대상: <strong>{formatDong(editingHousehold.dong)} {formatHo(editingHousehold.ho)}</strong>
+                        {editingHousehold.headName && editingHousehold.headName !== '-' && ` (${editingHousehold.headName})`}
+                      </span>
+                    </div>
+                  )}
                   <div className="inline-form-grid">
                     <div className="field-box">
                       <label>동 *</label>
                       <input
+                        name="dong"
                         type="text"
                         placeholder="예: 101"
                         required
@@ -522,6 +645,7 @@ export default function SiteDetailDialog({
                     <div className="field-box">
                       <label>호수 *</label>
                       <input
+                        name="ho"
                         type="text"
                         placeholder="예: 101호"
                         required
@@ -532,6 +656,7 @@ export default function SiteDetailDialog({
                     <div className="field-box">
                       <label>세대주 성명</label>
                       <input
+                        name="headName"
                         type="text"
                         placeholder="예: 홍길동"
                         value={newHousehold.headName}
@@ -555,6 +680,7 @@ export default function SiteDetailDialog({
                     <div className="field-box span-2">
                       <label>비고</label>
                       <input
+                        name="remarks"
                         type="text"
                         placeholder="특이사항 메모"
                         value={newHousehold.remarks}
@@ -563,11 +689,11 @@ export default function SiteDetailDialog({
                     </div>
                   </div>
                   <div className="inline-form-actions">
-                    <button type="button" className="btn-inline-cancel" onClick={() => setIsAddHouseholdOpen(false)}>
+                    <button type="button" className="btn-inline-cancel" onClick={handleCancelHouseholdForm}>
                       취소
                     </button>
                     <button type="submit" className="btn-inline-submit">
-                      세대 등록
+                      {editingHousehold ? '세대 수정' : '세대 등록'}
                     </button>
                   </div>
                 </form>
@@ -584,7 +710,7 @@ export default function SiteDetailDialog({
                       <th>보급 대상 유형</th>
                       <th>설치 상태</th>
                       <th>비고</th>
-                      <th style={{ width: '50px', textAlign: 'center' }}>삭제</th>
+                      <th style={{ width: '60px', textAlign: 'center' }}>관리</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -620,14 +746,51 @@ export default function SiteDetailDialog({
                             </span>
                           </td>
                           <td className="col-actions">
-                            <button
-                              type="button"
-                              className="btn-delete-hh"
-                              title="세대 삭제"
-                              onClick={() => handleDeleteHousehold(household)}
+                            <div
+                              className="hh-action-menu-wrap"
+                              ref={activeMenuHouseholdId === household.householdId ? actionMenuRef : undefined}
                             >
-                              <Trash2 size={14} />
-                            </button>
+                              <button
+                                type="button"
+                                className={`btn-more-menu-trigger ${activeMenuHouseholdId === household.householdId ? 'active' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuHouseholdId(prev => prev === household.householdId ? null : household.householdId);
+                                }}
+                                title="추가 메뉴"
+                                aria-label="추가 메뉴"
+                              >
+                                <MoreVertical size={15} />
+                              </button>
+                              {activeMenuHouseholdId === household.householdId && (
+                                <div className={`hh-action-dropdown-menu ${idx >= serverHouseholds.length - 2 && serverHouseholds.length >= 3 ? 'direction-up' : ''}`}>
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartEditHousehold(household);
+                                    }}
+                                  >
+                                    <Edit3 size={13} />
+                                    <span>수정하기</span>
+                                  </button>
+                                  <div className="dropdown-divider" />
+                                  <button
+                                    type="button"
+                                    className="dropdown-item danger"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveMenuHouseholdId(null);
+                                      handleDeleteHousehold(household);
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                    <span>삭제하기</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))
