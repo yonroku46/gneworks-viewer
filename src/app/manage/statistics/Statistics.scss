@@ -87,10 +87,22 @@
       .bar-title-group {
         display: flex;
         align-items: center;
+        gap: 0.625rem;
         .bar-title {
           font-size: 0.9375rem;
           font-weight: 700;
           letter-spacing: -0.01em;
+        }
+        .bar-loading-indicator {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.375rem;
+          font-size: 0.8125rem;
+          font-weight: 500;
+          color: var(--slate-300);
+          svg {
+            color: var(--manage-primary-border);
+          }
         }
       }
       .bar-actions-group {
@@ -132,7 +144,38 @@
       flex-direction: column;
       overflow-x: auto;
       max-height: calc(100vh - 17rem);
+      min-height: 24rem;
       overflow-y: auto;
+      .table-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: color-mix(in srgb, var(--card-bg) 60%, transparent);
+        backdrop-filter: blur(2px);
+        .loading-badge {
+          position: sticky;
+          top: 45%;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.625rem;
+          padding: 0.75rem 1.25rem;
+          background: var(--slate-900);
+          color: var(--white);
+          border-radius: 0.625rem;
+          box-shadow: var(--shadow-md);
+          font-size: 0.875rem;
+          font-weight: 600;
+          svg {
+            color: var(--manage-primary);
+          }
+        }
+      }
       .stats-matrix-table {
         width: 100%;
         min-height: 100%;
@@ -140,6 +183,11 @@
         border-spacing: 0;
         font-size: 0.875rem;
         text-align: center;
+        transition: opacity 0.2s ease;
+        &.is-loading {
+          opacity: 0.55;
+          pointer-events: none;
+        }
         thead {
           position: sticky;
           top: 0;
