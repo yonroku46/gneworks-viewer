@@ -13,7 +13,17 @@ import './Statistics.scss';
 export default function ManageStatisticsPage() {
   const { enqueueSnackbar } = useSnackbar();
 
-  // 기본 검색 월 및 최대 선택 가능 월: 현재 연월 (예: 2026-10)
+  // 기본 일자 및 최대 선택 가능 일자: 어제 (D-1 전일 마감 집계 기준)
+  const maxAvailableDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }, []);
+
+  // 기본 연월 및 최대 선택 가능 월: 현재 연월 (예: 2026-10)
   const currentYearMonth = useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
@@ -21,6 +31,10 @@ export default function ManageStatisticsPage() {
     return `${y}-${m}`;
   }, []);
 
+  // 조회 주기 모드: 'DAILY' (일별) 또는 'MONTHLY' (월별)
+  const [periodType, setPeriodType] = useState<'DAILY' | 'MONTHLY'>('DAILY');
+  const [selectedDate, setSelectedDate] = useState<string>(maxAvailableDate);
+  const [activeDate, setActiveDate] = useState<string>(maxAvailableDate);
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>(currentYearMonth);
   const [activeYearMonth, setActiveYearMonth] = useState<string>(currentYearMonth);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -51,6 +65,7 @@ export default function ManageStatisticsPage() {
           totalSites: 0,
           totalTarget: 0,
           completedTarget: 0,
+          cumulativeCompletedTarget: 0,
           progressRate: 0,
           totalReports: 0,
           completedReports: 0,
@@ -65,23 +80,31 @@ export default function ManageStatisticsPage() {
   }, []);
 
   // 데이터 조회 함수
-  const fetchStatistics = useCallback(async (yearMonth: string) => {
+  const fetchStatistics = useCallback(async (type: 'DAILY' | 'MONTHLY', dateOrYm: string) => {
     setIsLoading(true);
     try {
-      const data = await AdminService.getServiceStatistics(yearMonth);
+      let data: ServiceStatisticsRes;
+      if (type === 'DAILY') {
+        data = await AdminService.getDailyServiceStatistics(dateOrYm);
+        setActiveDate(dateOrYm);
+      } else {
+        data = await AdminService.getServiceStatistics(dateOrYm);
+        setActiveYearMonth(dateOrYm);
+      }
       setStatsData(data);
-      setActiveYearMonth(yearMonth);
     } catch (error: any) {
       console.error('Failed to load statistics', error);
-      // 조회 실패 시에도 빈 0 객체로 세팅하여 전체 테이블 구조 유지
       setStatsData({
-        yearMonth,
+        periodType: type,
+        date: type === 'DAILY' ? dateOrYm : undefined,
+        yearMonth: type === 'MONTHLY' ? dateOrYm : undefined,
         baseDate: undefined,
         totalRegionCount: masterRegionList.length,
         summary: {
           totalSites: 0,
           totalTarget: 0,
           completedTarget: 0,
+          cumulativeCompletedTarget: 0,
           overallProgressRate: 0,
           totalReports: 0,
           completedReports: 0,
@@ -92,7 +115,11 @@ export default function ManageStatisticsPage() {
         },
         list: [],
       });
-      setActiveYearMonth(yearMonth);
+      if (type === 'DAILY') {
+        setActiveDate(dateOrYm);
+      } else {
+        setActiveYearMonth(dateOrYm);
+      }
       enqueueSnackbar('지역별 통계 데이터를 불러오는데 실패하였습니다.', { variant: 'warning' });
     } finally {
       setIsLoading(false);
@@ -100,10 +127,24 @@ export default function ManageStatisticsPage() {
   }, [enqueueSnackbar, masterRegionList.length]);
 
   useEffect(() => {
-    fetchStatistics(selectedYearMonth);
-  }, [fetchStatistics, selectedYearMonth]);
+    if (periodType === 'DAILY') {
+      fetchStatistics('DAILY', selectedDate);
+    } else {
+      fetchStatistics('MONTHLY', selectedYearMonth);
+    }
+  }, [fetchStatistics, periodType, selectedDate, selectedYearMonth]);
 
-  // 월 변경 시 즉시 조회 (이번 달 이후는 선택 불가)
+  // 일별 날짜 변경 시
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val && val > maxAvailableDate) {
+      enqueueSnackbar('전일(어제) 마감 기준 통계이므로 당일 및 미래 일자는 조회할 수 없습니다.', { variant: 'warning' });
+      return;
+    }
+    setSelectedDate(val);
+  };
+
+  // 월별 연월 변경 시
   const handleMonthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     if (val && val > currentYearMonth) {
@@ -111,9 +152,6 @@ export default function ManageStatisticsPage() {
       return;
     }
     setSelectedYearMonth(val);
-    if (val) {
-      fetchStatistics(val);
-    }
   };
 
   // 실제 데이터 매핑된 전체 지역 목록 (데이터 없는 지역은 0으로 채움)
@@ -156,6 +194,7 @@ export default function ManageStatisticsPage() {
     let sumSites = 0;
     let sumTarget = 0;
     let sumCompletedTarget = 0;
+    let sumCumulativeCompletedTarget = 0;
     let sumReports = 0;
     let sumCompletedReports = 0;
     let sumPendingReports = 0;
@@ -166,10 +205,11 @@ export default function ManageStatisticsPage() {
       sumSites += item.totalSites;
       sumTarget += item.totalTarget;
       sumCompletedTarget += item.completedTarget;
+      sumCumulativeCompletedTarget += (item.cumulativeCompletedTarget || 0);
       sumReports += item.totalReports;
       sumCompletedReports += item.completedReports;
       sumPendingReports += item.pendingReports;
-      sumRefusedReports += item.refusedReports || 0;
+      sumRefusedReports += (item.refusedReports || 0);
       sumIssueReports += item.issueReportsCount;
     });
 
@@ -177,7 +217,8 @@ export default function ManageStatisticsPage() {
       totalSites: sumSites,
       totalTarget: sumTarget,
       completedTarget: sumCompletedTarget,
-      overallProgressRate: sumTarget > 0 ? Math.round((sumCompletedTarget / sumTarget) * 100) : 0,
+      cumulativeCompletedTarget: sumCumulativeCompletedTarget,
+      overallProgressRate: sumTarget > 0 ? Math.round((sumCumulativeCompletedTarget / sumTarget) * 100) : 0,
       totalReports: sumReports,
       completedReports: sumCompletedReports,
       pendingReports: sumPendingReports,
@@ -188,57 +229,67 @@ export default function ManageStatisticsPage() {
 
   // 연월 텍스트 포맷 (예: 2026-09 -> 2026년 09월)
   const formatYearMonthDisplay = (ym: string) => {
-    const [y, m] = ym.split('-');
-    return `${y}년 ${m}월`;
+    const parts = ym.split('-');
+    if (parts.length >= 2) {
+      return `${parts[0]}년 ${parts[1]}월`;
+    }
+    return ym;
   };
 
-  // 집계 기준일 텍스트 포맷 (예: 2026-10-01 -> 2026.10.01 00:00 기준)
-  const formatBaseDateDisplay = (baseDate?: string) => {
-    if (!baseDate) return '';
-    try {
-      const parts = baseDate.split('-');
-      if (parts.length === 3) {
-        return `${parts[0]}.${parts[1]}.${parts[2]}`;
-      }
-    } catch {}
-    return `${baseDate}`;
+  // 일자 텍스트 포맷 (예: 2026-10-23 -> 2026년 10월 23일)
+  const formatDateDisplay = (dt: string) => {
+    const parts = dt.split('-');
+    if (parts.length === 3) {
+      return `${parts[0]}년 ${parts[1]}월 ${parts[2]}일`;
+    }
+    return dt;
   };
 
   // 서비스 통계 엑셀 내보내기 핸들러
   const handleExportExcel = async () => {
     try {
       setIsExporting(true);
-      const [, month] = activeYearMonth.split('-');
-      const monthNum = parseInt(month, 10);
       const regionName = selectedSido === 'ALL' ? '전국' : selectedSido;
-      const fileName = `서비스통계_${monthNum}월_${regionName}.xlsx`;
+      let fileName = '';
+      let sheetName = '';
 
-      const headerRow1 = ['지역', '현장 수', '보급 세대 현황', '', '제출 확인서 현황', '', '', '', '', '진행률'];
-      const headerRow2 = ['', '', '대상 세대', '완료 세대', '누적 제출', '승인 완료', '검토 대기', '설치 거부', '특이사항', ''];
+      if (periodType === 'DAILY') {
+        const dateStr = activeDate.replace(/-/g, '');
+        fileName = `서비스통계_일별_${dateStr}_${regionName}.xlsx`;
+        sheetName = `${dateStr}_${regionName}`;
+      } else {
+        const [, month] = activeYearMonth.split('-');
+        const monthNum = parseInt(month, 10);
+        fileName = `서비스통계_월별_${monthNum}월_${regionName}.xlsx`;
+        sheetName = `${monthNum}월_${regionName}`;
+      }
+
+      const headerRow1 = ['지역', '기간 실적', '', '', '', '', '현황 / 누적', '', '', ''];
+      const headerRow2 = ['', '완료 세대', '승인 완료', '검토 대기', '설치 거부', '특이사항', '현장 수', '총 대상 세대', '누적 완료 세대', '진행률'];
 
       const dataRows = filteredList.map((item) => [
         item.displayName,
-        item.totalSites,
-        item.totalTarget,
         item.completedTarget,
-        item.totalReports,
         item.completedReports,
         item.pendingReports,
         item.refusedReports || 0,
         item.issueReportsCount,
+        item.totalSites,
+        item.totalTarget,
+        item.cumulativeCompletedTarget || 0,
         `${item.progressRate}%`,
       ]);
 
       const footerRow = [
         '전체 합계',
-        summary.totalSites,
-        summary.totalTarget,
         summary.completedTarget,
-        summary.totalReports,
         summary.completedReports,
         summary.pendingReports,
         summary.refusedReports,
         summary.issueReportsCount,
+        summary.totalSites,
+        summary.totalTarget,
+        summary.cumulativeCompletedTarget,
         `${summary.overallProgressRate}%`,
       ];
 
@@ -247,27 +298,25 @@ export default function ManageStatisticsPage() {
 
       ws['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
-        { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
-        { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } },
-        { s: { r: 0, c: 4 }, e: { r: 0, c: 8 } },
-        { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } },
+        { s: { r: 0, c: 1 }, e: { r: 0, c: 5 } },
+        { s: { r: 0, c: 6 }, e: { r: 0, c: 9 } },
       ];
 
       ws['!cols'] = [
         { wch: 24 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
         { wch: 10 },
         { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
+        { wch: 14 },
         { wch: 10 },
       ];
 
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, `${monthNum}월_${regionName}`);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
       XLSX.writeFile(wb, fileName);
 
       enqueueSnackbar(`[${fileName}] 파일이 다운로드되었습니다.`, { variant: 'success' });
@@ -289,28 +338,73 @@ export default function ManageStatisticsPage() {
         </div>
         <div className="page-header-actions">
           <div className="stats-header-filters">
-            <input 
-              type="month"
-              value={selectedYearMonth}
-              max={currentYearMonth}
-              onChange={handleMonthChange}
-              onClick={(e) => {
-                if (typeof e.currentTarget.showPicker === 'function') {
-                  try {
-                    e.currentTarget.showPicker();
-                  } catch {}
-                }
-              }}
-              onFocus={(e) => {
-                if (typeof e.currentTarget.showPicker === 'function') {
-                  try {
-                    e.currentTarget.showPicker();
-                  } catch {}
-                }
-              }}
-              className="stats-month-input"
-              aria-label="조회 연월 선택"
-            />
+            {/* 일별 / 월별 세그먼트 토글 */}
+            <div className="period-toggle-group" role="group" aria-label="조회 단위 선택">
+              <button
+                type="button"
+                className={`period-toggle-btn ${periodType === 'DAILY' ? 'active' : ''}`}
+                onClick={() => setPeriodType('DAILY')}
+              >
+                일별
+              </button>
+              <button
+                type="button"
+                className={`period-toggle-btn ${periodType === 'MONTHLY' ? 'active' : ''}`}
+                onClick={() => setPeriodType('MONTHLY')}
+              >
+                월별
+              </button>
+            </div>
+
+            {/* 일별 선택 시 날짜 피커, 월별 선택 시 연월 피커 */}
+            {periodType === 'DAILY' ? (
+              <input
+                type="date"
+                value={selectedDate}
+                max={maxAvailableDate}
+                onChange={handleDateChange}
+                onClick={(e) => {
+                  if (typeof e.currentTarget.showPicker === 'function') {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }
+                }}
+                onFocus={(e) => {
+                  if (typeof e.currentTarget.showPicker === 'function') {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }
+                }}
+                className="stats-date-input"
+                aria-label="조회 일자 선택"
+              />
+            ) : (
+              <input
+                type="month"
+                value={selectedYearMonth}
+                max={currentYearMonth}
+                onChange={handleMonthChange}
+                onClick={(e) => {
+                  if (typeof e.currentTarget.showPicker === 'function') {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }
+                }}
+                onFocus={(e) => {
+                  if (typeof e.currentTarget.showPicker === 'function') {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }
+                }}
+                className="stats-month-input"
+                aria-label="조회 연월 선택"
+              />
+            )}
+
             <CustomSelect
               value={selectedSido}
               onChange={(e) => setSelectedSido(e.target.value)}
@@ -329,76 +423,65 @@ export default function ManageStatisticsPage() {
         </div>
       </div>
 
-      {/* ── 테이블 상단 툴바 (내보내기 버튼) ── */}
-      <div className="stats-toolbar">
-        <div className="toolbar-left">
-        </div>
-        <div className="toolbar-right">
-          <button
-            type="button"
-            className="btn-excel-export"
-            onClick={handleExportExcel}
-            disabled={isExporting || isLoading || filteredList.length === 0}
-            title="현재 통계 데이터를 엑셀 파일로 다운로드"
-          >
-            {isExporting ? (
-              <>
-                <span>다운로드 중...</span>
-                <Loader2 size={16} className="animate-spin" />
-              </>
-            ) : (
-              <>
-                <Download size={16} />
-                <span>내보내기</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
       {/* ── 지역별 점검내역 테이블 박스 ── */}
       <div className="stats-table-box">
-        {/* 상단 짙은 남색 헤더 바 (타이틀 및 집계 기준일 표시) */}
+        {/* 상단 짙은 남색 헤더 바 (타이틀 및 집계 기준일, 내보내기 버튼) */}
         <div className="table-top-bar">
           <div className="bar-title-group">
             <span className="bar-title">
-              {formatYearMonthDisplay(activeYearMonth)} 지역별 현황
+              {periodType === 'DAILY' ? formatDateDisplay(activeDate) : formatYearMonthDisplay(activeYearMonth)} 지역별 현황
             </span>
-            {statsData?.baseDate && (
-              <span className="bar-base-date-badge">
-                집계기준: {formatBaseDateDisplay(statsData.baseDate)}
-              </span>
-            )}
+          </div>
+          <div className="bar-actions-group">
+            <button
+              type="button"
+              className="btn-excel-export"
+              onClick={handleExportExcel}
+              disabled={isExporting || isLoading || filteredList.length === 0}
+              title="현재 통계 데이터를 엑셀 파일로 다운로드"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="btn-label">다운로드 중...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={16} />
+                  <span className="btn-label">내보내기</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* 대시보드 메트릭 기반 2단 복합 헤더 매트릭스 테이블 */}
+        {/* 2단 복합 그룹 헤더 매트릭스 테이블: [지역] -> [기간 실적] -> [현황 / 누적] */}
         <div className="table-responsive-wrapper">
           <table className="stats-matrix-table">
             <thead>
-              {/* 헤더 1행 */}
+              {/* 헤더 1행: 그룹 헤더 */}
               <tr>
                 <th rowSpan={2} className="col-sticky-region">
                   지역
                 </th>
-                <th rowSpan={2}>
-                  현장 수
+                <th colSpan={5} className="th-group-flow">
+                  기간 실적
                 </th>
-                <th colSpan={2}>보급 세대 현황</th>
-                <th colSpan={5}>제출 확인서 현황</th>
-                <th rowSpan={2} className="col-rate">
-                  진행률
+                <th colSpan={4} className="th-group-stock">
+                  현황 / 누적
                 </th>
               </tr>
-              {/* 헤더 2행 */}
+              {/* 헤더 2행: 세부 항목 */}
               <tr>
-                <th>대상 세대</th>
                 <th>완료 세대</th>
-                <th>누적 제출</th>
                 <th>승인 완료</th>
                 <th>검토 대기</th>
                 <th>설치 거부</th>
                 <th className="col-last-issue">특이사항</th>
+                <th>현장 수</th>
+                <th>총 대상 세대</th>
+                <th>누적 완료 세대</th>
+                <th className="col-rate">진행률</th>
               </tr>
             </thead>
             <tbody>
@@ -412,14 +495,16 @@ export default function ManageStatisticsPage() {
                 filteredList.map((row) => (
                   <tr key={row.regionId}>
                     <td className="col-sticky-region">{row.displayName}</td>
-                    <td className="col-num">{row.totalSites.toLocaleString()}곳</td>
-                    <td className="col-num">{row.totalTarget.toLocaleString()}</td>
-                    <td className="col-num">{row.completedTarget.toLocaleString()}</td>
-                    <td className="col-num">{row.totalReports.toLocaleString()}건</td>
-                    <td className="col-num">{row.completedReports.toLocaleString()}건</td>
+                    {/* 기간 실적 (Flow) */}
+                    <td className="col-num">{row.completedTarget > 0 ? `${row.completedTarget.toLocaleString()}건` : '-'}</td>
+                    <td className="col-num">{row.completedReports > 0 ? `${row.completedReports.toLocaleString()}건` : '-'}</td>
                     <td className="col-num">{row.pendingReports > 0 ? `${row.pendingReports}건` : '-'}</td>
                     <td className="col-num">{row.refusedReports && row.refusedReports > 0 ? `${row.refusedReports}건` : '-'}</td>
                     <td className="col-num col-last-issue">{row.issueReportsCount > 0 ? `${row.issueReportsCount}건` : '-'}</td>
+                    {/* 현황 / 누적 (Stock) */}
+                    <td className="col-num">{row.totalSites.toLocaleString()}곳</td>
+                    <td className="col-num">{row.totalTarget.toLocaleString()}</td>
+                    <td className="col-num">{(row.cumulativeCompletedTarget || 0).toLocaleString()}</td>
                     <td className="col-rate">{row.progressRate}%</td>
                   </tr>
                 ))
@@ -430,14 +515,16 @@ export default function ManageStatisticsPage() {
               <tfoot>
                 <tr>
                   <td className="col-sticky-region">전체 합계</td>
-                  <td>{summary.totalSites.toLocaleString()}곳</td>
-                  <td>{summary.totalTarget.toLocaleString()}</td>
-                  <td>{summary.completedTarget.toLocaleString()}</td>
-                  <td>{summary.totalReports.toLocaleString()}건</td>
+                  {/* 기간 실적 합계 */}
+                  <td>{summary.completedTarget.toLocaleString()}건</td>
                   <td>{summary.completedReports.toLocaleString()}건</td>
                   <td>{summary.pendingReports.toLocaleString()}건</td>
                   <td>{summary.refusedReports.toLocaleString()}건</td>
                   <td className="col-last-issue">{summary.issueReportsCount.toLocaleString()}건</td>
+                  {/* 현황 / 누적 합계 */}
+                  <td>{summary.totalSites.toLocaleString()}곳</td>
+                  <td>{summary.totalTarget.toLocaleString()}</td>
+                  <td>{summary.cumulativeCompletedTarget.toLocaleString()}</td>
                   <td className="col-rate">{summary.overallProgressRate}%</td>
                 </tr>
               </tfoot>

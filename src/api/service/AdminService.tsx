@@ -984,6 +984,25 @@ class AdminService {
   }
 
   /**
+   * 서비스 통계 (일별 소방관할 집계 통계)
+   * GET /admin/statistics/daily?date=YYYY-MM-DD
+   */
+  async getDailyServiceStatistics(date?: string): Promise<ServiceStatisticsRes> {
+    try {
+      const response: ApiResponse = await ApiInstance.get(ApiRoutes.ADMIN_STATISTICS_DAILY, {
+        params: { date },
+      });
+      if (response && !response.hasErrors && response.responseData) {
+        return response.responseData as ServiceStatisticsRes;
+      }
+      throw new Error(response?.informations?.[0]?.message || 'Failed to fetch daily statistics');
+    } catch (error) {
+      console.error('[AdminService] getDailyServiceStatistics error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 서비스 통계 (월별 소방관할 집계 통계)
    * GET /admin/statistics/monthly?yearMonth=YYYY-MM
    */

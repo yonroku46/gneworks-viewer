@@ -435,29 +435,33 @@ declare global {
     totalSites: number;
     totalTarget: number;
     completedTarget: number;
+    cumulativeCompletedTarget?: number;
     progressRate: number;
     totalReports: number;
     completedReports: number;
     pendingReports: number;
     refusedReports?: number;
     issueReportsCount: number;
-    totalWorkers: number;
+    totalWorkers?: number;
   }
   interface ServiceStatisticsRes {
-    yearMonth: string;
+    periodType?: 'DAILY' | 'MONTHLY';
+    date?: string;
+    yearMonth?: string;
     baseDate?: string;
     totalRegionCount: number;
     summary: {
       totalSites: number;
       totalTarget: number;
       completedTarget: number;
+      cumulativeCompletedTarget?: number;
       overallProgressRate: number;
       totalReports: number;
       completedReports: number;
       pendingReports: number;
       refusedReports?: number;
       issueReportsCount: number;
-      totalWorkers: number;
+      totalWorkers?: number;
     };
     list: RegionMonthlyStat[];
   }
